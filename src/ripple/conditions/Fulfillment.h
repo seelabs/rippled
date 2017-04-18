@@ -39,7 +39,10 @@ public:
               that were previously considered valid to no longer
               be allowed.
     */
-    static constexpr std::size_t maxSerializedFulfillment = 256;
+    // swd TBD - set this large as rsaSha256 test cases require it
+    // change back
+    static constexpr std::size_t maxSerializedFulfillment = 1024;
+    // static constexpr std::size_t maxSerializedFulfillment = 256;
 
     /** Load a fulfillment from its binary form
 
