@@ -43,7 +43,7 @@ namespace der {
 
 // The preamble encapsulates the DER identifier and
 // length octets:
-struct Preamble
+struct DerPreamble
 {
     std::uint8_t type = 0;
     std::size_t tag = 0;
@@ -52,51 +52,51 @@ struct Preamble
 
 inline
 bool
-isPrimitive(Preamble const& p)
+isPrimitive(DerPreamble const& p)
 {
     return (p.type & 0x20) == 0;
 }
 
 inline
 bool
-isConstructed(Preamble const& p)
+isConstructed(DerPreamble const& p)
 {
     return !isPrimitive(p);
 }
 
 inline
 bool
-isUniversal(Preamble const& p)
+isUniversal(DerPreamble const& p)
 {
     return (p.type & 0xC0) == 0;
 }
 
 inline
 bool
-isApplication(Preamble const& p)
+isApplication(DerPreamble const& p)
 {
     return (p.type & 0xC0) == 0x40;
 }
 
 inline
 bool
-isContextSpecific(Preamble const& p)
+isContextSpecific(DerPreamble const& p)
 {
     return (p.type & 0xC0) == 0x80;
 }
 
 inline
 bool
-isPrivate(Preamble const& p)
+isPrivate(DerPreamble const& p)
 {
     return (p.type & 0xC0) == 0xC0;
 }
 
 inline
-Preamble
+DerPreamble
 parsePreamble(Slice& s, std::error_code& ec)
 {
-    Preamble p;
+    DerPreamble p;
 
     if (s.size() < 2)
     {
