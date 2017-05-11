@@ -1,7 +1,7 @@
 //------------------------------------------------------------------------------
 /*
     This file is part of rippled: https://github.com/ripple/rippled
-    Copyright (c) 2012, 2013 Ripple Labs Inc.
+    Copyright (c) 2016 Ripple Labs Inc.
 
     Permission to use, copy, modify, and/or distribute this software for any
     purpose  with  or without fee is hereby granted, provided that the above
@@ -17,9 +17,15 @@
 */
 //==============================================================================
 
-#include <BeastConfig.h>
+#include <ripple/conditions/impl/Der.h>
+#include <test/conditions/DerChoice.h>
 
-#include <ripple/conditions/impl/Condition.cpp>
-#include <ripple/conditions/impl/Der.cpp>
-#include <ripple/conditions/impl/Fulfillment.cpp>
-#include <ripple/conditions/impl/error.cpp>
+extern "C" int
+LLVMFuzzerTestOneInput(uint8_t const* data, size_t size)
+{
+    using namespace ripple;
+    using namespace ripple::cryptoconditions::der;
+    Decoder decoder(Slice{data, size}, TagMode::direct);
+    decoder.fuzzTest();
+    return 0;
+}

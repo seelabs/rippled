@@ -519,6 +519,29 @@ foreach(target IN LISTS targets)
     link_common_libraries(${target})
 endforeach()
 
+if (fuzzer_der OR fuzzer_der_corpus)
+  set(FuzzerSrc
+    ${CMAKE_SOURCE_DIR}/src/ripple/conditions/impl/Der.cpp
+    ${CMAKE_SOURCE_DIR}/src/ripple/basics/impl/contract.cpp
+    ${CMAKE_SOURCE_DIR}/src/ripple/basics/impl/Log.cpp
+    ${CMAKE_SOURCE_DIR}/src/ripple/beast/utility/src/beast_Journal.cpp
+    ${CMAKE_SOURCE_DIR}/src/ripple/basics/impl/Time.cpp
+    )
+endif()
+
+if (fuzzer_der)
+  add_executable(fuzzer_der  ${FuzzerSrc}
+    ${CMAKE_SOURCE_DIR}/src/test/conditions/Der_fuzz_test.cpp)
+  target_link_libraries(fuzzer_der libFuzzer.a)
+  link_common_libraries(fuzzer_der)
+endif()
+
+if (fuzzer_corpus_der)
+  add_executable(fuzzer_corpus_der  ${FuzzerSrc}
+    ${CMAKE_SOURCE_DIR}/src/test/conditions/Der_fuzz_corpus.cpp)
+  link_common_libraries(fuzzer_corpus_der)
+endif()
+
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
   message(WARNING "Rippled requires a 64 bit target architecture.\n"
     "The most likely cause of this warning is trying to build rippled with a 32-bit OS.")

@@ -493,8 +493,14 @@ macro(setup_build_boilerplate)
   if (NOT WIN32 AND san)
     add_compile_options(-fsanitize=${san} -fno-omit-frame-pointer)
 
+
     append_flags(CMAKE_EXE_LINKER_FLAGS
       -fsanitize=${san})
+
+    if (fuzzer)
+      add_compile_options(-fsanitize-coverage=trace-pc-guard)
+      append_flags(CMAKE_EXE_LINKER_FLAGS -fsanitize-coverage=trace-pc-guard)
+    endif()
 
     string(TOLOWER ${san} ci_san)
     if (${ci_san} STREQUAL address)

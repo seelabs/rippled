@@ -2439,6 +2439,12 @@
     <ClCompile Include="..\..\src\ripple\conditions\impl\Condition.cpp">
       <Filter>ripple\conditions\impl</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ripple\conditions\impl\Der.cpp">
+      <Filter>ripple\conditions\impl</Filter>
+    </ClCompile>
+    <ClInclude Include="..\..\src\ripple\conditions\impl\Der.h">
+      <Filter>ripple\conditions\impl</Filter>
+    </ClInclude>
     <ClCompile Include="..\..\src\ripple\conditions\impl\error.cpp">
       <Filter>ripple\conditions\impl</Filter>
     </ClCompile>
@@ -5159,6 +5165,18 @@
     </ClCompile>
     <ClCompile Include="..\..\src\test\beast\SemanticVersion_test.cpp">
       <Filter>test\beast</Filter>
+    </ClCompile>
+    <ClInclude Include="..\..\src\test\conditions\DerChoice.h">
+      <Filter>test\conditions</Filter>
+    </ClInclude>
+    <ClCompile Include="..\..\src\test\conditions\Der_fuzz_corpus.cpp">
+      <Filter>test\conditions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\conditions\Der_fuzz_test.cpp">
+      <Filter>test\conditions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\conditions\Der_test.cpp">
+      <Filter>test\conditions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\test\conditions\PreimageSha256_test.cpp">
       <Filter>test\conditions</Filter>
