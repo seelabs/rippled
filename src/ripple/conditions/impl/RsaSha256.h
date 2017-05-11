@@ -17,11 +17,10 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_CONDITIONS_PREIMAGE_SHA256_H
-#define RIPPLE_CONDITIONS_PREIMAGE_SHA256_H
+#ifndef RIPPLE_CONDITIONS_RSA_SHA256_H
+#define RIPPLE_CONDITIONS_RSA_SHA256_H
 
 #include <ripple/basics/Buffer.h>
-#include <ripple/basics/Slice.h>
 #include <ripple/conditions/Condition.h>
 #include <ripple/conditions/Fulfillment.h>
 #include <ripple/conditions/impl/Der.h>
@@ -29,45 +28,30 @@
 namespace ripple {
 namespace cryptoconditions {
 
-class PreimageSha256 final : public Fulfillment
+class RsaSha256 final : public Fulfillment
 {
-public:
-    /** The maximum allowed length of a preimage.
-
-        The specification does not specify a minimum supported
-        length, nor does it require all conditions to support
-        the same minimum length.
-
-        While future versions of this code will never lower
-        this limit, they may opt to raise it.
-    */
-    static constexpr std::size_t maxPreimageLength = 128;
-
-private:
-    Buffer payload_;
+    Buffer modulus_;
+    Buffer signature_;
 
     template <class Coder>
     void
     serialize(Coder& c)
     {
-        c & std::tie(payload_);
+        c & std::tie(modulus_, signature_);
     }
 
 public:
-    PreimageSha256(der::Constructor const&) noexcept {};
+    RsaSha256(der::Constructor const&) noexcept {};
 
-    PreimageSha256(Buffer&& b) noexcept : payload_(std::move(b))
-    {
-    }
+    RsaSha256() = delete;
 
-    PreimageSha256(Slice s) noexcept : payload_(s)
-    {
-    }
+    RsaSha256(Buffer m, Buffer s);
+    RsaSha256(Slice m, Slice s);
 
     Type
     type() const override
     {
-        return Type::preimageSha256;
+        return Type::rsaSha256;
     }
 
     Buffer
@@ -76,13 +60,14 @@ public:
     void
     encodeFingerprint(der::Encoder& encoder) const override;
 
+    bool
+    validate(Slice data) const override;
+
     std::uint32_t
     cost() const override;
 
     std::bitset<5>
     subtypes() const override;
-
-    bool validate(Slice) const override;
 
     void
     encode(der::Encoder& encoder) const override;

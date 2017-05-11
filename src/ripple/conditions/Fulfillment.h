@@ -23,6 +23,7 @@
 #include <ripple/basics/Buffer.h>
 #include <ripple/basics/Slice.h>
 #include <ripple/conditions/Condition.h>
+#include <ripple/conditions/impl/Der.h>
 #include <ripple/conditions/impl/utils.h>
 #include <boost/optional.hpp>
 
@@ -41,7 +42,7 @@ public:
     */
     // swd TBD - set this large as rsaSha256 test cases require it
     // change back
-    static constexpr std::size_t maxSerializedFulfillment = 1024;
+    static constexpr std::size_t maxSerializedFulfillment = 2048;
     // static constexpr std::size_t maxSerializedFulfillment = 256;
 
     /** Load a fulfillment from its binary form
@@ -94,15 +95,49 @@ public:
     std::uint32_t
     cost() const = 0;
 
+    virtual
+    std::bitset<5>
+    subtypes() const = 0;
+
+    std::bitset<5>
+    selfAndSubtypes() const
+    {
+        std::bitset<5> result;
+        result.set(static_cast<std::size_t>(type()));
+        result |= subtypes();
+        return result;
+    }
+
     /** Returns the condition associated with the given fulfillment.
 
         This process is completely deterministic. All implementations
         will, if compliant, produce the identical condition for the
         same fulfillment.
     */
-    virtual
     Condition
-    condition() const = 0;
+    condition() const;
+
+    virtual
+    void
+    encode(der::Encoder&) const = 0;
+
+    virtual
+    void
+    encodeFingerprint(der::Encoder&) const = 0;
+
+    virtual
+    void
+    decode(der::Decoder&) = 0;
+
+    // for testing
+    virtual
+    bool
+    checkEqual(Fulfillment const& rhs) const = 0;
+
+    // for testing
+    virtual
+    bool
+    validationDependsOnMessage() const = 0;
 };
 
 inline
@@ -163,7 +198,41 @@ validate (
     Fulfillment const& f,
     Condition const& c);
 
-}
-}
+
+namespace der {
+template <>
+struct DerCoderTraits<std::unique_ptr<Fulfillment>>
+{
+    constexpr static GroupType
+    groupType()
+    {
+        return GroupType::choice;
+    }
+    constexpr static cid classId(){return cid::contextSpecific;}
+    static boost::optional<std::uint8_t> const&
+    tagNum()
+    {
+        static boost::optional<std::uint8_t> tn;
+        return tn;
+    }
+    static std::uint8_t
+    tagNum(std::unique_ptr<Fulfillment> const& f)
+    {
+        assert(f);
+        return static_cast<std::uint8_t>(f->type());
+    }
+    constexpr static bool primitive(){return false;}
+
+    static void
+    encode(Encoder& encoder, std::unique_ptr<Fulfillment> const& f);
+
+    static
+    void
+    decode(Decoder& decoder, std::unique_ptr<Fulfillment>& v);
+};
+
+} // der
+} // cryptconditions
+} // ripple
 
 #endif

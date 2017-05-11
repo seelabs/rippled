@@ -1,7 +1,7 @@
 //------------------------------------------------------------------------------
 /*
     This file is part of rippled: https://github.com/ripple/rippled
-    Copyright (c) 2012, 2013 Ripple Labs Inc.
+    Copyright (c) 2016 Ripple Labs Inc.
 
     Permission to use, copy, modify, and/or distribute this software for any
     purpose  with  or without fee is hereby granted, provided that the above
@@ -17,14 +17,49 @@
 */
 //==============================================================================
 
-#include <BeastConfig.h>
+#include <ripple/conditions/impl/Ed25519.h>
 
-#include <ripple/conditions/impl/Condition.cpp>
-#include <ripple/conditions/impl/Der.cpp>
-#include <ripple/conditions/impl/Fulfillment.cpp>
-#include <ripple/conditions/impl/Ed25519.cpp>
-#include <ripple/conditions/impl/PrefixSha256.cpp>
-#include <ripple/conditions/impl/PreimageSha256.cpp>
-#include <ripple/conditions/impl/RsaSha256.cpp>
-#include <ripple/conditions/impl/ThresholdSha256.cpp>
-#include <ripple/conditions/impl/error.cpp>
+#include <ed25519-donna/ed25519.h>
+
+namespace ripple {
+namespace cryptoconditions {
+
+bool
+Ed25519::validate(Slice data) const
+{
+    return ed25519_sign_open(
+               data.data(),
+               data.size(),
+               publicKey_.data(),
+               signature_.data()) == 0;
+}
+
+void
+Ed25519::encode(der::Encoder& encoder) const
+{
+    const_cast<Ed25519*>(this)->serialize(encoder);
+}
+
+void
+Ed25519::decode(der::Decoder& decoder)
+{
+    serialize(decoder);
+}
+
+
+bool
+Ed25519::checkEqual(Fulfillment const& rhs) const
+{
+    if (auto c = dynamic_cast<Ed25519 const*>(&rhs))
+        return c->publicKey_ == publicKey_ && c->signature_ == signature_;
+    return false;
+}
+
+bool
+Ed25519::validationDependsOnMessage() const
+{
+    return true;
+}
+
+}
+}

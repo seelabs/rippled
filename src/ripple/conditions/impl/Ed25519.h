@@ -17,72 +17,81 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_CONDITIONS_PREIMAGE_SHA256_H
-#define RIPPLE_CONDITIONS_PREIMAGE_SHA256_H
+#ifndef RIPPLE_CONDITIONS_ED25519_H
+#define RIPPLE_CONDITIONS_ED25519_H
 
-#include <ripple/basics/Buffer.h>
-#include <ripple/basics/Slice.h>
 #include <ripple/conditions/Condition.h>
 #include <ripple/conditions/Fulfillment.h>
 #include <ripple/conditions/impl/Der.h>
+#include <ripple/protocol/PublicKey.h>
+#include <ripple/protocol/SecretKey.h>
+
+#include <array>
+#include <cstdint>
 
 namespace ripple {
 namespace cryptoconditions {
 
-class PreimageSha256 final : public Fulfillment
+class Ed25519 final : public Fulfillment
 {
-public:
-    /** The maximum allowed length of a preimage.
+    static std::size_t constexpr signature_size_ = 64;
+    static std::size_t constexpr pubkey_size_ = 32;
 
-        The specification does not specify a minimum supported
-        length, nor does it require all conditions to support
-        the same minimum length.
-
-        While future versions of this code will never lower
-        this limit, they may opt to raise it.
-    */
-    static constexpr std::size_t maxPreimageLength = 128;
-
-private:
-    Buffer payload_;
+    std::array<std::uint8_t, pubkey_size_> publicKey_;
+    std::array<std::uint8_t, signature_size_> signature_;
 
     template <class Coder>
     void
     serialize(Coder& c)
     {
-        c & std::tie(payload_);
+        c & std::tie(publicKey_, signature_);
     }
 
 public:
-    PreimageSha256(der::Constructor const&) noexcept {};
+    Ed25519(der::Constructor const&) noexcept {};
 
-    PreimageSha256(Buffer&& b) noexcept : payload_(std::move(b))
-    {
-    }
+    Ed25519() = delete;
 
-    PreimageSha256(Slice s) noexcept : payload_(s)
+    explicit
+    Ed25519(
+        std::array<std::uint8_t, pubkey_size_> const& publicKey,
+        std::array<std::uint8_t, signature_size_> const& signature)
+        : publicKey_(publicKey), signature_(signature)
     {
     }
 
     Type
     type() const override
     {
-        return Type::preimageSha256;
+        return Type::ed25519Sha256;
     }
 
     Buffer
-    fingerprint() const override;
+    fingerprint() const override
+    {
+        return Fulfillment::fingerprint();
+    }
 
     void
-    encodeFingerprint(der::Encoder& encoder) const override;
+    encodeFingerprint(der::Encoder& encoder) const override
+    {
+        encoder << std::tie(publicKey_);
+    }
+
+    bool
+    validate(Slice data) const override;
 
     std::uint32_t
-    cost() const override;
+    cost() const override
+    {
+        return 131072;
+    }
 
     std::bitset<5>
-    subtypes() const override;
-
-    bool validate(Slice) const override;
+    subtypes() const override
+    {
+        return std::bitset<5>{};
+    }
 
     void
     encode(der::Encoder& encoder) const override;
@@ -96,7 +105,6 @@ public:
     bool
     validationDependsOnMessage() const override;
 };
-
 }
 }
 

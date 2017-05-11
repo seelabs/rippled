@@ -17,57 +17,46 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_CONDITIONS_PREIMAGE_SHA256_H
-#define RIPPLE_CONDITIONS_PREIMAGE_SHA256_H
+#ifndef RIPPLE_CONDITIONS_THRESHOLD_SHA256_H
+#define RIPPLE_CONDITIONS_THRESHOLD_SHA256_H
 
 #include <ripple/basics/Buffer.h>
-#include <ripple/basics/Slice.h>
 #include <ripple/conditions/Condition.h>
 #include <ripple/conditions/Fulfillment.h>
 #include <ripple/conditions/impl/Der.h>
 
+#include <cstdint>
+
 namespace ripple {
 namespace cryptoconditions {
 
-class PreimageSha256 final : public Fulfillment
+class ThresholdSha256 final : public Fulfillment
 {
-public:
-    /** The maximum allowed length of a preimage.
-
-        The specification does not specify a minimum supported
-        length, nor does it require all conditions to support
-        the same minimum length.
-
-        While future versions of this code will never lower
-        this limit, they may opt to raise it.
-    */
-    static constexpr std::size_t maxPreimageLength = 128;
-
-private:
-    Buffer payload_;
+    // Threshold is the number of subfulfillments
+    std::vector<std::unique_ptr<Fulfillment>> subfulfillments_;
+    std::vector<Condition> subconditions_;
 
     template <class Coder>
     void
     serialize(Coder& c)
     {
-        c & std::tie(payload_);
+        auto fulfillmentsSet = der::make_set(subfulfillments_);
+        auto conditionsSet = der::make_set(subconditions_);
+        c& std::tie(fulfillmentsSet, conditionsSet);
     }
 
 public:
-    PreimageSha256(der::Constructor const&) noexcept {};
+    ThresholdSha256(der::Constructor const&) noexcept {};
 
-    PreimageSha256(Buffer&& b) noexcept : payload_(std::move(b))
-    {
-    }
-
-    PreimageSha256(Slice s) noexcept : payload_(s)
-    {
-    }
+    ThresholdSha256() = delete;
+    ThresholdSha256(
+        std::vector<std::unique_ptr<Fulfillment>> subfulfillments,
+        std::vector<Condition> subconditions);
 
     Type
     type() const override
     {
-        return Type::preimageSha256;
+        return Type::thresholdSha256;
     }
 
     Buffer
@@ -76,13 +65,14 @@ public:
     void
     encodeFingerprint(der::Encoder& encoder) const override;
 
+    bool
+    validate(Slice data) const override;
+
     std::uint32_t
     cost() const override;
 
     std::bitset<5>
     subtypes() const override;
-
-    bool validate(Slice) const override;
 
     void
     encode(der::Encoder& encoder) const override;

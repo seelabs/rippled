@@ -22,8 +22,11 @@
 
 #include <ripple/basics/Buffer.h>
 #include <ripple/basics/Slice.h>
+#include <ripple/conditions/Types.h>
+#include <ripple/conditions/impl/Der.h>
 #include <ripple/conditions/impl/utils.h>
 #include <array>
+#include <bitset>
 #include <cstdint>
 #include <set>
 #include <string>
@@ -32,16 +35,6 @@
 
 namespace ripple {
 namespace cryptoconditions {
-
-enum class Type
-    : std::uint8_t
-{
-    preimageSha256 = 0,
-    prefixSha256 = 1,
-    thresholdSha256 = 2,
-    rsaSha256 = 3,
-    ed25519Sha256 = 4
-};
 
 class Condition
 {
@@ -66,7 +59,7 @@ public:
         https://tools.ietf.org/html/draft-thomas-crypto-conditions-02#section-7.2
     */
     static
-    std::unique_ptr<Condition>
+    Condition
     deserialize(Slice s, std::error_code& ec);
 
 public:
@@ -83,19 +76,21 @@ public:
     std::uint32_t cost;
 
     /** For compound conditions, set of conditions includes */
-    std::set<Type> subtypes;
+    std::bitset<5> subtypes;
 
-    Condition(Type t, std::uint32_t c, Slice fp)
+    Condition(Type t, std::uint32_t c, Slice fp, std::bitset<5> const& s = std::bitset<5>{})
         : type(t)
         , fingerprint(fp)
         , cost(c)
+        , subtypes(s)
     {
     }
 
-    Condition(Type t, std::uint32_t c, Buffer&& fp)
+    Condition(Type t, std::uint32_t c, Buffer&& fp, std::bitset<5> const& s = std::bitset<5>{})
         : type(t)
         , fingerprint(std::move(fp))
         , cost(c)
+        , subtypes(s)
     {
     }
 
@@ -104,7 +99,21 @@ public:
     Condition(Condition const&) = default;
     Condition(Condition&&) = default;
 
-    Condition() = delete;
+    // A default constructor is needed to serialize a vector on conditions - as
+    // needed for the threshold condition.
+    Condition() = default;
+
+    // Construct for der serialization
+    explicit
+    Condition(der::Constructor const&){}
+
+    std::bitset<5>
+    selfAndSubtypes() const
+    {
+        std::bitset<5> result{subtypes};
+        result.set(static_cast<std::size_t>(type));
+        return result;
+    }
 };
 
 inline
@@ -125,8 +134,46 @@ operator!= (Condition const& lhs, Condition const& rhs)
     return !(lhs == rhs);
 }
 
-}
+namespace der {
+template <>
+struct DerCoderTraits<Condition>
+{
+    constexpr static GroupType
+    groupType()
+    {
+        return GroupType::choice;
+    }
+    constexpr static cid classId(){return cid::contextSpecific;}
+    static boost::optional<std::uint8_t> const&
+    tagNum()
+    {
+        static boost::optional<std::uint8_t> tn;
+        return tn;
+    }
+    static std::uint8_t
+    tagNum(Condition const& f)
+    {
+        return static_cast<std::uint8_t>(f.type);
+    }
+    constexpr static bool primitive(){return false;}
 
-}
+    static
+    bool
+    isCompoundCondition(Type t);
+
+    template<class Coder>
+    static void
+    serialize(Coder& coder, Condition& c);
+
+    static void
+    encode(Encoder& encoder, Condition const& c);
+
+    static
+    void
+    decode(Decoder& decoder, Condition& v);
+};
+} // der
+} // cryptoconditions
+} // ripple
 
 #endif

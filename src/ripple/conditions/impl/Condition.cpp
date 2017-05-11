@@ -20,222 +20,157 @@
 #include <ripple/basics/contract.h>
 #include <ripple/conditions/Condition.h>
 #include <ripple/conditions/Fulfillment.h>
+#include <ripple/conditions/impl/Der.h>
 #include <ripple/conditions/impl/PreimageSha256.h>
 #include <ripple/conditions/impl/utils.h>
 #include <boost/regex.hpp>
 #include <boost/optional.hpp>
+#include <bitset>
 #include <vector>
 #include <iostream>
 
 namespace ripple {
 namespace cryptoconditions {
 
-namespace detail {
-// The binary encoding of conditions differs based on their
-// type.  All types define at least a fingerprint and cost
-// sub-field.  Some types, such as the compound condition
-// types, define additional sub-fields that are required to
-// convey essential properties of the cryptocondition (such
-// as the sub-types used by sub-conditions in the case of
-// the compound types).
-//
-// Conditions are encoded as follows:
-//
-//    Condition ::= CHOICE {
-//      preimageSha256   [0] SimpleSha256Condition,
-//      prefixSha256     [1] CompoundSha256Condition,
-//      thresholdSha256  [2] CompoundSha256Condition,
-//      rsaSha256        [3] SimpleSha256Condition,
-//      ed25519Sha256    [4] SimpleSha256Condition
-//    }
-//
-//    SimpleSha256Condition ::= SEQUENCE {
-//      fingerprint          OCTET STRING (SIZE(32)),
-//      cost                 INTEGER (0..4294967295)
-//    }
-//
-//    CompoundSha256Condition ::= SEQUENCE {
-//      fingerprint          OCTET STRING (SIZE(32)),
-//      cost                 INTEGER (0..4294967295),
-//      subtypes             ConditionTypes
-//    }
-//
-//    ConditionTypes ::= BIT STRING {
-//      preImageSha256   (0),
-//      prefixSha256     (1),
-//      thresholdSha256  (2),
-//      rsaSha256        (3),
-//      ed25519Sha256    (4)
-//    }
-
-constexpr std::size_t fingerprintSize = 32;
-
-std::unique_ptr<Condition>
-loadSimpleSha256(Type type, Slice s, std::error_code& ec)
+namespace der {
+bool
+DerCoderTraits<Condition>::
+isCompoundCondition(Type t)
 {
-    using namespace der;
-
-    auto p = parsePreamble(s, ec);
-
-    if (ec)
-        return {};
-
-    if (!isPrimitive(p) || !isContextSpecific(p))
+    static_assert(Type::last == Type::ed25519Sha256, "Add new case");
+    switch (t)
     {
-        ec = error::incorrect_encoding;
-        return {};
+        case Type::preimageSha256:
+        case Type::rsaSha256:
+        case Type::ed25519Sha256:
+            return false;
+        case Type::prefixSha256:
+        case Type::thresholdSha256:
+            return true;
     }
-
-    if (p.tag != 0)
-    {
-        ec = error::unexpected_tag;
-        return {};
-    }
-
-    if (p.length != fingerprintSize)
-    {
-        ec = error::fingerprint_size;
-        return {};
-    }
-
-    Buffer b = parseOctetString(s, p.length, ec);
-
-    if (ec)
-        return {};
-
-    p = parsePreamble(s, ec);
-
-    if (ec)
-        return {};
-
-    if (!isPrimitive(p) || !isContextSpecific(p))
-    {
-        ec = error::malformed_encoding;
-        return{};
-    }
-
-    if (p.tag != 1)
-    {
-        ec = error::unexpected_tag;
-        return {};
-    }
-
-    auto cost = parseInteger<std::uint32_t>(s, p.length, ec);
-
-    if (ec)
-        return {};
-
-    if (!s.empty())
-    {
-        ec = error::trailing_garbage;
-        return {};
-    }
-
-    switch (type)
-    {
-    case Type::preimageSha256:
-        if (cost > PreimageSha256::maxPreimageLength)
-        {
-            ec = error::preimage_too_long;
-            return {};
-        }
-        break;
-
-    default:
-        break;
-    }
-
-    return std::make_unique<Condition>(type, cost, std::move(b));
+    assert(0);
+    return false;  // silence compiler warning
 }
 
+template <class Coder>
+void
+DerCoderTraits<Condition>::
+serialize(
+    Coder& coder,
+    Condition& c)
+{
+    auto constraintedFp =
+        der::make_octet_string_check_equal(c.fingerprint, 32);
+    if (isCompoundCondition(c.type))
+        coder& std::tie(constraintedFp, c.cost, c.subtypes);
+    else
+        coder& std::tie(constraintedFp, c.cost);
 }
 
-std::unique_ptr<Condition>
+void
+DerCoderTraits<Condition>::
+encode(
+    Encoder& encoder,
+    Condition const& c)
+{
+    serialize(encoder, const_cast<Condition&>(c));
+}
+
+void
+DerCoderTraits<Condition>::
+decode(
+    Decoder& decoder,
+    Condition& v)
+{
+    if (decoder.parentSlice().size() > Condition::maxSerializedCondition)
+    {
+        decoder.ec_ = error::large_size;
+        return;
+    }
+
+    auto const parentTag = decoder.parentTag();
+    if (!parentTag)
+    {
+        decoder.ec_ = make_error_code(Error::logicError);
+        return;
+    }
+
+    if (parentTag->classId != classId())
+    {
+        decoder.ec_ = make_error_code(Error::preambleMismatch);
+        return;
+    }
+
+    if (parentTag->tagNum > static_cast<std::uint64_t>(Type::last))
+    {
+        decoder.ec_ = make_error_code(Error::preambleMismatch);
+        return;
+    }
+
+    v.type = static_cast<Type>(parentTag->tagNum);
+    serialize(decoder, v);
+
+    if (decoder.ec_)
+        return;
+
+    if (v.type == Type::preimageSha256 &&
+        v.cost > PreimageSha256::maxPreimageLength)
+    {
+        decoder.ec_ = error::preimage_too_long;
+    }
+}
+
+}  // der
+
+Condition
 Condition::deserialize(Slice s, std::error_code& ec)
 {
-    // Per the RFC, in a condition we choose a type based
-    // on the tag of the item we contain:
+    // The binary encoding of conditions differs based on their
+    // type.  All types define at least a fingerprint and cost
+    // sub-field.  Some types, such as the compound condition
+    // types, define additional sub-fields that are required to
+    // convey essential properties of the cryptocondition (such
+    // as the sub-types used by sub-conditions in the case of
+    // the compound types).
     //
-    // Condition ::= CHOICE {
-    //     preimageSha256   [0] SimpleSha256Condition,
-    //     prefixSha256     [1] CompoundSha256Condition,
-    //     thresholdSha256  [2] CompoundSha256Condition,
-    //     rsaSha256        [3] SimpleSha256Condition,
-    //     ed25519Sha256    [4] SimpleSha256Condition
-    // }
-    if (s.empty())
-    {
-        ec = error::buffer_empty;
-        return {};
-    }
+    // Conditions are encoded as follows:
+    //
+    //    Condition ::= CHOICE {
+    //      preimageSha256   [0] SimpleSha256Condition,
+    //      prefixSha256     [1] CompoundSha256Condition,
+    //      thresholdSha256  [2] CompoundSha256Condition,
+    //      rsaSha256        [3] SimpleSha256Condition,
+    //      ed25519Sha256    [4] SimpleSha256Condition
+    //    }
+    //
+    //    SimpleSha256Condition ::= SEQUENCE {
+    //      fingerprint          OCTET STRING (SIZE(32)),
+    //      cost                 INTEGER (0..4294967295)
+    //    }
+    //
+    //    CompoundSha256Condition ::= SEQUENCE {
+    //      fingerprint          OCTET STRING (SIZE(32)),
+    //      cost                 INTEGER (0..4294967295),
+    //      subtypes             ConditionTypes
+    //    }
+    //
+    //    ConditionTypes ::= BIT STRING {
+    //      preImageSha256   (0),
+    //      prefixSha256     (1),
+    //      thresholdSha256  (2),
+    //      rsaSha256        (3),
+    //      ed25519Sha256    (4)
+    //    }
 
     using namespace der;
 
-    auto const p = parsePreamble(s, ec);
-    if (ec)
-        return {};
+    Condition v{der::constructor};
 
-    // All fulfillments are context-specific, constructed
-    // types
-    if (!isConstructed(p) || !isContextSpecific(p))
-    {
-        ec = error::malformed_encoding;
-        return {};
-    }
+    der::Decoder decoder(s, der::TagMode::automatic);
+    decoder >> v >> der::eos;
 
-    if (p.length > s.size())
-    {
-        ec = error::buffer_underfull;
-        return {};
-    }
-
-    if (s.size() > maxSerializedCondition)
-    {
-        ec = error::large_size;
-        return {};
-    }
-
-    std::unique_ptr<Condition> c;
-
-    switch (p.tag)
-    {
-    case 0: // PreimageSha256
-        c = detail::loadSimpleSha256(
-            Type::preimageSha256,
-            Slice(s.data(), p.length), ec);
-        if (!ec)
-            s += p.length;
-        break;
-
-    case 1: // PrefixSha256
-        ec = error::unsupported_type;
-        return {};
-
-    case 2: // ThresholdSha256
-        ec = error::unsupported_type;
-        return {};
-
-    case 3: // RsaSha256
-        ec = error::unsupported_type;
-        return {};
-
-    case 4: // Ed25519Sha256
-        ec = error::unsupported_type;
-        return {};
-
-    default:
-        ec = error::unknown_type;
-        return {};
-    }
-
-    if (!s.empty())
-    {
-        ec = error::trailing_garbage;
-        return {};
-    }
-
-    return c;
+    ec = decoder.ec_;
+    return v;
 }
-
 }
 }

@@ -19,3 +19,4 @@
 
 #include <test/conditions/Der_test.cpp>
 #include <test/conditions/PreimageSha256_test.cpp>
+#include <test/conditions/Conditions_test.cpp>

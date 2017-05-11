@@ -17,57 +17,46 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_CONDITIONS_PREIMAGE_SHA256_H
-#define RIPPLE_CONDITIONS_PREIMAGE_SHA256_H
+#ifndef RIPPLE_CONDITIONS_PREFIX_SHA256_H
+#define RIPPLE_CONDITIONS_PREFIX_SHA256_H
 
 #include <ripple/basics/Buffer.h>
-#include <ripple/basics/Slice.h>
 #include <ripple/conditions/Condition.h>
 #include <ripple/conditions/Fulfillment.h>
 #include <ripple/conditions/impl/Der.h>
 
+#include <memory>
+
 namespace ripple {
 namespace cryptoconditions {
 
-class PreimageSha256 final : public Fulfillment
+class PrefixSha256 final : public Fulfillment
 {
-public:
-    /** The maximum allowed length of a preimage.
-
-        The specification does not specify a minimum supported
-        length, nor does it require all conditions to support
-        the same minimum length.
-
-        While future versions of this code will never lower
-        this limit, they may opt to raise it.
-    */
-    static constexpr std::size_t maxPreimageLength = 128;
-
-private:
-    Buffer payload_;
+    Buffer prefix_;
+    std::uint64_t maxMessageLength_ = 0;
+    std::unique_ptr<Fulfillment> subfulfillment_;
 
     template <class Coder>
     void
     serialize(Coder& c)
     {
-        c & std::tie(payload_);
+        c & std::tie(prefix_, maxMessageLength_, subfulfillment_);
     }
 
 public:
-    PreimageSha256(der::Constructor const&) noexcept {};
+    PrefixSha256(der::Constructor const&) noexcept {};
 
-    PreimageSha256(Buffer&& b) noexcept : payload_(std::move(b))
-    {
-    }
+    PrefixSha256() = delete;
 
-    PreimageSha256(Slice s) noexcept : payload_(s)
-    {
-    }
+    PrefixSha256(
+        Slice prefix,
+        std::uint64_t maxLength,
+        std::unique_ptr<Fulfillment> subfulfillment);
 
     Type
     type() const override
     {
-        return Type::preimageSha256;
+        return Type::prefixSha256;
     }
 
     Buffer
@@ -76,13 +65,14 @@ public:
     void
     encodeFingerprint(der::Encoder& encoder) const override;
 
+    bool
+    validate(Slice data) const override;
+
     std::uint32_t
     cost() const override;
 
     std::bitset<5>
     subtypes() const override;
-
-    bool validate(Slice) const override;
 
     void
     encode(der::Encoder& encoder) const override;
@@ -96,7 +86,6 @@ public:
     bool
     validationDependsOnMessage() const override;
 };
-
 }
 }
 
