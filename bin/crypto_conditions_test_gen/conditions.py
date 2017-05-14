@@ -14,6 +14,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 
+import itertools
+
 import known_signing_keys
 
 import nacl
@@ -27,6 +29,8 @@ import pyasn1
 from pyasn1.type import univ
 from pyasn1.codec.der.decoder import decode
 from pyasn1.codec.der.encoder import encode
+
+import string
 
 from IPython.core.debugger import Tracer
 
@@ -325,6 +329,39 @@ class Fulfillment:
             raise ValueError('Subtypes mismatch')
         self.msg = escape_hex(to_bytes(json['message']))
 
+    @classmethod
+    def create_from_pylist(cls, pylist):
+        prototypes = {
+            'preim': Preimage,
+            'prefix': Prefix,
+            'thresh': Threshold,
+            'rsa': RsaSha256,
+            'ed': Ed25519
+        }
+        t = type(pylist)
+        if t == str:
+            return prototypes[pylist](pylist=pylist)
+        if t != list:
+            raise ValueError('Bad pylist')
+        if len(pylist) == 0:
+            return []
+        if type(pylist[0]) == str:
+            if pylist[0] == 'thresh':
+                return Threshold(pylist=pylist)
+            elif pylist[0] == 'prefix':
+                return Prefix(pylist=pylist)
+        return [Fulfillment.create_from_pylist(f) for f in pylist]
+
+    def set_msg_self_and_children(self, msg):
+        '''
+        Set the message of a fulfillment so it suceeds.
+        This will set the message of child fulfillments so they
+        will suceeds as well, in particular, this means prefix subcondition
+        will change their prefixes and set its message so
+        prefix+new_message==set_msg
+        '''
+        self.set_msg(msg)
+
     def self_and_subtype_ids(self):
         return set([self.type_id()])
 
@@ -396,7 +433,8 @@ class Ed25519(Fulfillment):
                  msg=b'Attack at Dawn',
                  signing_key=None,
                  json_init=None,
-                 json_check=None):
+                 json_check=None,
+                 pylist=None):
         super().__init__()
         self.cached_verify_key_hex = None
         self.cached_signature_hex = None
@@ -406,6 +444,8 @@ class Ed25519(Fulfillment):
             if json_check:
                 self.check_json(json_check)
             return
+        if pylist is not None and pylist != short_type(self.type_id()):
+            raise ValueError('Ill formed pylist spec')
         if signing_key is None:
             signing_key = Ed25519.known_keys[self.id]
 
@@ -502,7 +542,8 @@ class RsaSha256(Fulfillment):
                  msg=b'Attack at Dawn',
                  signing_key=None,
                  json_init=None,
-                 json_check=None):
+                 json_check=None,
+                 pylist=None):
         super().__init__()
         self.cached_verify_key_hex = None
         self.cached_signature_hex = None
@@ -512,6 +553,8 @@ class RsaSha256(Fulfillment):
             if json_check:
                 self.check_json(json_check)
             return
+        if pylist is not None and pylist != short_type(self.type_id()):
+            raise ValueError('Ill formed pylist spec')
         if signing_key is None:
             signing_key = RsaSha256.known_keys[self.id]
 
@@ -616,7 +659,8 @@ class Prefix(Fulfillment):
                  msg=b'at Dawn',
                  max_msg_length=None,
                  json_init=None,
-                 json_check=None):
+                 json_check=None,
+                 pylist=None):
         super().__init__()
         if json_init:
             self.from_json(json_init)
@@ -625,6 +669,11 @@ class Prefix(Fulfillment):
             return
         if max_msg_length is None:
             max_msg_length = len(prefix) + len(msg)
+        if pylist != None:
+            if len(pylist) < 2 or pylist[0] != short_type(self.type_id()):
+                raise ValueError('Ill formed pylist spec')
+            sub_init = pylist[1] if len(pylist) == 2 else pylist[1:]
+            subfulfillment = Fulfillment.create_from_pylist(sub_init)
         if subfulfillment is None:
             raise ValueError('Must specify either json or subfulfillment')
         self.subfulfillment = subfulfillment
@@ -639,6 +688,11 @@ class Prefix(Fulfillment):
             to_bytes(urlsafe_base64_to_hex(to_bytes(json['prefix']))))
         self.subfulfillment = Fulfillment.create_from_json(json[
             'subfulfillment'])
+
+    def set_msg_self_and_children(self, msg):
+        self.msg = to_bytes(msg)
+        self.prefix = to_bytes('P{}'.format(self.id))
+        self.subfulfillment.set_msg_self_and_children(self.prefix + self.msg)
 
     def set_msg(self, msg):
         self.msg = to_bytes(msg)
@@ -725,13 +779,16 @@ class Preimage(Fulfillment):
                  preimage=b'I am root',
                  msg=b'Attack at Dawn',
                  json_init=None,
-                 json_check=None):
+                 json_check=None,
+                 pylist=None):
         super().__init__()
         if json_init:
             self.from_json(json_init)
             if json_check:
                 self.check_json(json_check)
             return
+        if pylist is not None and pylist != short_type(self.type_id()):
+            raise ValueError('Ill formed pylist spec')
         self.preimage = to_bytes(preimage)
         self.msg = to_bytes(msg)
         self.set_msg(msg)
@@ -785,7 +842,8 @@ class Threshold(Fulfillment):
                  subconditions=None,
                  msg=b'Attack at Dawn',
                  json_init=None,
-                 json_check=None):
+                 json_check=None,
+                 pylist=None):
         super().__init__()
         if json_init:
             self.from_json(json_init)
@@ -794,6 +852,11 @@ class Threshold(Fulfillment):
             return
         self.subfulfillments = subfulfillments
         self.subconditions = subconditions
+        if pylist != None:
+            if len(pylist) != 3 or pylist[0] != short_type(self.type_id()):
+                raise ValueError('Ill formed pylist spec')
+            self.subfulfillments = Fulfillment.create_from_pylist(pylist[1])
+            self.subconditions = [f.condition() for f in Fulfillment.create_from_pylist(pylist[2])]
         self.msg = to_bytes(msg)
         self.set_msg(msg)
 
@@ -822,6 +885,11 @@ class Threshold(Fulfillment):
         self.msg = to_bytes(msg)
         for f in self.subfulfillments:
             f.set_msg(msg)
+
+    def set_msg_self_and_children(self, msg):
+        self.msg = to_bytes(msg)
+        for f in self.subfulfillments:
+            f.set_msg_self_and_children(msg)
 
     def cost(self):
         costs = [c.cost() for c in self.subconditions
@@ -1005,6 +1073,11 @@ class TestWriter:
         elif test_type == preimageSha256TypeId:
             self.write_test_case_preimage()
 
+    def save_pylist_test_case(self, pylist):
+        f = Fulfillment.create_from_pylist(pylist)
+        f.set_msg_self_and_children(string.ascii_lowercase)
+        self.write_test(f)
+
     def save_json_test_case(self, tc):
         test_type = tc['json']['type']
         f = Fulfillment.create_from_json(json_init=tc['json'], json_check=tc)
@@ -1040,25 +1113,37 @@ def save_json_test_cases(test_writer):
         test_type = tc['json']['type']
 
 
-def save_all_test_cases(file_name, inc_json=False):
+def save_all_test_cases(file_name, inc_json=True):
     with open(file_name, 'w') as f:
         f.write('''
 class Conditions_test : public ConditionsTestBase
 {
         ''')
         tw = TestWriter(f)
-        for tc in [
-                preimageSha256TypeId, ed25519Sha256TypeId, rsaSha256TypeId,
-                prefixSha256TypeId, thresholdSha256TypeId
-        ]:
-            tw.write_test_case(tc)
+        for tc in ['preim', 'rsa', 'ed']:
+            tw.save_pylist_test_case(tc)
+            pre0 = ['prefix', tc]
+            tw.save_pylist_test_case(pre0)
+            thresh0 = ['thresh', [tc], []]
+            thresh1 = ['thresh', [tc], ['preim', 'rsa', 'ed']]
+            thresh2 = ['thresh', [tc, thresh1], ['preim', 'rsa', 'ed']]
+            thresh3 = ['thresh', [tc, thresh1], ['preim', 'rsa', 'ed', thresh1]]
+            all_thresh = [thresh0, thresh1, thresh2, thresh3]
+            for i in all_thresh:
+                tw.save_pylist_test_case(i)
+            prepre0 = ['prefix', 'prefix', tc]
+            prepre1 = ['prefix', 'prefix', pre0]
+            prepre2 = ['prefix', 'prefix', thresh0]
+            prepre3 = ['prefix', 'prefix', thresh1]
+            prepre4 = ['prefix', 'prefix', thresh2]
+            prepre5 = ['prefix', 'prefix', thresh3]
+            all_prepre = [prepre0, prepre1, prepre2, prepre3, prepre4, prepre5]
+            for i in all_prepre:
+                tw.save_pylist_test_case(i)
+            for a,b,c in zip(all_prepre + all_thresh, itertools.cycle(all_prepre), itertools.cycle(all_thresh)):
+                tw.save_pylist_test_case(['thresh', [a, b, c], ['preim', 'rsa', 'ed']])
+                tw.save_pylist_test_case(['thresh', [a, 'preim', 'rsa', 'ed'], ['preim', 'rsa', 'ed', b, c]])
         if inc_json:
             save_json_test_cases(tw)
         tw.write_run()
         f.write('\n};')
-
-
-# TBD
-# docs
-# "other" test cases (multi-level thresh, every cc as child of prefix, ect)
-# "failure" test cases
