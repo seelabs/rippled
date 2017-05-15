@@ -42,7 +42,7 @@ public:
     */
     // swd TBD - set this large as rsaSha256 test cases require it
     // change back
-    static constexpr std::size_t maxSerializedFulfillment = 2048;
+    static constexpr std::size_t maxSerializedFulfillment = 4096;
     // static constexpr std::size_t maxSerializedFulfillment = 256;
 
     /** Load a fulfillment from its binary form
