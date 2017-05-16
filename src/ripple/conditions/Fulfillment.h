@@ -40,10 +40,7 @@ public:
               that were previously considered valid to no longer
               be allowed.
     */
-    // swd TBD - set this large as rsaSha256 test cases require it
-    // change back
     static constexpr std::size_t maxSerializedFulfillment = 4096;
-    // static constexpr std::size_t maxSerializedFulfillment = 256;
 
     /** Load a fulfillment from its binary form
 
@@ -73,7 +70,7 @@ public:
    */
     virtual
     Buffer
-    fingerprint() const = 0;
+    fingerprint(std::error_code& ec) const = 0;
 
     /** Returns the type of this condition. */
     virtual
@@ -115,7 +112,7 @@ public:
         same fulfillment.
     */
     Condition
-    condition() const;
+    condition(std::error_code& ec) const;
 
     virtual
     void
@@ -145,10 +142,17 @@ bool
 operator== (Fulfillment const& lhs, Fulfillment const& rhs)
 {
     // FIXME: for compound conditions, need to also check subtypes
-    return
+    std::error_code ec1, ec2;
+    auto const result =
         lhs.type() == rhs.type() &&
             lhs.cost() == rhs.cost() &&
-                lhs.fingerprint() == rhs.fingerprint();
+                lhs.fingerprint(ec1) == rhs.fingerprint(ec2);
+    if (ec1 || ec2)
+    {
+        // can not compare if there is an error encoding the fingerprint
+        return false;
+    }
+    return result;
 }
 
 inline
@@ -208,7 +212,7 @@ struct DerCoderTraits<std::unique_ptr<Fulfillment>>
     {
         return GroupType::choice;
     }
-    constexpr static cid classId(){return cid::contextSpecific;}
+    constexpr static ClassId classId(){return ClassId::contextSpecific;}
     static boost::optional<std::uint8_t> const&
     tagNum()
     {

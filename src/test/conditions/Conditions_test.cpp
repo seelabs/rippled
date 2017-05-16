@@ -57,8 +57,8 @@ protected:
 
         auto c1 = Condition::deserialize(makeSlice(encodedCondition), ec);
         BEAST_EXPECT(!ec);
-        BEAST_EXPECT(f->condition() == c1);
-        BEAST_EXPECT(expectedF->condition() == c1);
+        BEAST_EXPECT(f->condition(ec) == c1 && !ec);
+        BEAST_EXPECT(expectedF->condition(ec) == c1 && !ec);
 
         {
             // check fulfillment encodings match
@@ -81,7 +81,8 @@ protected:
         {
             // check condition encoding match
             Encoder s{TagMode::automatic};
-            s << f->condition() << eos;
+            s << f->condition(ec) << eos;
+            BEAST_EXPECT(!ec);
             std::vector<char> encoded;
             s.write(encoded);
             BEAST_EXPECT(makeSlice(encoded) == makeSlice(encodedCondition));

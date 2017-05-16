@@ -20,6 +20,8 @@
 #include <ripple/conditions/impl/Der.h>
 #include <ripple/conditions/impl/ThresholdSha256.h>
 
+#include <boost/dynamic_bitset.hpp>
+
 #include <algorithm>
 #include <cstdint>
 #include <limits>
@@ -36,19 +38,23 @@ ThresholdSha256::ThresholdSha256(
 }
 
 Buffer
-ThresholdSha256::fingerprint() const
+ThresholdSha256::fingerprint(std::error_code& ec) const
 {
-    return Fulfillment::fingerprint();
+    return Fulfillment::fingerprint(ec);
 }
 
 void
 ThresholdSha256::encodeFingerprint(der::Encoder& encoder) const
 {
     std::uint16_t const threshold = static_cast<std::uint16_t>(subfulfillments_.size());
-    // swd TBD - this is very inefficient
     std::vector<Condition> allConditions(subconditions_);
+    allConditions.reserve(subfulfillments_.size());
     for(auto const& f : subfulfillments_)
-        allConditions.push_back(f->condition());
+    {
+        allConditions.push_back(f->condition(encoder.ec_));
+        if (encoder.ec_)
+            return;
+    }
     auto conditionsSet = der::make_set(allConditions);
     encoder << std::tie(threshold, conditionsSet);
 }
@@ -116,51 +122,43 @@ ThresholdSha256::checkEqual(Fulfillment const& rhs) const
         c->subconditions_.size() != subconditions_.size())
         return false;
 
-    if (subfulfillments_.size() > 64 || subconditions_.size() > 64)
     {
-        // swd TBD
-        assert(0);
-    }
-
-    {
-        std::uint64_t foundEqual = 0;
+        boost::dynamic_bitset<> foundEqual(subfulfillments_.size());
         for (size_t i = 0; i < subfulfillments_.size(); ++i)
         {
             for (size_t j = 0; j < subfulfillments_.size(); ++j)
             {
                 if (c->subfulfillments_[i]->checkEqual(*subfulfillments_[j]))
                 {
-                    std::uint64_t mask = 1 << j;
-                    if (foundEqual & mask)
+                    if (foundEqual[j])
                         continue;
 
-                    foundEqual |= 1 << j;
+                    foundEqual.set(j);
                     break;
                 }
             }
         }
-        if (foundEqual != ((1 << subfulfillments_.size()) - 1))
+        if (!foundEqual.all())
             return false;
     }
 
     {
-        std::uint64_t foundEqual = 0;
+        boost::dynamic_bitset<> foundEqual(subconditions_.size());
         for (size_t i = 0; i < subconditions_.size(); ++i)
         {
             for (size_t j = 0; j < subconditions_.size(); ++j)
             {
                 if (c->subconditions_[i] == subconditions_[j])
                 {
-                    std::uint64_t mask = 1 << j;
-                    if (foundEqual & mask)
+                    if (foundEqual[j])
                         continue;
 
-                    foundEqual |= 1 << j;
+                    foundEqual.set(j);
                     break;
                 }
             }
         }
-        if (foundEqual != ((1 << subconditions_.size()) - 1))
+        if (!foundEqual.all())
             return false;
     }
 

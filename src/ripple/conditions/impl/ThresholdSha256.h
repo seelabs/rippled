@@ -60,7 +60,7 @@ public:
     }
 
     Buffer
-    fingerprint() const override;
+    fingerprint(std::error_code& ec) const override;
 
     void
     encodeFingerprint(der::Encoder& encoder) const override;

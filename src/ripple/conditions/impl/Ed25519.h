@@ -67,9 +67,9 @@ public:
     }
 
     Buffer
-    fingerprint() const override
+    fingerprint(std::error_code& ec) const override
     {
-        return Fulfillment::fingerprint();
+        return Fulfillment::fingerprint(ec);
     }
 
     void

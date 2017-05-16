@@ -30,7 +30,7 @@ namespace ripple {
 namespace cryptoconditions {
 
 Buffer
-PreimageSha256::fingerprint() const
+PreimageSha256::fingerprint(std::error_code& ec) const
 {
     sha256_hasher h;
     h(payload_.data(), payload_.size());

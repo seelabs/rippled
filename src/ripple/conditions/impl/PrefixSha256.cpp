@@ -39,16 +39,16 @@ PrefixSha256::PrefixSha256(
 }
 
 Buffer
-PrefixSha256::fingerprint() const
+PrefixSha256::fingerprint(std::error_code& ec) const
 {
     if (!subfulfillment_)
     {
         assert(0);
-        // swd TBD set error code?
+        ec = error::generic;
         return {};
     };
 
-    return Fulfillment::fingerprint();
+    return Fulfillment::fingerprint(ec);
 }
 
 void
@@ -57,11 +57,13 @@ PrefixSha256::encodeFingerprint(der::Encoder& encoder) const
     if (!subfulfillment_)
     {
         assert(0);
-        // swd TBD set error code?
+        encoder.ec_ = error::generic;
         return;
     };
 
-    auto const cond = subfulfillment_->condition();
+    auto const cond = subfulfillment_->condition(encoder.ec_);
+    if (encoder.ec_)
+        return;
     encoder << std::tie(prefix_, maxMessageLength_, cond);
 }
 
@@ -80,9 +82,6 @@ PrefixSha256::validate(Slice data) const
         data.data(),
         data.data() + data.size(),
         appendedData.data() + prefix_.size());
-    // swd TBD - note it's probably an error to use a preimage as a
-    // subfulfillment
-    // should there be a check for this?
     return subfulfillment_->validate(makeSlice(appendedData));
 }
 

@@ -134,9 +134,9 @@ RsaSha256::RsaSha256(Slice m, Slice s) : modulus_(m), signature_(s)
 }
 
 Buffer
-RsaSha256::fingerprint() const
+RsaSha256::fingerprint(std::error_code& ec) const
 {
-    return Fulfillment::fingerprint();
+    return Fulfillment::fingerprint(ec);
 }
 
 void

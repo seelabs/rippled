@@ -109,9 +109,9 @@ decode(Decoder& decoder, std::unique_ptr<Fulfillment>& v)
 }  // der
 
 Condition
-Fulfillment::condition() const
+Fulfillment::condition(std::error_code& ec) const
 {
-    return {type(), cost(), fingerprint(), subtypes()};
+    return {type(), cost(), fingerprint(ec), subtypes()};
 }
 
 std::unique_ptr<Fulfillment>
@@ -135,7 +135,7 @@ Fulfillment::deserialize(
 }
 
 Buffer
-Fulfillment::fingerprint() const
+Fulfillment::fingerprint(std::error_code& ec) const
 {
     der::Encoder encoder{der::TagMode::automatic};
     encodeFingerprint(encoder);
@@ -143,15 +143,12 @@ Fulfillment::fingerprint() const
 
     if (encoder.ec_)
     {
-        // swd TBD
+        ec = encoder.ec_;
+        return {};
     }
     std::vector<char> encoded;
     encoded.reserve(Condition::maxSerializedCondition);
     encoder.write(encoded);
-    if (encoded.size() > Condition::maxSerializedCondition)
-    {
-        // swd TBD - assert?
-    }
     sha256_hasher h;
     h(encoded.data(), encoded.size());
     auto const d = static_cast<sha256_hasher::result_type>(h);
@@ -170,7 +167,11 @@ match (
 
     // Derive the condition from the given fulfillment
     // and ensure that it matches the given condition.
-    return c == f.condition();
+    std::error_code ec;
+    auto const result = c == f.condition(ec);
+    if (ec)
+        return false;
+    return result;
 }
 
 bool

@@ -97,13 +97,15 @@ class PreimageSha256_test : public beast::unit_test::suite
         if (! (f1 && f2))
             return;
 
-        BEAST_EXPECT (f1->condition() == c1);
-        BEAST_EXPECT (f1->condition() != c2);
-        BEAST_EXPECT (f2->condition() == c2);
-        BEAST_EXPECT (f2->condition() != c1);
+        std::error_code cec;
+        BEAST_EXPECT (f1->condition(cec) == c1 && !cec);
+        BEAST_EXPECT (f1->condition(cec) != c2 && !cec);
+        BEAST_EXPECT (f2->condition(cec) == c2 && !cec);
+        BEAST_EXPECT (f2->condition(cec) != c1 && !cec);
         BEAST_EXPECT (c1 != c2);
         BEAST_EXPECT (c1 == c1);
-        BEAST_EXPECT (f1->condition() == f1->condition());
+        std::error_code cec2;
+        BEAST_EXPECT (f1->condition(cec) == f1->condition(cec2) && !cec && !cec2);
 
         // Should validate with the empty string
         BEAST_EXPECT (validate (*f1, c1));

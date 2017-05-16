@@ -143,7 +143,7 @@ struct DerCoderTraits<Condition>
     {
         return GroupType::choice;
     }
-    constexpr static cid classId(){return cid::contextSpecific;}
+    constexpr static ClassId classId(){return ClassId::contextSpecific;}
     static boost::optional<std::uint8_t> const&
     tagNum()
     {
