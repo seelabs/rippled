@@ -62,7 +62,7 @@ public:
         std::error_code& ec);
 
 protected:
-    /** encode the contentents used to calculate a fingerprint
+    /** encode the contents used to calculate a fingerprint
 
         @note Most cryptoconditions (excepting preimage) calculate their
               fingerprints by encoding into a ans.1 der format and hashing the
@@ -74,10 +74,10 @@ protected:
     encodeFingerprint(der::Encoder&) const = 0;
 
     /** FOR TEST CODE ONLY return true if the fulfillment is equal to the given
-        fulfillment.
+        fulfillment. Non-test code should use operator==
 
-        @note This uses an ineffiencnt algorithm for comparison. Threshold is
-        particular problematic. This should be used for TESTING ONLY!!!
+        @note This uses an inefficient algorithm for comparison. Threshold is
+              particular problematic. This should be used for TESTING ONLY!!!
     */
     virtual
     bool
@@ -142,24 +142,25 @@ public:
     Condition
     condition(std::error_code& ec) const;
 
-    /// Add the fulfillment to the asn.1 der encoder
+    /// serialize the fulfillment into the asn.1 der encoder
     virtual
     void
     encode(der::Encoder&) const = 0;
 
+    /// deserialize from the asn.1 decoder into this object
     virtual
     void
     decode(der::Decoder&) = 0;
 };
 
+/// compare two fulfillments for equality
 inline
 bool
 operator== (Fulfillment const& lhs, Fulfillment const& rhs)
 {
-    // FIXME: for compound conditions, need to also check subtypes
     std::error_code ec1, ec2;
     auto const result =
-        lhs.type() == rhs.type() &&
+        lhs.selfAndSubtypes() == rhs.selfAndSubtypes() &&
             lhs.cost() == rhs.cost() &&
                 lhs.fingerprint(ec1) == rhs.fingerprint(ec2);
     if (ec1 || ec2)
@@ -170,6 +171,7 @@ operator== (Fulfillment const& lhs, Fulfillment const& rhs)
     return result;
 }
 
+/// compare two fulfillments for inequality
 inline
 bool
 operator!= (Fulfillment const& lhs, Fulfillment const& rhs)
@@ -218,6 +220,14 @@ validate (
     Condition const& c);
 
 
+/** DerCoderTraits for std::unique_ptr<Fulfillment>
+
+    std::unique_ptr<Fulfillment> will be coded in asn.1 as a choice. The actual
+    choice will depend on the concrete type of the Fulfillment (preimage,
+    prefix, ect...)
+
+    @see {@link #DerCoderTraits}
+*/
 namespace der {
 template <>
 struct DerCoderTraits<std::unique_ptr<Fulfillment>>
