@@ -155,6 +155,15 @@ Fulfillment::fingerprint(std::error_code& ec) const
     return {d.data(), d.size()};
 }
 
+std::bitset<5>
+Fulfillment::selfAndSubtypes() const
+{
+    std::bitset<5> result;
+    result.set(static_cast<std::size_t>(type()));
+    result |= subtypes();
+    return result;
+}
+
 bool
 match (
     Fulfillment const& f,

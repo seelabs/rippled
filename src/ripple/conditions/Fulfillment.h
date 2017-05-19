@@ -32,6 +32,9 @@ namespace cryptoconditions {
 
 struct Fulfillment
 {
+    friend class ConditionsTestBase;
+    friend class ThresholdSha256;
+    friend class PrefixSha256;
 public:
     /** The largest binary fulfillment we support.
 
@@ -58,6 +61,37 @@ public:
         Slice s,
         std::error_code& ec);
 
+protected:
+    /** encode the contentents used to calculate a fingerprint
+
+        @note Most cryptoconditions (excepting preimage) calculate their
+              fingerprints by encoding into a ans.1 der format and hashing the
+              contents of that encoding. This function encodes the contents that will be
+              hashed. It does not encode the hash itself.
+     */
+    virtual
+    void
+    encodeFingerprint(der::Encoder&) const = 0;
+
+    /** FOR TEST CODE ONLY return true if the fulfillment is equal to the given
+        fulfillment.
+
+        @note This uses an ineffiencnt algorithm for comparison. Threshold is
+        particular problematic. This should be used for TESTING ONLY!!!
+    */
+    virtual
+    bool
+    checkEqual(Fulfillment const& rhs) const = 0;
+
+    /** FOR TEST CODE ONLY return true if the fulfillment depends on the message.
+
+        @note Preimage does not depend on the message. So any fulfillment where
+              all the "leaf" fulfillments are preimage would not depend on the
+              message, all others would.
+     */
+    virtual
+    bool
+    validationDependsOnMessage() const = 0;
 public:
     virtual ~Fulfillment() = default;
 
@@ -97,13 +131,7 @@ public:
     subtypes() const = 0;
 
     std::bitset<5>
-    selfAndSubtypes() const
-    {
-        std::bitset<5> result;
-        result.set(static_cast<std::size_t>(type()));
-        result |= subtypes();
-        return result;
-    }
+    selfAndSubtypes() const;
 
     /** Returns the condition associated with the given fulfillment.
 
@@ -114,27 +142,14 @@ public:
     Condition
     condition(std::error_code& ec) const;
 
+    /// Add the fulfillment to the asn.1 der encoder
     virtual
     void
     encode(der::Encoder&) const = 0;
 
     virtual
     void
-    encodeFingerprint(der::Encoder&) const = 0;
-
-    virtual
-    void
     decode(der::Decoder&) = 0;
-
-    // for testing
-    virtual
-    bool
-    checkEqual(Fulfillment const& rhs) const = 0;
-
-    // for testing
-    virtual
-    bool
-    validationDependsOnMessage() const = 0;
 };
 
 inline

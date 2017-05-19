@@ -53,6 +53,14 @@ private:
         c & std::tie(payload_);
     }
 
+    void
+    encodeFingerprint(der::Encoder& encoder) const override;
+
+    bool
+    checkEqual(Fulfillment const& rhs) const override;
+
+    bool
+    validationDependsOnMessage() const override;
 public:
     PreimageSha256(der::Constructor const&) noexcept {};
 
@@ -73,9 +81,6 @@ public:
     Buffer
     fingerprint(std::error_code& ec) const override;
 
-    void
-    encodeFingerprint(der::Encoder& encoder) const override;
-
     std::uint32_t
     cost() const override;
 
@@ -89,12 +94,6 @@ public:
 
     void
     decode(der::Decoder& decoder) override;
-
-    bool
-    checkEqual(Fulfillment const& rhs) const override;
-
-    bool
-    validationDependsOnMessage() const override;
 };
 
 }

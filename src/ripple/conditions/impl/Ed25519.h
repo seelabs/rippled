@@ -47,6 +47,15 @@ class Ed25519 final : public Fulfillment
         c & std::tie(publicKey_, signature_);
     }
 
+    void
+    encodeFingerprint(der::Encoder& encoder) const override;
+
+    bool
+    checkEqual(Fulfillment const& rhs) const override;
+
+    bool
+    validationDependsOnMessage() const override;
+
 public:
     Ed25519(der::Constructor const&) noexcept {};
 
@@ -72,12 +81,6 @@ public:
         return Fulfillment::fingerprint(ec);
     }
 
-    void
-    encodeFingerprint(der::Encoder& encoder) const override
-    {
-        encoder << std::tie(publicKey_);
-    }
-
     bool
     validate(Slice data) const override;
 
@@ -98,12 +101,6 @@ public:
 
     void
     decode(der::Decoder& decoder) override;
-
-    bool
-    checkEqual(Fulfillment const& rhs) const override;
-
-    bool
-    validationDependsOnMessage() const override;
 };
 }
 }

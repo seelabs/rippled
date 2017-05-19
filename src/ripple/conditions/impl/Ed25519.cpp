@@ -24,6 +24,12 @@
 namespace ripple {
 namespace cryptoconditions {
 
+void
+Ed25519::encodeFingerprint(der::Encoder& encoder) const
+{
+    encoder << std::tie(publicKey_);
+}
+
 bool
 Ed25519::validate(Slice data) const
 {

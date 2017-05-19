@@ -43,6 +43,15 @@ class PrefixSha256 final : public Fulfillment
         c & std::tie(prefix_, maxMessageLength_, subfulfillment_);
     }
 
+    void
+    encodeFingerprint(der::Encoder& encoder) const override;
+
+    bool
+    checkEqual(Fulfillment const& rhs) const override;
+
+    bool
+    validationDependsOnMessage() const override;
+
 public:
     PrefixSha256(der::Constructor const&) noexcept {};
 
@@ -62,9 +71,6 @@ public:
     Buffer
     fingerprint(std::error_code& ec) const override;
 
-    void
-    encodeFingerprint(der::Encoder& encoder) const override;
-
     bool
     validate(Slice data) const override;
 
@@ -79,12 +85,6 @@ public:
 
     void
     decode(der::Decoder& decoder) override;
-
-    bool
-    checkEqual(Fulfillment const& rhs) const override;
-
-    bool
-    validationDependsOnMessage() const override;
 };
 }
 }
