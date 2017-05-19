@@ -62,9 +62,9 @@ serialize(
     auto constraintedFp =
         der::make_octet_string_check_equal(c.fingerprint, 32);
     if (isCompoundCondition(c.type))
-        coder& std::tie(constraintedFp, c.cost, c.subtypes);
+        coder & std::tie(constraintedFp, c.cost, c.subtypes);
     else
-        coder& std::tie(constraintedFp, c.cost);
+        coder & std::tie(constraintedFp, c.cost);
 }
 
 void
@@ -121,6 +121,32 @@ decode(
 }
 
 }  // der
+
+Condition::Condition(Type t, std::uint32_t c, Slice fp, std::bitset<5> const& s)
+    : type(t)
+    , fingerprint(fp)
+    , cost(c)
+    , subtypes(s)
+{
+}
+
+Condition::Condition(Type t, std::uint32_t c, Buffer&& fp, std::bitset<5> const& s)
+    : type(t)
+    , fingerprint(std::move(fp))
+    , cost(c)
+    , subtypes(s)
+{
+}
+
+Condition::Condition(der::Constructor const&){}
+
+std::bitset<5>
+Condition::selfAndSubtypes() const
+{
+    std::bitset<5> result{subtypes};
+    result.set(static_cast<std::size_t>(type));
+    return result;
+}
 
 Condition
 Condition::deserialize(Slice s, std::error_code& ec)

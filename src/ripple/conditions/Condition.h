@@ -78,44 +78,31 @@ public:
     /** For compound conditions, set of conditions includes */
     std::bitset<5> subtypes;
 
-    Condition(Type t, std::uint32_t c, Slice fp, std::bitset<5> const& s = std::bitset<5>{})
-        : type(t)
-        , fingerprint(fp)
-        , cost(c)
-        , subtypes(s)
-    {
-    }
-
-    Condition(Type t, std::uint32_t c, Buffer&& fp, std::bitset<5> const& s = std::bitset<5>{})
-        : type(t)
-        , fingerprint(std::move(fp))
-        , cost(c)
-        , subtypes(s)
-    {
-    }
+    Condition(Type t, std::uint32_t c, Slice fp, std::bitset<5> const& s = std::bitset<5>{});
+    Condition(Type t, std::uint32_t c, Buffer&& fp, std::bitset<5> const& s = std::bitset<5>{});
+    Condition(Condition const&) = default;
+    Condition(Condition&&) = default;
 
     ~Condition() = default;
 
-    Condition(Condition const&) = default;
-    Condition(Condition&&) = default;
 
     // A default constructor is needed to serialize a vector on conditions - as
     // needed for the threshold condition.
     Condition() = default;
 
-    // Construct for der serialization
+    /// Construct for der serialization
     explicit
-    Condition(der::Constructor const&){}
+    Condition(der::Constructor const&);
 
+    /** Return the subtypes that this type depends on, including this type.
+
+        @see {@link #subtypes}
+     */
     std::bitset<5>
-    selfAndSubtypes() const
-    {
-        std::bitset<5> result{subtypes};
-        result.set(static_cast<std::size_t>(type));
-        return result;
-    }
+    selfAndSubtypes() const;
 };
 
+/// compare two conditions for equality
 inline
 bool
 operator== (Condition const& lhs, Condition const& rhs)
@@ -127,6 +114,7 @@ operator== (Condition const& lhs, Condition const& rhs)
                     lhs.fingerprint == rhs.fingerprint;
 }
 
+/// compare two conditions for inequality
 inline
 bool
 operator!= (Condition const& lhs, Condition const& rhs)
@@ -134,6 +122,14 @@ operator!= (Condition const& lhs, Condition const& rhs)
     return !(lhs == rhs);
 }
 
+/** DerCoderTraits for Condition
+
+    Condition will be coded in asn.1 as a choice. The actual
+    choice will depend on if the condition is a compound condition
+    or not.
+
+    @see {@link #DerCoderTraits}
+*/
 namespace der {
 template <>
 struct DerCoderTraits<Condition>
