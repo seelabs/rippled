@@ -126,10 +126,21 @@ public:
     std::uint32_t
     cost() const = 0;
 
+    /** Returns the subtypes that this fulfillment depends on.
+
+        @note This never including the current type, even if the current type
+        recursively depends on itself (i.e. a prefix that has a prefix as a
+        subcondition will not include the prefix type as a subtype. @see {@link
+        #selfAndSubtypes}
+     */
     virtual
     std::bitset<5>
     subtypes() const = 0;
 
+    /** Return the subtypes that this type depends on, including this type.
+
+        @see {@link #subtypes}
+     */
     std::bitset<5>
     selfAndSubtypes() const;
 
