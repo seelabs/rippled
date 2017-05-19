@@ -494,10 +494,10 @@ struct DerCoderTraits<std::unique_ptr<test::DerChoiceBaseClass>>
     {
         return GroupType::choice;
     }
-    constexpr static cid
+    constexpr static ClassId
     classId()
     {
-        return cid::contextSpecific;
+        return ClassId::contextSpecific;
     }
     static boost::optional<std::uint8_t> const&
     tagNum()

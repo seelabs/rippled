@@ -64,7 +64,7 @@ derCategory()
                     return "tag overflow";
 
                 case Error::preambleMismatch:
-                    return "preabmle mismatch";
+                    return "preamble mismatch";
 
                 case Error::contentLengthMismatch:
                     return "content length mismatch";
@@ -113,24 +113,24 @@ make_error_code(Error e)
 }
 
 Tag::Tag(Type t)
-    : classId(cid::application)
+    : classId(ClassId::application)
     , tagNum(static_cast<std::uint64_t>(t))
     , primitive(false)
 {
 }
 
-Tag::Tag(SequenceTag) : classId(cid::universal), tagNum(16), primitive(false)
+Tag::Tag(SequenceTag) : classId(ClassId::universal), tagNum(16), primitive(false)
 {
 }
 
-Tag::Tag(SetTag) : classId(cid::universal), tagNum(17), primitive(false)
+Tag::Tag(SetTag) : classId(ClassId::universal), tagNum(17), primitive(false)
 {
 }
 
 bool
 Tag::isSet() const
 {
-    return classId == cid::universal && tagNum == 17;
+    return classId == ClassId::universal && tagNum == 17;
 }
 
 //------------------------------------------------------------------------------
@@ -217,7 +217,7 @@ decodePreamble(Slice& slice, Preamble& p, std::error_code& ec)
     auto popFront = [&]() -> std::uint8_t {
         if (slice.empty())
         {
-            ec = make_error_code(Error::longGroup);
+            ec = make_error_code(Error::shortGroup);
             return 0;
         }
         auto const r = slice[0];
@@ -229,7 +229,7 @@ decodePreamble(Slice& slice, Preamble& p, std::error_code& ec)
     if (ec)
         return;
 
-    p.tag_.classId = static_cast<cid>(curByte >> 6);
+    p.tag_.classId = static_cast<ClassId>(curByte >> 6);
     p.tag_.primitive = !(curByte & (1 << 5));
 
     // decode the tag
@@ -670,7 +670,7 @@ Decoder::startGroup(boost::optional<Tag> const& t, GroupType groupType)
     auto const& s = parentSlice();
     if (p.contentLength_ > s.size())
     {
-        ec_ = make_error_code(Error::longGroup);
+        ec_ = make_error_code(Error::shortGroup);
         return;
     }
     ancestors_.emplace(Slice{s.data(), p.contentLength_}, p.tag_, groupType, 0);
@@ -701,7 +701,7 @@ Decoder::endGroup()
     ancestors_.pop();
     if (!poped.empty())
     {
-        ec_ = make_error_code(Error::shortGroup);
+        ec_ = make_error_code(Error::longGroup);
         return;
     }
 
@@ -732,7 +732,7 @@ Decoder::eos()
     }
     if (!rootSlice_.empty())
     {
-        ec_ = make_error_code(Error::shortGroup);
+        ec_ = make_error_code(Error::longGroup);
         return;
     }
 }
@@ -805,12 +805,12 @@ Decoder::fuzzTest()
         ec_ = make_error_code(Error::logicError);
         return;
     }
-    if (pt->classId == cid::contextSpecific || pt->classId == cid::application)
+    if (pt->classId == ClassId::contextSpecific || pt->classId == ClassId::application)
     {
         // choice-like. Decode the sub-object
         return fuzzTest();
     }
-    if (pt->classId == cid::universal)
+    if (pt->classId == ClassId::universal)
     {
         switch (pt->tagNum)
         {

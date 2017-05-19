@@ -37,11 +37,15 @@ namespace ripple {
 namespace cryptoconditions {
 namespace der {
 
-// Type of the group. Sometimes this matches the tag number, but not always. In
-// particular, a coder in "auto" mode may use different tags, and some of these
-// types (`autoSequence`, `sequenceChild`, `choice`, and `fuzzRoot`) will never
-// match the tag type. However, the coders need to know the additional
-// information, such as when the parent group is a sequence, or an autoSequence.
+/**  Type of the group.
+
+     @note Sometimes this matches the asn.1 tag number, but not always. In
+     particular, a coder in "auto" mode may use different tags, and some of
+     these types (`autoSequence`, `sequenceChild`, `choice`, and `fuzzRoot`)
+     will never match the tag type. However, the coders need to know the
+     additional information, such as when a parent group is a sequence, or an
+     autoSequence.
+*/
 
 enum class GroupType {
     boolean = 1,
@@ -68,48 +72,98 @@ enum class GroupType {
     fuzzRoot = 255
 };
 
+/** Error types for asn.1 der coders
+ */
 enum class Error {
-    /// a decoded integer would not fit in the bounds of the specified type
+    /// Integer would not fit in the bounds of the specified type
     integerBounds = 1,
-    /// there is more content data in a group than expected
+    /** There is more content data in a group than expected. For example: after
+        decoding a group, if there is more content is a slice.
+     */  
     longGroup,
-    /// there is less content data in a group than expected
+    /** There is less content data in a group than expected. For example: trying to
+        decode a string of length 10 from a slice of length 9.
+     */
     shortGroup,
-    /// encoding is not a valid der encoding
+    /// Encoding is not a valid der encoding
     badDerEncoding,
-    /// this implementation only supports tag numbers up to the largest
+    /// This implementation only supports tag numbers that will fit in a
     /// std::uint64_t
     tagOverflow,
-    /// a decoded preamble did not match an expected preamble
+    /// A decoded preamble did not match an expected preamble
     preambleMismatch,
-    /// a decoded contentLength did not match an expected contentLength
+    /// A decoded contentLength did not match an expected contentLength
     contentLengthMismatch,
-    /// choice tag did not match a known type
+    /// Choice tag did not match a known type
     unknownChoiceTag,
-    /// supported by der, but not this implementation
+    /// Supported by der, but not this implementation
     unsupported,
-    /// logicError
+    /** Programming error. For example: detecting more pops than pushes on the
+        group stack.
+     */ 
     logicError
 };
 
+/** Convert an error enum to an std::error_code
+ */
 std::error_code
 make_error_code(Error e);
 
-/// class id
-enum class cid { universal, application, contextSpecific, priv };
+/** asn.1 class ids
+ */
+enum class ClassId { universal, application, contextSpecific, priv };
 
+/** The coder's tag mode.
+ */
 enum class TagMode {
-    direct /*explicit, but that is a c++ keyword*/,
+    /** direct corresponds to asn.1's `explicit`. Tags will not be automatically assigned.
+
+        @note `explicit` is a c++ keyword, so an alternate name must be used.
+    */
+    direct,
+    /// Tags will be automatically assigned
     automatic
 };
 
 struct Encoder;
 struct Decoder;
 
-/*
-  Types that serialized into a der coder need to specialize a `DerCoderTraits`
-  class and provide implementations of each of the member functions described in
-  this unspecialized class
+/** Interface for serializing and deserializing types into a der coder.
+
+   Types that serialized into a der coder need to specialize a `DerCoderTraits`
+   class and provide implementations of each of the member functions described
+   in this unspecialized class.
+
+   Specialized classes are provided for common C++ types, such as integers,
+   strings, buffers, bitsets, etc.
+
+   Since there are two types of collections in ans.1 - sets and sequences - some
+   c++ collections like `std::vector` must be wrapped in the helper functions
+   `make_sequence` or `make_set` so the coder knows which asn.1 collection type
+   to use. `std::tuple` is always coded as an asn.1 sequence, since 100% of the
+   cryptocondition use-cases serialized tuples as sequences.
+
+   A typical user type is written as an asn.1 choice type, where each choice
+   type is a asn.1 sequence. This would be implemented in C++ as a class
+   hierarchy. Each concrete leaf class represents a choice. The trait is written
+   in terms of a `unique_ptr` to the base class. When decoding, the choice is
+   used to create the correct concrete leaf class, and the leaf class would
+   serialize itself by using a `std::tuple` of each member of the sequence. For
+   example `der_decoder >> std::tuple(member1, member2,...) >> der::eos;`
+   Encoding is similar: the correct choice is written to the der stream, then
+   the data members are serialized using a `std::tuple`. For example:
+   `der_encoder << std::tuple(member1, member2,...) << der::eos;`. Since
+   encoding and decoding are almost always exact copies, except decoding uses
+   `operator>>` while encoding uses `operator<<`, the der encoders offer
+   `operator&` which will decode when using a decoder, and encode with using an
+   encoder (boost serialization library uses the same operator). Using this
+   operator, both the encoder and decoder may be written as `coder &
+   std::tuple(member1, member2,...) & der::eos;`.
+
+
+   @note This unspecialized class should never be instantiated. If it is, a
+         `static_assert` will fire. A specialized `DerCoderTraits` must be provided
+         for each class that is to be serialized.
  */
 template <class T>
 struct DerCoderTraits
@@ -118,51 +172,64 @@ struct DerCoderTraits
         sizeof(T) == -1,
         "DerCoderTraits must be specialized for this type");
 
-    constexpr static cid
+    /// ans.1 class id
+    constexpr static ClassId
     classId();
 
+    /// group type
     constexpr static GroupType
     groupType();
 
+    /** ans.1 tag type, if known.
+
+        The tagNum for choice types can only be known from the actual value being
+        encoded. In these cases `boost::none` is returned.
+    */ 
     static boost::optional<std::uint8_t> const&
     tagNum();
 
+    /// ans.1 tag type for this given value.
     template <class TT>
     static std::uint8_t tagNum(TT);
 
+    /** return true if this type is an asn.1 primitive. return false if this
+        type is an asn.1 constructed type.
+     */
     constexpr static bool
     primitive();
 
+    /// return the number of bytes required to encode the value
     template <class TT>
     static size_t
     length(TT const& v);
 
+    /// serialize the value into the encoder
     template <class TT>
     static void
     encode(Encoder& s, TT v);
 
+    /// deserialize the value from the decoder
     template <class TT>
     static void
     decode(Decoder& decoder, TT& v);
 };
 
-struct SequenceTag
-{
-};
-struct SetTag
-{
-};
+/// constructor tag to specify an asn.1 sequence
+struct SequenceTag {};
+/// constructor tag to specify an asn.1 set
+struct SetTag {};
 
+/// the type information part of an asn.1 preamble
 struct Tag
 {
-    cid classId = cid::universal;
+    ClassId classId = ClassId::universal;
     std::uint64_t tagNum = 0;
     bool primitive = true;
 
     Tag() = default;
     Tag(Type t);
 
-    Tag(cid classId_, std::uint64_t tagNum_, bool primitive_)
+    Tag(ClassId classId_, std::uint64_t tagNum_, bool primitive_)
         : classId(classId_), tagNum(tagNum_), primitive(primitive_)
     {
     }
@@ -177,6 +244,7 @@ struct Tag
 
     Tag(SetTag);
 
+    /// return true if the tag represents an asn.1 set
     bool
     isSet() const;
 
@@ -199,42 +267,65 @@ struct Tag
     }
 };
 
+/** an ans.1 preamble
+
+    values are encoded in ans.1 with a preamble that specifies how to interpret
+    the content, followed by the content. This struct represents the preamble.
+*/
 struct Preamble
 {
+    /// type information
     Tag tag_;
+    /// content length in bytes
     size_t contentLength_;
 };
 
-struct Encoder;
+/** RAII class for coder groups
+
+    asn.1 values are coded as a hierarchy. There are root values, which have
+    sub-values as children. A `GroupGuard` organizes the serialization code so
+    C++ scopes represent levels in the asn.1 hierarchy. The constructor pushes a
+    new group onto the coders group stack, and the destructor pops the group.
+    Entering a scope represents a new value that will be coded. New values will
+    be descendants of this value coded in this scope until the scope is exited.
+ */
 template <class Coder>
 class GroupGuard
 {
+    /// The encoder or decoder
     Coder& s_;
 
 public:
-    explicit GroupGuard(Coder& s, Tag t, GroupType bt) : s_(s)
-    {
-        s_.startGroup(t, bt);
-    }
-
-    explicit GroupGuard(Coder& s, boost::optional<Tag> const& t, GroupType bt)
+    explicit
+    GroupGuard(Coder& s, Tag t, GroupType bt)
         : s_(s)
     {
         s_.startGroup(t, bt);
     }
 
-    explicit GroupGuard(Coder& s, SequenceTag t)
+    explicit
+    GroupGuard(Coder& s, boost::optional<Tag> const& t, GroupType bt)
+        : s_(s)
+    {
+        s_.startGroup(t, bt);
+    }
+
+    explicit
+    GroupGuard(Coder& s, SequenceTag t)
         : GroupGuard(s, Tag{t}, GroupType::sequence)
     {
     }
 
-    explicit GroupGuard(Coder& s, SetTag t)
+    explicit
+    GroupGuard(Coder& s, SetTag t)
         : GroupGuard(s, Tag{t}, GroupType::set)
     {
     }
 
     template <class T>
-    explicit GroupGuard(Coder& s, DerCoderTraits<T> t) : s_(s)
+    explicit
+    GroupGuard(Coder& s, DerCoderTraits<T> t)
+        : s_(s)
     {
         boost::optional<Tag> tag;
         if (auto const tagNum = t.tagNum())
@@ -243,7 +334,9 @@ public:
     }
 
     template <class T>
-    explicit GroupGuard(Coder& s, T const& v, DerCoderTraits<T> t) : s_(s)
+    explicit
+    GroupGuard(Coder& s, T const& v, DerCoderTraits<T> t)
+        : s_(s)
     {
         auto const tagNum = t.tagNum(v);
         Tag tag(t, tagNum);
@@ -251,7 +344,9 @@ public:
     }
 
     // Needed for fuzz testing
-    explicit GroupGuard(Coder& s, GroupType bt) : s_(s)
+    explicit
+    GroupGuard(Coder& s, GroupType bt)
+        : s_(s)
     {
         s_.startGroup(boost::none, bt);
     }
@@ -262,13 +357,26 @@ public:
     }
 };
 
+/** End of stream guard
+
+    Coders need to know when when a serialization is complete. Clients signal
+    this by calling `eos`. This guard calls `eos` in the destructor so leaving
+    a scope may be used to signal `eos`.
+
+    @note: This class is mostly used for testing. The usual way to signal `eos`
+    is by adding `der::eos` at the end of a stream. For example: `coder << value
+    << der::eos;`
+ */
 template <class Coder>
 class EosGuard
 {
+    // Encoder or decoder
     Coder& s_;
 
 public:
-    explicit EosGuard(Coder& s) : s_(s)
+    explicit
+    EosGuard(Coder& s)
+        : s_(s)
     {
     }
 
@@ -278,30 +386,64 @@ public:
     }
 };
 
-// Encode the integer in big endian form, in as few of bytes as possible. All
-// but the last byte has the high order bit set. The number is encoded in base
-// 128 (7-bits each).
+/** Encode the integer in a format appropriate for an ans.1 tag number.
+
+    Encode the integer in big endian form, in as few of bytes as possible. All
+    but the last byte has the high order bit set. The number is encoded in base
+    128 (7-bits each).
+*/
 void
 encodeTagNum(std::vector<char>& dst, std::uint64_t v);
 
-// Encode the integer in big endian form, in as few of bytes as possible.
+/** Encode the integer in a format appropriate for an ans.1 content length
+
+    Encode the integer in big endian form, in as few of bytes as possible.
+*/
 void
 encodeContentLength(std::vector<char>& dst, std::uint64_t v);
 
+/** A value in a hierarchy of values when encoding
+
+    asn.1 values are coded as a hierarchy. There is one root value, which has
+    sub-values as children. When encoding, this class keeps track the type that
+    is being encoded, what bytes in the stream represent content for this value,
+    and child values.
+
+    @note: decoders use a different class to represent the hierarchy of values.
+ */
 class Group
 {
+    /// asn.1 type information for the value being encoded
     Tag id_;
+    /** position (in bytes) of the start of the contents of the value
+
+        @note: this does not indicate the start of the preamble; the size of the
+        preamble cannot be known until the size of the contents is known.
+    */
     std::size_t start_;
+    /// position (in bytes) of one past the end of the contents of the value
     std::size_t end_;
+    /// subvalues of this value
     std::vector<Group> children_;
+    /** The type and length information of the value.
+
+        @note: the length of the preamble depends on the length of the content, so
+               it cannot be calculated until all the value have been encoded. It is
+               calculated when the group is popped off the encoders group stack.
+     */
     std::vector<char> preamble_;
+    /// asn.1 explicit (direct) or automatic tagging
     TagMode tagMode_;
+    /// additional type information for the group
     GroupType groupType_;
 
-    // Set must be output in sorted order. When serializing the children of a
-    // group that represents a set, the serialization will be cached. Since Sets
-    // can have children that are also sets, this prevents serializing the
-    // "leaf" sets multiple times.
+    /** cache of the serialization
+
+        asn.1 sets must be output in sorted order. When serializing the children
+        of a group that represents a set, the serialization will be cached.
+        Since sets can have children that are also sets, this prevents
+        serializing the "leaf" sets multiple times.
+    */
     mutable std::vector<char> cache_;
     std::vector<char>&
     cache(std::vector<char> const& src) const;
@@ -320,30 +462,64 @@ public:
         TagMode tagMode,
         GroupType groupType);
 
+    /// size in bytes of the preambles of all the children
     size_t
     childPreambleSize() const;
 
+    /** size in bytes of all the preambles
+
+        Size of this value's preamble plus the size of the preambles of all the
+        children.
+    */
     size_t
     totalPreambleSize() const;
 
+    /** position (in bytes) of the start of the contents of the value
+
+        @see {@link #start_}
+     */
     size_t
     start() const;
 
+    /** position (in bytes) of one past the end of the contents of the value
+
+        @see {@link #end_}
+     */
     size_t
     end() const;
 
+    /// set the position for one past the end of the contents of the value
     void
     end(std::size_t e);
 
+    /** total size in bytes of the group
+
+        Size of the contents plus the size of all the preambles
+     */
     size_t
     size() const;
 
+    /** calculate the preamble
+
+        @note: the length of the preamble depends on the length of the content, so
+               it cannot be calculated until all the value have been encoded. It is
+               calculated when the group is pop-ed off the encoders group stack.
+     */
     void
     calcPreamble();
 
+    /** write the preambles and contents
+
+        @param src the serialized contents (not including the preambles)
+        @param dst the destination to write the preambles and serialized contents
+     */
     void
     write(std::vector<char> const& src, std::vector<char>& dst) const;
 
+    /** create a group as a child of this group
+
+        @param c parameters for the constructor of the subgroup
+     */
     template <class... C>
     void
     emplaceChild(C&&... c)
@@ -351,98 +527,210 @@ public:
         children_.emplace_back(std::forward<C>(c)...);
     }
 
+    /// return true if the group represents an asn.1 set
     bool
     isSet() const;
 
+    /** return true if the group represents an auto sequence
+
+        @note an auto sequence is an asn.1 sequence that has autogenerated
+              tag numbers
+     */
     bool
     isAutoSequence() const;
 
+    /// return true if the group represents an asn.1 choice
     bool
     isChoice() const;
 
+    /** set the groups type information
+
+        @param primitive true is primitive, false if constructed
+        @param bt the groups type information
+     */
     void
     setPrimitiveAndType(bool primitive, GroupType bt);
 
+    /// return the number of sub-values
     size_t
     numChildren() const;
 };
 
+/// encode the preamble from p into dst
 void
 encodePreamble(std::vector<char>& dst, Preamble const& p);
 
+/// decode the preamble from slice into p
 void
 decodePreamble(Slice& slice, Preamble& p, std::error_code& ec);
 
-struct Eos
-{
-};
+/** type representing and end of stream
+
+    Coders need to know when when a serialization is complete. Clients signal
+    this by calling `eos`. The typical way of calling `eos` is by serializing a
+    value of type Eos. There is a convenience global variable for this purpose.
+    It will typically be used as follows: `coder << value << der::eos;`
+*/
+struct Eos {};
 extern Eos eos;
-struct Automatic
-{
-};
+/// constructor tag to specify a decoder in automatic mode
+struct Automatic {};
 extern Automatic automatic;
-struct Constructor
-{
-};
+/** constructor tag to specify a type is being constructed for decoding into
+
+    Often, it is convenient to create a type and then decode into that type.
+    However, this would usually require that type to be default constructable
+    (as the contents used to create are deserialized after the variable is
+    constructed). This `Constructor` type is used to create constructors and
+    specify that they should only be used for der decoding.
+ */
+struct Constructor {};
 extern Constructor constructor;
 
+/** Stream interface to encode values into asn.1 der format
+
+    The encoder class has an interface similar to a c++ output stream. Values
+    are added to the stream using the `<<` operator. After all the values are
+    added to the encoder, it must be terminated with a call to `eos()`. As a
+    convenience, there is a special variable called `eos` that when streamed will
+    call the streams `eos()` function. Typically, the code to encode values to a
+    stream is: `encoder << value_1 << ... << value_n << eos;`.
+
+    Every type to be streamed must specialize the DerCoderTraits class @see
+    {@link #DerCoderTraits}. There exist specializations for some C++ types and
+    primitive rippled types - including integers, strings, bitstrings, tuples,
+    buffers, arrays, and wrappers for wrapping collections like vector into
+    either asn.1 sets or sequences.
+
+    After the values are written, the stream should be checked for errors. The
+    function `ec` will return the error code of the first error encountered
+    while streaming. Streaming will stop after the first error.
+
+    Once the values are streamed, the actual encoding is retrieved by calling
+    the `write` function.
+
+    Encoding and decoding values often have the same code structure. The only
+    difference is encoding will use `operator<<` and decoding will use
+    `operator>>`. To allow writing generic code, both encoders and decoders
+    support `operator&`. Typically, the generic code both encode and decode is:
+    `coder & value_1 & ... & value_n & eos;`
+ */
 struct Encoder
 {
+    /// explicit or automatic tagging
     TagMode tagMode_ = TagMode::direct;
+    /// buffer to write value contents into
     std::vector<char> buf_;
+    /** values are coded as a hierarchy. `subgroups_` tracks the current
+        position in the hierarchy.
+
+        The bottom of the stack is the root value, the top of the stack is the
+        current parent.
+     */
     std::stack<Group> subgroups_;
+    /** Collection of root objects.
+
+        @note Typically there will only be one root object.
+    */
     std::vector<Group> roots_;
 
+    /** the error code of the first error encountered
+
+        @note after the error code is set encoding stops
+     */
     std::error_code ec_;
+    /** true if the `eos` function has been called
+
+        some error handling cannot happen until all the values have been coded.
+        `atEos_` ensures every stream is terminated with an `eos` call so those
+        error checks can be run.
+     */
     bool atEos_ = false;
 
-    explicit Encoder(TagMode tagMode);
+    explicit
+    Encoder(TagMode tagMode);
     ~Encoder();
 
+    /// prepare to add a new value as a child of the current value
     void
     startGroup(Tag t, GroupType groupType);
 
+    /// finish adding the new value
     void
     endGroup();
 
+    /** terminate the stream
+
+        Streams must be terminated before the destructor is called. Certain error checks
+        cannot occur until the encoder knows streaming is complete. Calling `eos()` runs these
+        error checks. Failing to call `eos` before the destructor is an error.
+     */
     void
     eos();
 
-    // total size of the content and all the preambles
+    /// total size in bytes of the content and all the preambles
     size_t
     size() const;
 
+    /** return the first error code encountered
+
+        ec should be checked after streaming to ensure no errors occurred
+     */
     std::error_code const&
     ec() const;
 
+    /** write values encoded as asn.1 der into the dst buffer
+
+        @param dst the destination to write the preambles and serialized contents
+     */
     void
     write(std::vector<char>& dst) const;
 
+    /** return true if the group at the top of the stack represents an auto
+        sequence
+
+        @note an auto sequence is an asn.1 sequence that has autogenerated
+              tag numbers
+     */
     bool
     parentIsAutoSequence() const;
 
+    /** return true if the group at the top of the stack represents an asn.1
+        choice
+     */ 
     bool
     parentIsChoice() const;
 
-    friend Encoder& operator&(Encoder& s, Preamble const& p)
+    /** Add values to the encoder
+    @{
+    */
+    friend
+    Encoder&
+    operator&(Encoder& s, Preamble const& p)
     {
         encodePreamble(s.buf_, p);
         return s;
     }
-    friend Encoder& operator&(Encoder& s, Preamble& p)
+    friend
+    Encoder&
+    operator&(Encoder& s, Preamble& p)
     {
         encodePreamble(s.buf_, p);
         return s;
     }
 
-    friend Encoder& operator&(Encoder& s, Eos e)
+    friend
+    Encoder&
+    operator&(Encoder& s, Eos e)
     {
         s.eos();
         return s;
     }
 
     template <class T>
-    friend Encoder& operator&(Encoder& s, T&& v)
+    friend
+    Encoder&
+    operator&(Encoder& s, T&& v)
     {
         if (s.ec_)
             return s;
@@ -454,7 +742,7 @@ struct Encoder
         {
             if (groupType == GroupType::choice)
             {
-                Tag const tag1{cid::contextSpecific,
+                Tag const tag1{ClassId::contextSpecific,
                                s.subgroups_.top().numChildren(),
                                traits::primitive()};
                 GroupGuard<Encoder> g1(s, tag1, GroupType::sequenceChild);
@@ -468,7 +756,7 @@ struct Encoder
             }
             else
             {
-                Tag const tag{cid::contextSpecific,
+                Tag const tag{ClassId::contextSpecific,
                               s.subgroups_.top().numChildren(),
                               traits::primitive()};
                 GroupGuard<Encoder> g(s, tag, groupType);
@@ -495,54 +783,136 @@ struct Encoder
     {
         return s & std::forward<T>(t);
     }
+    /** @} */
 };
 
+/** Stream interface to decode values from asn.1 der format
+
+    The decode class has an interface similar to a c++ output stream. Values are
+    decoded from the stream using the `>>` operator. After all the values are
+    decoded, it must be terminated with a call to `eos()`. As a convenience, there
+    is a special variable called `eos` that when streamed will call the streams
+    `eos()` function. Typically, the code to encode values to a stream is:
+    `decoder >> value_1 >> ... >> value_n >> eos;`.
+
+    Every type to be streamed must specialize the DerCoderTraits class @see
+    {@link #DerCoderTraits}. There exist specializations for some C++ types and
+    primitive rippled types - including integers, strings, bitstrings, tuples,
+    buffers, arrays, and wrappers for wrapping collections like vector into
+    either asn.1 sets or sequences.
+
+    After the values are decoded, the stream should be checked for errors. The
+    function `ec` will return the error code of the first error encountered
+    while decoding. Decoding will stop after the first error.
+
+    Encoding and decoding values often have the same code structure. The only
+    difference is encoding will use `operator<<` and decoding will use
+    `operator>>`. To allow writing generic code, both encoders and decoders
+    support `operator&`. Typically, the generic code both encode and decode is:
+    `coder & value_1 & ... & value_n & eos;`
+ */
 struct Decoder
 {
+    /** explicit or automatic tagging
+
+        @note this must match the mode the values were encoded with
+     */
     TagMode tagMode_;
+    /** true if the `eos` function has been called
+
+        some error handling cannot happen until all the values have been coded.
+        `atEos_` ensures every stream is terminated with an `eos` call so those
+        error checks can be run.
+     */
     bool atEos_ = false;
 
+    /// slice for the entire buffer to be decoded
     Slice rootSlice_;
-    // slice, ancestor tag, groupType, and number of children
+    /** values are coded as a hierarchy. `ancestors_` tracks the current
+        position in the hierarchy.
+
+        The bottom of the stack is the root value, the top of the stack is the
+        current parent.
+
+        The tuple contains the slice, ancestor tag, groupType, and number of children
+     */
     std::stack<std::tuple<Slice, Tag, GroupType, std::uint32_t>> ancestors_;
 
+    /** the error code of the first error encountered
+
+        @note after the error code is set decoding stops
+     */
     std::error_code ec_;
 
     Decoder() = delete;
-    explicit Decoder(Slice slice, TagMode tagMode);
+    explicit
+    Decoder(Slice slice, TagMode tagMode);
     ~Decoder();
 
+    /// prepare to decode a value as a child of the current value
     void
     startGroup(boost::optional<Tag> const& t, GroupType groupType);
 
+    /// finish decoding the new value
     void
     endGroup();
 
+    /** terminate the stream
+
+        Streams must be terminated before the destructor is called. Certain error checks
+        cannot occur until the encoder knows streaming is complete. Calling `eos()` runs these
+        error checks. Failing to call `eos` before the destructor is an error.
+     */
     void
     eos();
 
+    /** return the first error code encountered
+
+        ec should be checked after streaming to ensure no errors occurred
+     */
     std::error_code const&
     ec() const;
 
+    /** return the tag at the top of the ancestors stack
+
+        return boost::none if the stack is empty
+     */
     boost::optional<Tag>
     parentTag() const;
 
+    /** return true if the ancestor at the top of the stack represents an auto
+        sequence
+
+        @note an auto sequence is an asn.1 sequence that has autogenerated
+              tag numbers
+     */
     bool
     parentIsAutoSequence() const;
 
+    /** return true if the ancestor at the top of the stack represents an asn.1
+        choice
+     */ 
     bool
     parentIsChoice() const;
 
+    /// return the portion of the buffer that represents the parent value
     Slice&
     parentSlice();
 
-    friend Decoder& operator&(Decoder& s, Eos e)
+    /** Decode values from the encoder into variables
+    @{
+    */
+    friend
+    Decoder&
+    operator&(Decoder& s, Eos e)
     {
         s.eos();
         return s;
     }
 
-    friend Decoder& operator&(Decoder& s, Preamble& p)
+    friend
+    Decoder&
+    operator&(Decoder& s, Preamble& p)
     {
         if (s.ec_)
             return s;
@@ -555,7 +925,9 @@ struct Decoder
     // SequenceWrapper
     // (i.e. `s >> make_set(some_vec)`)
     template <class T>
-    friend Decoder& operator&(Decoder& s, T&& v)
+    friend
+    Decoder&
+    operator&(Decoder& s, T&& v)
     {
         if (s.ec_)
             return s;
@@ -568,7 +940,7 @@ struct Decoder
             {
                 auto& numChildren = std::get<std::uint32_t>(s.ancestors_.top());
                 Tag const tag1{
-                    cid::contextSpecific, numChildren++, traits::primitive()};
+                    ClassId::contextSpecific, numChildren++, traits::primitive()};
                 GroupGuard<Decoder> g1(s, tag1, GroupType::sequenceChild);
                 if (s.ec_)
                     return s;
@@ -584,7 +956,7 @@ struct Decoder
             {
                 auto& numChildren = std::get<std::uint32_t>(s.ancestors_.top());
                 Tag const tag{
-                    cid::contextSpecific, numChildren++, traits::primitive()};
+                    ClassId::contextSpecific, numChildren++, traits::primitive()};
                 GroupGuard<Decoder> g(s, tag, groupType);
                 if (s.ec_)
                     return s;
@@ -611,17 +983,23 @@ struct Decoder
     {
         return s & std::forward<T>(t);
     }
+    /** @} */
 
+    /// helper function for fuzz testing
     void
     fuzzTest();
 };
 
+/** base class for DerCoderTraits for integer types
+
+    @see {@link #DerCoderTraits}
+*/
 struct IntegerTraits
 {
-    constexpr static cid
+    constexpr static ClassId
     classId()
     {
-        return cid::universal;
+        return ClassId::universal;
     }
 
     constexpr static GroupType
@@ -785,12 +1163,19 @@ struct DerCoderTraits<std::int64_t> : IntegerTraits
 {
 };
 
+/** base class for DerCoderTraits for types that will be coded as asn.1 octet
+    strings
+
+    @see {@link #DerCoderTraits}
+
+    @note this includes std::string and std::array<std::uintt_t, N>, and Buffer
+*/
 struct OctetStringTraits
 {
-    constexpr static cid
+    constexpr static ClassId
     classId()
     {
-        return cid::universal;
+        return ClassId::universal;
     }
 
     constexpr static GroupType
@@ -906,7 +1291,10 @@ struct DerCoderTraits<Buffer> : OctetStringTraits
     }
 };
 
-// Wrapper for a size constrained der OctetString
+/** Wrapper for a size constrained der OctetString
+
+    The size of the string must be equal to the specified constraint.
+ */
 template <class T>
 struct OctetStringCheckEqualSize
 {
@@ -917,6 +1305,10 @@ struct OctetStringCheckEqualSize
     }
 };
 
+/** Wrapper for a size constrained der OctetString
+
+    The size of the string must be less than the specified constraint.
+ */
 template <class T>
 struct OctetStringCheckLessSize
 {
@@ -927,6 +1319,11 @@ struct OctetStringCheckLessSize
     }
 };
 
+/** convenience function to create an equal-size constrained octet string
+
+    @note the template parameter T must be one of the types OctetStringTraits is
+          specialized on. @see {@link #OctetStringTraits}
+*/
 template <class T>
 OctetStringCheckEqualSize<T>
 make_octet_string_check_equal(T& t, std::size_t s)
@@ -934,6 +1331,11 @@ make_octet_string_check_equal(T& t, std::size_t s)
     return OctetStringCheckEqualSize<T>(t, s);
 }
 
+/** convenience function to create a "less size" constrained octet string
+
+    @note the template parameter T must be one of the types OctetStringTraits is
+          specialized on. @see {@link #OctetStringTraits}
+*/
 template <class T>
 OctetStringCheckLessSize<T>
 make_octet_string_check_less(T& t, std::size_t s)
@@ -941,6 +1343,12 @@ make_octet_string_check_less(T& t, std::size_t s)
     return OctetStringCheckLessSize<T>(t, s);
 }
 
+/** DerCoderTraits for types that will be coded as "equal size" constrained
+    asn.1 octet strings
+
+    @see {@link #DerCoderTraits}
+    @see {@link #make_octet_string_check_equal}
+*/
 template <class T>
 struct DerCoderTraits<OctetStringCheckEqualSize<T>> : OctetStringTraits
 {
@@ -963,6 +1371,11 @@ struct DerCoderTraits<OctetStringCheckEqualSize<T>> : OctetStringTraits
     }
 };
 
+/** DerCoderTraits for types that will be coded as "less size" constrained asn.1
+    octet strings
+
+    @see {@link #DerCoderTraits}
+*/
 template <class T>
 struct DerCoderTraits<OctetStringCheckLessSize<T>> : OctetStringTraits
 {
@@ -978,6 +1391,9 @@ struct DerCoderTraits<OctetStringCheckLessSize<T>> : OctetStringTraits
         auto& slice = decoder.parentSlice();
         if (slice.size() > v.constraint_)
         {
+            // Return unsupported rather than contentLengthMismatch
+            // because this constraint is an implementation limit rather
+            // than a parser constraint
             decoder.ec_ = make_error_code(Error::unsupported);
             return;
         }
@@ -985,6 +1401,13 @@ struct DerCoderTraits<OctetStringCheckLessSize<T>> : OctetStringTraits
     }
 };
 
+/** DerCoderTraits for std::bitset
+
+    bitsets will be coded as ans.1 bitStrings
+
+    @see {@link #DerCoderTraits}
+    @see {@link #make_octet_string_check_less}
+*/
 template <std::size_t S>
 struct DerCoderTraits<std::bitset<S>>
 {
@@ -998,10 +1421,10 @@ struct DerCoderTraits<std::bitset<S>>
         return GroupType::bitString;
     }
 
-    constexpr static cid
+    constexpr static ClassId
     classId()
     {
-        return cid::universal;
+        return ClassId::universal;
     }
     static boost::optional<std::uint8_t> const&
     tagNum()
@@ -1164,7 +1587,16 @@ struct DerCoderTraits<std::bitset<S>>
     }
 };
 
-// Wrapper for a der set of T
+/** wrapper class for coding c++ collections as ans.1 sets
+
+    @see {@link #SequenceWrapper} for the wrapper for sequences
+    @see {@link #make_set} for the convenience factory function
+
+    @note There are two types of collections in ans.1 - sets and sequences.
+          Given a c++ collection - i.e. a std::vector - the coders need to know
+          if the collection should be coded as a set or a sequence. This class
+          is the way to tell the coder which collection to use.
+ */
 template <class T>
 struct SetOfWrapper
 {
@@ -1176,18 +1608,31 @@ struct SetOfWrapper
     }
 };
 
-// Wrapper for a der sequence of T
+/** wrapper class for coding c++ collections as ans.1 sets
+
+    @see {@link #make_sequence} for the convenience factory function
+    @see {@link #SetOfWrapper} for the wrapper for sets
+
+    @note There are two types of collections in ans.1 - sets and sequences.
+          Given a c++ collection - i.e. a std::vector - the coders need to know
+          if the collection should be coded as a set or a sequence. This class
+          is the way to tell the coder which collection to use.
+ */
 template <class T>
 struct SequenceOfWrapper
 {
-    // col_ may be a homogeneous collection like vector or a heterogeneous
-    // collection like tuple
+    /** the collection being wrapped
+
+       @note col_ may be a homogeneous collection like vector or a heterogeneous
+             collection like tuple
+    */
     T& col_;
     SequenceOfWrapper(T& col) : col_(col)
     {
     }
 };
 
+/// convenience function to wrap a c++ collection as it will be coded as an asn.1 set
 template <class T>
 SetOfWrapper<T>
 make_set(T& t)
@@ -1195,6 +1640,7 @@ make_set(T& t)
     return SetOfWrapper<T>(t);
 }
 
+/// convenience function to wrap a c++ collection as it will be coded as an asn.1 sequence
 template <class T>
 auto
 make_sequence(T& t)
@@ -1202,6 +1648,7 @@ make_sequence(T& t)
     return SequenceOfWrapper<T>(t);
 }
 
+/// convenience function to wrap a c++ tuple as it will be coded as an asn.1 sequence
 template <class... T>
 auto
 make_sequence(std::tuple<T...>& t)
@@ -1209,6 +1656,12 @@ make_sequence(std::tuple<T...>& t)
     return SequenceOfWrapper<std::tuple<T...>>(t);
 }
 
+/** DerCoderTraits for types that will be coded as asn.1 sets
+
+    @see {@link #DerCoderTraits}
+    @see {@link #make_set}
+    @see {@link #SetOfWrapper}
+*/
 template <class T>
 struct DerCoderTraits<SetOfWrapper<T>>
 {
@@ -1218,10 +1671,10 @@ struct DerCoderTraits<SetOfWrapper<T>>
         return GroupType::set;
     }
 
-    constexpr static cid
+    constexpr static ClassId
     classId()
     {
-        return cid::universal;
+        return ClassId::universal;
     }
     static boost::optional<std::uint8_t> const&
     tagNum()
@@ -1265,6 +1718,12 @@ struct DerCoderTraits<SetOfWrapper<T>>
     }
 };
 
+/** DerCoderTraits for types that will be coded as asn.1 sequences
+
+    @see {@link #DerCoderTraits}
+    @see {@link #make_sequence}
+    @see {@link #SequenceOfWrapper}
+*/
 template <class T>
 struct DerCoderTraits<SequenceOfWrapper<T>>
 {
@@ -1274,10 +1733,10 @@ struct DerCoderTraits<SequenceOfWrapper<T>>
         return GroupType::sequence;
     }
 
-    constexpr static cid
+    constexpr static ClassId
     classId()
     {
-        return cid::universal;
+        return ClassId::universal;
     }
     static boost::optional<std::uint8_t> const&
     tagNum()
@@ -1321,6 +1780,12 @@ struct DerCoderTraits<SequenceOfWrapper<T>>
     }
 };
 
+/** DerCoderTraits for std::tuples
+
+    @note tuples will be decoded as ans.1 sequences
+
+    @see {@link #DerCoderTraits}
+*/
 template <class... Ts>
 struct DerCoderTraits<std::tuple<Ts&...>>
 {
@@ -1332,10 +1797,10 @@ struct DerCoderTraits<std::tuple<Ts&...>>
         return GroupType::autoSequence;
     }
 
-    constexpr static cid
+    constexpr static ClassId
     classId()
     {
-        return cid::universal;
+        return ClassId::universal;
     }
     static boost::optional<std::uint8_t> const&
     tagNum()
