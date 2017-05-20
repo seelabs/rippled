@@ -277,7 +277,7 @@ struct Preamble
     /// type information
     Tag tag_;
     /// content length in bytes
-    size_t contentLength_;
+    std::uint64_t contentLength_;
 };
 
 /** RAII class for coder groups

@@ -130,13 +130,13 @@ class Der_test : public beast::unit_test::suite
         test(std::uint32_t(0xfffffffe), v{2, 5, 0, -1, -1, -1, -2});
         // make sure writes initial zero octet when skipping zeros
         test(std::int32_t(210), v{2, 2, 0, -46});
-        test(0x101u, v{2, 2, 1, 1});
-        test(0x1000u, v{2, 2, 16, 0});
-        test(0x10001u, v{2, 3, 1, 0, 1});
-        test(0x100000u, v{2, 3, 16, 0, 0});
-        test(0x1001001u, v{2, 4, 1, 0, 16, 1});
-        test(0x1001001u, v{2, 4, 1, 0, 16, 1});
-        test(0x1000000000000000u, v{2, 8, 16, 0, 0, 0, 0, 0, 0, 0});
+        test(std::uint64_t(0x101), v{2, 2, 1, 1});
+        test(std::uint64_t(0x1000), v{2, 2, 16, 0});
+        test(std::uint64_t(0x10001), v{2, 3, 1, 0, 1});
+        test(std::uint64_t(0x100000), v{2, 3, 16, 0, 0});
+        test(std::uint64_t(0x1001001), v{2, 4, 1, 0, 16, 1});
+        test(std::uint64_t(0x1001001), v{2, 4, 1, 0, 16, 1});
+        test(std::uint64_t(0x1000000000000000), v{2, 8, 16, 0, 0, 0, 0, 0, 0, 0});
     }
 
     void
@@ -283,7 +283,7 @@ class Der_test : public beast::unit_test::suite
             {
                 EosGuard<Encoder> eg{s};
                 GroupGuard<Encoder> sq1{s, SequenceTag{}};
-                s << 10 << 100000 << 100000000000;
+                s << 10 << 100000 << std::uint64_t(100000000000);
             }
             std::vector<char>
                     expected({48, 15, 2, 1, 10, 2, 3, 1, -122, -96, 2, 5, 23,
