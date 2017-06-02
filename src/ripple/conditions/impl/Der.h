@@ -212,6 +212,15 @@ struct DerCoderTraits
     template <class TT>
     static void
     decode(Decoder& decoder, TT& v);
+
+    /** compare two values so they sort appropriatly for an asn.1 set. Returns -1 if lhs<rhs, 0 if lsh==rhs, 1 if lhs>rhs
+
+        @note asn.1 lexagraphically compares how the values would be encoded.
+              asn.1 encodes in big endian order.
+     */
+    static 
+    int
+    compare(T const& lhs, T const& rhs);
 };
 
 /// constructor tag to specify an asn.1 sequence
@@ -1128,6 +1137,16 @@ struct IntegerTraits
         }
         slice += slice.size();
     }
+
+    template<class T>
+    static
+    int
+    compare(T const& lhs, T const& rhs)
+    {
+        // since the length is encoded, comparing the values directly will be
+        // the same as comparing the encoded values
+        return (lhs > rhs) - (lhs < rhs);
+    }
 };
 
 template <>
@@ -1254,6 +1273,13 @@ struct DerCoderTraits<std::string> : OctetStringTraits
         if (!v.empty())
             OctetStringTraits::decode(decoder, &v[0], v.size());
     }
+
+    static
+    int
+    compare(std::string const& lhs, std::string const& rhs)
+    {
+        return lhs.compare(rhs);
+    }
 };
 
 template <std::size_t S>
@@ -1269,6 +1295,23 @@ struct DerCoderTraits<std::array<std::uint8_t, S>> : OctetStringTraits
     decode(Decoder& decoder, std::array<std::uint8_t, S>& v)
     {
         OctetStringTraits::decode(decoder, v.data(), v.size());
+    }
+
+    static
+    int
+    compare (std::array<std::uint8_t, S> const& lhs,
+        std::array<std::uint8_t, S> const& rhs)
+    {
+        for(size_t i=0; i<S; ++i)
+        {
+            if (lhs[i] != rhs[i])
+            {
+                if (lhs[i] < rhs[i])
+                    return -1;
+                return 1;
+            }
+        }
+        return 0;
     }
 };
 
@@ -1288,6 +1331,31 @@ struct DerCoderTraits<Buffer> : OctetStringTraits
         v.alloc(slice.size());
         if (!v.empty())
             OctetStringTraits::decode(decoder, v.data(), v.size());
+    }
+
+    static
+    int
+    compare(Buffer const& lhs, Buffer const& rhs)
+    {
+        if (lhs.size() != rhs.size())
+        {
+            if (lhs.size() < rhs.size())
+                return -1;
+            return 1;
+        }
+        auto const s = lhs.size();
+        auto const lhsD = lhs.data();
+        auto const rhsD = rhs.data();
+        for (size_t i = 0; i < s; ++i)
+        {
+            if (lhsD[i] != rhsD[i])
+            {
+                if (lhsD[i] < rhsD[i])
+                    return -1;
+                return 1;
+            }
+        }
+        return 0;
     }
 };
 
@@ -1369,6 +1437,14 @@ struct DerCoderTraits<OctetStringCheckEqualSize<T>> : OctetStringTraits
         }
         DerCoderTraits<T>::decode(decoder, v.col_);
     }
+
+    static 
+    int
+    compare (T const& lhs,
+             T const& rhs)
+    {
+        return DerCoderTraits<T>::compare(lhs, rhs);
+    }
 };
 
 /** DerCoderTraits for types that will be coded as "less size" constrained asn.1
@@ -1398,6 +1474,14 @@ struct DerCoderTraits<OctetStringCheckLessSize<T>> : OctetStringTraits
             return;
         }
         DerCoderTraits<T>::decode(decoder, v.col_);
+    }
+
+    static
+    int
+    compare (T const& lhs,
+             T const& rhs)
+    {
+        return DerCoderTraits<T>::compare(lhs, rhs);
     }
 };
 
@@ -1468,7 +1552,54 @@ struct DerCoderTraits<std::bitset<S>>
         return lut[b];
     }
 
-    static void
+    static
+    std::size_t
+    numLeadingZeroBytes(std::bitset<S> const& s)
+    {
+        std::size_t result = 0;
+        auto curByteIndex = maxBytes;
+        auto const bits = s.to_ulong();
+        while (curByteIndex--)
+        {
+            std::uint8_t const b = (bits >> curByteIndex * 8) & 0xff;
+            if (b)
+                return result;
+            ++result;
+        }
+        return result;
+    }
+
+    static
+    std::uint8_t
+    numUnusedBits(
+        std::bitset<S> const& s,
+        std::size_t leadingZeroBytes)
+    {
+        // b is first non-zero byte
+        auto const bits = s.to_ulong ();
+        std::uint8_t const b =
+            (bits >> (maxBytes - leadingZeroBytes - 1) * 8) & 0xff;
+        if (b & 0x80)
+            return 0;
+        if (b & 0x40)
+            return 1;
+        if (b & 0x20)
+            return 2;
+        if (b & 0x10)
+            return 3;
+        if (b & 0x08)
+            return 4;
+        if (b & 0x04)
+            return 5;
+        if (b & 0x02)
+            return 6;
+        if (b & 0x01)
+            return 7;
+        return 8;
+    }
+
+    static
+    void
     encode(Encoder& encoder, std::bitset<S> const& s)
     {
         std::vector<char>& dst = encoder.buf_;
@@ -1487,41 +1618,8 @@ struct DerCoderTraits<std::bitset<S>>
             return;
         }
 
-        std::size_t const leadingZeroBytes = [&] {
-            std::size_t result = 0;
-            auto curByteIndex = maxBytes;
-            while (curByteIndex--)
-            {
-                std::uint8_t const b = (bits >> curByteIndex * 8) & 0xff;
-                if (b)
-                    return result;
-                ++result;
-            }
-            return result;
-        }();
-
-        std::uint8_t const unusedBits = [&] {
-            // b is first non-zero byte
-            std::uint8_t const b =
-                (bits >> (maxBytes - leadingZeroBytes - 1) * 8) & 0xff;
-            if (b & 0x80)
-                return 0;
-            if (b & 0x40)
-                return 1;
-            if (b & 0x20)
-                return 2;
-            if (b & 0x10)
-                return 3;
-            if (b & 0x08)
-                return 4;
-            if (b & 0x04)
-                return 5;
-            if (b & 0x02)
-                return 6;
-            if (b & 0x01)
-                return 7;
-            return 8;
-        }();
+        std::size_t const leadingZeroBytes = numLeadingZeroBytes(s);
+        std::uint8_t const unusedBits = numUnusedBits(s, leadingZeroBytes);
 
         dst.push_back(unusedBits);
 
@@ -1584,6 +1682,49 @@ struct DerCoderTraits<std::bitset<S>>
         }
 
         v = bits;
+    }
+
+    static
+    int
+    compare (std::bitset<S> const& lhs,
+             std::bitset<S> const& rhs)
+    {
+        static_assert(
+            maxBytes > 0 && maxBytes <= sizeof(unsigned long),
+            "Unsupported bitset size");
+        unsigned long const bits[2] = {lhs.to_ulong(), rhs.to_ulong()};
+
+        if (bits[0] == 0)
+            return bits[1] != 0;
+
+        std::size_t const leadingZeroBytes[2]{
+            numLeadingZeroBytes (lhs), numLeadingZeroBytes (rhs)};
+        std::uint8_t const unusedBits[2]{
+            numUnusedBits (lhs, leadingZeroBytes[0]),
+            numUnusedBits (rhs, leadingZeroBytes[1])};
+
+        if (unusedBits[0] != unusedBits[1])
+        {
+            if (unusedBits[0] < unusedBits[1])
+                return -1;
+            return 1;
+        }
+
+        // swd TBD review this
+        for (size_t curByte = 0;
+             curByte < maxBytes - std::min (leadingZeroBytes[0], leadingZeroBytes[1]);
+             ++curByte)
+        {
+            uint8_t const v[2] = {(bits[0] >> curByte * 8) & 0xff,
+                                  (bits[1] >> curByte * 8) & 0xff};
+            if (v[0] != v[1])
+            {
+                if (v[0] < v[1])
+                    return -1;
+                return 1;
+            }
+        }
+        return 0;
     }
 };
 
