@@ -28,6 +28,11 @@
 namespace ripple {
 namespace cryptoconditions {
 
+/** Fulfillment for a RsaSha256 cryptocondition.
+
+    A RsaSha256 condition specifies an RsaSha256 public key (the modulus). The
+    fulfillment contains a signature of cryptocondition message.
+*/
 class RsaSha256 final : public Fulfillment
 {
     Buffer modulus_;

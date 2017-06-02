@@ -32,6 +32,11 @@
 namespace ripple {
 namespace cryptoconditions {
 
+/** Fulfillment for an Ed25519 cryptocondition.
+
+    An Ed25519 condition specifies an Ed25519 public key. The fulfillment
+    contains a signature of cryptocondition message.
+ */
 class Ed25519 final : public Fulfillment
 {
     static std::size_t constexpr signature_size_ = 64;

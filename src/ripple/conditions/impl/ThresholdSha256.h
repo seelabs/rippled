@@ -30,10 +30,25 @@
 namespace ripple {
 namespace cryptoconditions {
 
+/** Fulfillment for an m-of-n collection of fulfillments
+
+    The fulfillment contains a collection of subfulfillments. This is the
+    threshold (the m in the m-of-n). It also contains a collection of
+    subconditions. These are the additional conditions that will not be
+    verified (but of course, are part of the condition).
+
+    @note The number of sub-fulfillments is the m in the m-of-n. The number of
+    sub-fulfillments plus the number of sub-conditions is the n in the m-of-n.
+ */
 class ThresholdSha256 final : public Fulfillment
 {
-    // Threshold is the number of subfulfillments
+    /** Subfulfillments to be verified. The number of subfulfillments is the
+        threshold (the m in the m-of-n).
+     */
     std::vector<std::unique_ptr<Fulfillment>> subfulfillments_;
+    /** Subconditions that will not be verified (but are part of this object's
+        condition).
+     */
     std::vector<Condition> subconditions_;
 
     template <class Coder>

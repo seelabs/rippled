@@ -30,10 +30,16 @@
 namespace ripple {
 namespace cryptoconditions {
 
+/** Fulfillment for a prefix cryptocondition A prefix adds a specified prefix to
+    the cryptocondition's message, and sends that new message to the specified
+    sub-fulfillment.
+ */
 class PrefixSha256 final : public Fulfillment
 {
+    /// prefix to add to the subcondition's message
     Buffer prefix_;
     std::uint64_t maxMessageLength_ = 0;
+    /// subfulfillment used to verify the newly created message
     std::unique_ptr<Fulfillment> subfulfillment_;
 
     template <class Coder>

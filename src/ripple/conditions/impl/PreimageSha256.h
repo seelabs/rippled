@@ -29,6 +29,13 @@
 namespace ripple {
 namespace cryptoconditions {
 
+/** Fullfillment for a preimage cryptocondition
+
+    A preimage has a condition that is a sha256 hash and a fulfillment with a
+    payload that will hash to the specified hash in the condition.
+
+    @note a preimage does not depend on the cryptocondition message.
+ */
 class PreimageSha256 final : public Fulfillment
 {
 public:
