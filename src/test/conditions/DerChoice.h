@@ -37,14 +37,17 @@ struct DerChoiceBaseClass
     virtual std::uint8_t
     type() const = 0;
 
-    virtual void
+    virtual
+    void
     encode(cryptoconditions::der::Encoder& s) const = 0;
 
-    virtual void
+    virtual
+    void
     decode(cryptoconditions::der::Decoder& s) = 0;
 
     // for debugging
-    virtual void
+    virtual
+    void
     print(std::ostream& ostr) const = 0;
 };
 
@@ -78,13 +81,6 @@ operator!=(
     return !operator==(lhs, rhs);
 }
 
-// Needed because der sets are sorted, so comparing deserialized der sets
-// with the original need to ignore order
-bool
-operator<(
-    std::unique_ptr<DerChoiceBaseClass> const& lhs,
-    std::unique_ptr<DerChoiceBaseClass> const& rhs);
-
 struct DerChoiceDerived1 : DerChoiceBaseClass
 {
     Buffer buf_;
@@ -112,7 +108,7 @@ struct DerChoiceDerived1 : DerChoiceBaseClass
     serialize(Coder& c)
     {
         auto subAsSeq = cryptoconditions::der::make_sequence(subChoices_);
-        c& std::tie(buf_, subAsSeq, signedInt_);
+        c & std::tie(buf_, subAsSeq, signedInt_);
     }
 
     void

@@ -1962,7 +1962,8 @@ struct DerCoderTraits<std::tuple<Ts&...>>
     }
 
     template <std::size_t... Is>
-    static void
+    static
+    void
     encodeElementsHelper(
         Encoder& encoder,
         Tuple const& elements,
@@ -1975,7 +1976,8 @@ struct DerCoderTraits<std::tuple<Ts&...>>
     }
 
     template <std::size_t... Is>
-    static void
+    static
+    void
     decodeElementsHelper(
         Decoder& decoder,
         Tuple const& elements,
@@ -1987,18 +1989,57 @@ struct DerCoderTraits<std::tuple<Ts&...>>
             {((decoder >> std::get<Is>(elements)), 0)...}};
     }
 
-    static void
+    static
+    void
     encode(Encoder& encoder, Tuple const& elements)
     {
         encodeElementsHelper(
             encoder, elements, std::index_sequence_for<Ts...>{});
     }
 
-    static void
+    static
+    void
     decode(Decoder& decoder, Tuple const& elements)
     {
         decodeElementsHelper(
             decoder, elements, std::index_sequence_for<Ts...>{});
+    }
+
+    template <class T>
+    static
+    void
+    compareElementsHelper(
+        T const& lhs,
+        T const& rhs,
+        int* cmpResult)
+    {
+        if (*cmpResult)
+            return;
+        *cmpResult = DerCoderTraits<T>::compare(lhs, rhs);
+    }
+
+    template <std::size_t... Is>
+    static
+    int
+    compareElementsHelper(
+        Tuple const& lhs,
+        Tuple const& rhs,
+        std::index_sequence<Is...>)
+    {
+        int result = 0;
+        // Sean Parent for_each_argument trick (C++ fold expressions would be
+        // nice here)
+        (void)std::array<int, sizeof...(Ts)>{
+            {((compareElementsHelper(std::get<Is>(lhs), std::get<Is>(rhs), &result)), 0)...}};
+        return result;
+    }
+
+    static
+    int
+    compare(Tuple const& lhs, Tuple const& rhs)
+    {
+        compareElementsHelper(
+            lhs, rhs, std::index_sequence_for<Ts...>{});
     }
 };
 
