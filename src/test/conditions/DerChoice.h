@@ -45,6 +45,10 @@ struct DerChoiceBaseClass
     void
     decode(cryptoconditions::der::Decoder& s) = 0;
 
+    virtual
+    std::uint64_t
+    derEncodedLength() const = 0;
+
     // for debugging
     virtual
     void
@@ -83,7 +87,6 @@ operator!=(
 
 struct DerChoiceDerived1 : DerChoiceBaseClass
 {
-  public:
     Buffer buf_;
     std::vector<std::unique_ptr<DerChoiceBaseClass>> subChoices_;
     std::int32_t signedInt_;
@@ -95,12 +98,20 @@ struct DerChoiceDerived1 : DerChoiceBaseClass
         std::vector<std::unique_ptr<DerChoiceBaseClass>> sub,
         std::int32_t si);
 
+    template<class F>
+    void withTuple(F&& f);
+
+    template<class F>
+    void withTuple(F&& f) const
+    {
+        const_cast<DerChoiceDerived1*>(this)->withTuple(std::forward<F>(f));
+    }
+
     std::uint8_t
     type() const override;
 
-    template <class Coder>
-    void
-    serialize(Coder& c);
+    std::uint64_t
+    derEncodedLength() const override;
 
     void
     encode(cryptoconditions::der::Encoder& encoder) const override;
@@ -111,10 +122,12 @@ struct DerChoiceDerived1 : DerChoiceBaseClass
     void
     print(std::ostream& ostr) const override;
 
-    friend bool
+    friend
+    bool
     operator==(DerChoiceDerived1 const& lhs, DerChoiceDerived1 const& rhs);
 
-    friend bool
+    friend
+    bool
     operator!=(DerChoiceDerived1 const& lhs, DerChoiceDerived1 const& rhs);
 };
 
@@ -124,14 +137,23 @@ struct DerChoiceDerived2 : DerChoiceBaseClass
     std::uint64_t id_;
 
     DerChoiceDerived2() = default;
+
     DerChoiceDerived2(std::string const& n, std::uint64_t i);
+
+    template<class F>
+    void withTuple(F&& f);
+
+    template<class F>
+    void withTuple(F&& f) const
+    {
+        const_cast<DerChoiceDerived2*>(this)->withTuple(std::forward<F>(f));
+    }
 
     std::uint8_t
     type() const override;
 
-    template <class Coder>
-    void
-    serialize(Coder& c);
+    std::uint64_t
+    derEncodedLength() const override;
 
     void
     encode(cryptoconditions::der::Encoder& encoder) const override;
@@ -142,10 +164,12 @@ struct DerChoiceDerived2 : DerChoiceBaseClass
     void
     print(std::ostream& ostr) const override;
 
-    friend bool
+    friend
+    bool
     operator==(DerChoiceDerived2 const& lhs, DerChoiceDerived2 const& rhs);
 
-    friend bool
+    friend
+    bool
     operator!=(DerChoiceDerived2 const& lhs, DerChoiceDerived2 const& rhs);
 };
 
@@ -158,12 +182,20 @@ struct DerChoiceDerived3 : DerChoiceBaseClass
 
     DerChoiceDerived3(std::vector<std::unique_ptr<DerChoiceBaseClass>> sub);
 
+    template<class F>
+    void withTuple(F&& f);
+
+    template<class F>
+    void withTuple(F&& f) const
+    {
+        const_cast<DerChoiceDerived3*>(this)->withTuple(std::forward<F>(f));
+    }
+
     std::uint8_t
     type() const override;
 
-    template <class Coder>
-    void
-    serialize(Coder& c);
+    std::uint64_t
+    derEncodedLength() const override;
 
     void
     encode(cryptoconditions::der::Encoder& encoder) const override;
@@ -174,10 +206,12 @@ struct DerChoiceDerived3 : DerChoiceBaseClass
     void
     print(std::ostream& ostr) const override;
 
-    friend bool
+    friend
+    bool
     operator==(DerChoiceDerived3 const& lhs, DerChoiceDerived3 const& rhs);
 
-    friend bool
+    friend
+    bool
     operator!=(DerChoiceDerived3 const& lhs, DerChoiceDerived3 const& rhs);
 };
 
@@ -190,12 +224,20 @@ struct DerChoiceDerived4 : DerChoiceBaseClass
 
     DerChoiceDerived4(std::vector<std::unique_ptr<DerChoiceBaseClass>> sub);
 
+    template<class F>
+    void withTuple(F&& f);
+
+    template<class F>
+    void withTuple(F&& f) const
+    {
+        const_cast<DerChoiceDerived4*>(this)->withTuple(std::forward<F>(f));
+    }
+
     std::uint8_t
     type() const override;
 
-    template <class Coder>
-    void
-    serialize(Coder& c);
+    std::uint64_t
+    derEncodedLength() const override;
 
     void
     encode(cryptoconditions::der::Encoder& encoder) const override;
@@ -206,10 +248,12 @@ struct DerChoiceDerived4 : DerChoiceBaseClass
     void
     print(std::ostream& ostr) const override;
 
-    friend bool
+    friend
+    bool
     operator==(DerChoiceDerived4 const& lhs, DerChoiceDerived4 const& rhs);
 
-    friend bool
+    friend
+    bool
     operator!=(DerChoiceDerived4 const& lhs, DerChoiceDerived4 const& rhs);
 };
 
@@ -226,12 +270,20 @@ struct DerChoiceDerived5 : DerChoiceBaseClass
         std::string const& n,
         std::uint64_t i);
 
+    template<class F>
+    void withTuple(F&& f);
+
+    template<class F>
+    void withTuple(F&& f) const
+    {
+        const_cast<DerChoiceDerived5*>(this)->withTuple(std::forward<F>(f));
+    }
+
     std::uint8_t
     type() const override;
 
-    template <class Coder>
-    void
-    serialize(Coder& c);
+    std::uint64_t
+    derEncodedLength() const override;
 
     void
     encode(cryptoconditions::der::Encoder& encoder) const override;
@@ -242,10 +294,12 @@ struct DerChoiceDerived5 : DerChoiceBaseClass
     void
     print(std::ostream& ostr) const override;
 
-    friend bool
+    friend
+    bool
     operator==(DerChoiceDerived5 const& lhs, DerChoiceDerived5 const& rhs);
 
-    friend bool
+    friend
+    bool
     operator!=(DerChoiceDerived5 const& lhs, DerChoiceDerived5 const& rhs);
 };
 
@@ -332,6 +386,13 @@ struct DerCoderTraits<std::unique_ptr<test::DerChoiceBaseClass>>
 
         if (decoder.ec_)
             v.reset();
+    }
+
+    static 
+    std::uint64_t
+    length(std::unique_ptr<test::DerChoiceBaseClass> const& v)
+    {
+        return v->derEncodedLength();
     }
 };
 }  // der

@@ -23,6 +23,40 @@ namespace ripple {
 
 namespace test {
 
+template<class TChoice>
+static
+void
+encodeTupHelper(TChoice const& c, cryptoconditions::der::Encoder& encoder)
+{
+    c.withTuple([&encoder](auto const& tup){
+        encoder << tup;
+    });
+}
+
+template<class TChoice>
+static
+void
+decodeTupHelper(TChoice& c, cryptoconditions::der::Decoder& decoder)
+{
+    c.withTuple([&decoder](auto&& tup){
+        decoder >> tup;
+    });
+}
+
+template<class TChoice>
+static
+std::uint64_t
+derEncodedLengthHelper(TChoice const& c)
+{
+    std::uint64_t result = 0;
+    c.withTuple([&result](auto const& tup) {
+        using T = std::decay_t<decltype(tup)>;
+        using Traits = cryptoconditions::der::DerCoderTraits<T>;
+        result = Traits::length(tup);
+    });
+    return result;
+}
+
 DerChoiceDerived1::DerChoiceDerived1(
     std::vector<char> const& b,
     std::vector<std::unique_ptr<DerChoiceBaseClass>> sub,
@@ -37,24 +71,30 @@ DerChoiceDerived1::type() const
     return 1;
 }
 
-template <class Coder>
+template<class F>
 void
-DerChoiceDerived1::serialize(Coder& c)
+DerChoiceDerived1::withTuple(F&& f)
 {
     auto subAsSeq = cryptoconditions::der::make_sequence(subChoices_);
-    c & std::tie(buf_, subAsSeq, signedInt_);
+    f(std::tie(buf_, subAsSeq, signedInt_));
+}
+
+std::uint64_t
+DerChoiceDerived1::derEncodedLength() const
+{
+    return derEncodedLengthHelper(*this);
 }
 
 void
 DerChoiceDerived1::encode(cryptoconditions::der::Encoder& encoder) const
 {
-    const_cast<DerChoiceDerived1*>(this)->serialize(encoder);
+    encodeTupHelper(*this, encoder);
 }
 
 void
 DerChoiceDerived1::decode(cryptoconditions::der::Decoder& decoder)
 {
-    serialize(decoder);
+    decodeTupHelper(*this, decoder);
 }
 
 void
@@ -105,23 +145,29 @@ DerChoiceDerived2::type() const
     return 2;
 }
 
-template <class Coder>
+template<class F>
 void
-DerChoiceDerived2::serialize(Coder& c)
+DerChoiceDerived2::withTuple(F&& f)
 {
-    c & std::tie(name_, id_);
+    f(std::tie(name_, id_));
+}
+
+std::uint64_t
+DerChoiceDerived2::derEncodedLength() const
+{
+    return derEncodedLengthHelper(*this);
 }
 
 void
 DerChoiceDerived2::encode(cryptoconditions::der::Encoder& encoder) const
 {
-    const_cast<DerChoiceDerived2*>(this)->serialize(encoder);
+    encodeTupHelper(*this, encoder);
 }
 
 void
 DerChoiceDerived2::decode(cryptoconditions::der::Decoder& decoder)
 {
-    serialize(decoder);
+    decodeTupHelper(*this, decoder);
 }
 
 void
@@ -153,24 +199,30 @@ DerChoiceDerived3::type() const
     return 3;
 }
 
-template <class Coder>
+template<class F>
 void
-DerChoiceDerived3::serialize(Coder& c)
+DerChoiceDerived3::withTuple(F&& f)
 {
     auto subAsSet = cryptoconditions::der::make_set(subChoices_);
-    c& std::tie(subAsSet);
+    f(std::tie(subAsSet));
+}
+
+std::uint64_t
+DerChoiceDerived3::derEncodedLength() const
+{
+    return derEncodedLengthHelper(*this);
 }
 
 void
 DerChoiceDerived3::encode(cryptoconditions::der::Encoder& encoder) const
 {
-    const_cast<DerChoiceDerived3*>(this)->serialize(encoder);
+    encodeTupHelper(*this, encoder);
 }
 
 void
 DerChoiceDerived3::decode(cryptoconditions::der::Decoder& decoder)
 {
-    serialize(decoder);
+    decodeTupHelper(*this, decoder);
 }
 
 void
@@ -225,24 +277,30 @@ DerChoiceDerived4::type() const
     return 4;
 }
 
-template <class Coder>
+template<class F>
 void
-DerChoiceDerived4::serialize(Coder& c)
+DerChoiceDerived4::withTuple(F&& f)
 {
     auto subAsSeq = cryptoconditions::der::make_sequence(subChoices_);
-    c& std::tie(subAsSeq);
+    f(std::tie(subAsSeq));
+}
+
+std::uint64_t
+DerChoiceDerived4::derEncodedLength() const
+{
+    return derEncodedLengthHelper(*this);
 }
 
 void
 DerChoiceDerived4::encode(cryptoconditions::der::Encoder& encoder) const
 {
-    const_cast<DerChoiceDerived4*>(this)->serialize(encoder);
+    encodeTupHelper(*this, encoder);
 }
 
 void
 DerChoiceDerived4::decode(cryptoconditions::der::Decoder& decoder)
 {
-    serialize(decoder);
+    decodeTupHelper(*this, decoder);
 }
 
 void
@@ -287,23 +345,29 @@ DerChoiceDerived5::type() const
     return 5;
 }
 
-template <class Coder>
+template<class F>
 void
-DerChoiceDerived5::serialize(Coder& c)
+DerChoiceDerived5::withTuple(F&& f)
 {
-    c & std::tie(subChoice_, name_, id_);
+    f(std::tie(subChoice_, name_, id_));
+}
+
+std::uint64_t
+DerChoiceDerived5::derEncodedLength() const
+{
+    return derEncodedLengthHelper(*this);
 }
 
 void
 DerChoiceDerived5::encode(cryptoconditions::der::Encoder& encoder) const
 {
-    const_cast<DerChoiceDerived5*>(this)->serialize(encoder);
+    encodeTupHelper(*this, encoder);
 }
 
 void
 DerChoiceDerived5::decode(cryptoconditions::der::Decoder& decoder)
 {
-    serialize(decoder);
+    decodeTupHelper(*this, decoder);
 }
 
 void

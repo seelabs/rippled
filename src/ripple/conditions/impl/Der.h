@@ -2160,7 +2160,7 @@ struct DerCoderTraits<std::tuple<Ts&...>>
         std::uint64_t l = 0;
         forEachElement(
             elements, std::index_sequence_for<Ts...>{}, [&l](auto const& e) {
-                using ElementTraits = DerCoderTraits<std::decay<decltype(e)>>;
+                using ElementTraits = DerCoderTraits<std::decay_t<decltype(e)>>;
                 l += totalLength<ElementTraits>(e);
             });
         return l;
