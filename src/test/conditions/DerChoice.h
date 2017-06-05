@@ -83,6 +83,7 @@ operator!=(
 
 struct DerChoiceDerived1 : DerChoiceBaseClass
 {
+  public:
     Buffer buf_;
     std::vector<std::unique_ptr<DerChoiceBaseClass>> subChoices_;
     std::int32_t signedInt_;
@@ -92,74 +93,29 @@ struct DerChoiceDerived1 : DerChoiceBaseClass
     DerChoiceDerived1(
         std::vector<char> const& b,
         std::vector<std::unique_ptr<DerChoiceBaseClass>> sub,
-        std::int32_t si)
-        : buf_(makeSlice(b)), subChoices_(std::move(sub)), signedInt_(si)
-    {
-    }
+        std::int32_t si);
 
     std::uint8_t
-    type() const override
-    {
-        return 1;
-    }
+    type() const override;
 
     template <class Coder>
     void
-    serialize(Coder& c)
-    {
-        auto subAsSeq = cryptoconditions::der::make_sequence(subChoices_);
-        c & std::tie(buf_, subAsSeq, signedInt_);
-    }
+    serialize(Coder& c);
 
     void
-    encode(cryptoconditions::der::Encoder& encoder) const override
-    {
-        const_cast<DerChoiceDerived1*>(this)->serialize(encoder);
-    }
+    encode(cryptoconditions::der::Encoder& encoder) const override;
 
     void
-    decode(cryptoconditions::der::Decoder& decoder) override
-    {
-        serialize(decoder);
-    }
+    decode(cryptoconditions::der::Decoder& decoder) override;
 
     void
-    print(std::ostream& ostr) const override
-    {
-        ostr << "{d1;\n" << signedInt_ << ";\n";
-        auto const d = buf_.data();
-        ostr << '{';
-        for (std::size_t i = 0; i < buf_.size(); ++i)
-        {
-            if (i)
-                ostr << ", ";
-            ostr << int(d[i]);
-        }
-        ostr << "};";
-        ostr << '{';
-        for (auto const& c : subChoices_)
-            c->print(ostr);
-        ostr << "}\n}\n";
-    }
+    print(std::ostream& ostr) const override;
 
     friend bool
-    operator==(DerChoiceDerived1 const& lhs, DerChoiceDerived1 const& rhs)
-    {
-        if (lhs.buf_ != rhs.buf_ || lhs.signedInt_ != rhs.signedInt_ ||
-            lhs.subChoices_.size() != rhs.subChoices_.size())
-            return false;
-
-        for (size_t i = 0; i < lhs.subChoices_.size(); ++i)
-            if (!equal(lhs.subChoices_[i], rhs.subChoices_[i]))
-                return false;
-        return true;
-    }
+    operator==(DerChoiceDerived1 const& lhs, DerChoiceDerived1 const& rhs);
 
     friend bool
-    operator!=(DerChoiceDerived1 const& lhs, DerChoiceDerived1 const& rhs)
-    {
-        return !(lhs == rhs);
-    }
+    operator!=(DerChoiceDerived1 const& lhs, DerChoiceDerived1 const& rhs);
 };
 
 struct DerChoiceDerived2 : DerChoiceBaseClass
@@ -168,51 +124,29 @@ struct DerChoiceDerived2 : DerChoiceBaseClass
     std::uint64_t id_;
 
     DerChoiceDerived2() = default;
-    DerChoiceDerived2(std::string const& n, std::uint64_t i) : name_(n), id_(i)
-    {
-    }
+    DerChoiceDerived2(std::string const& n, std::uint64_t i);
 
     std::uint8_t
-    type() const override
-    {
-        return 2;
-    }
+    type() const override;
 
     template <class Coder>
     void
-    serialize(Coder& c)
-    {
-        c& std::tie(name_, id_);
-    }
+    serialize(Coder& c);
 
     void
-    encode(cryptoconditions::der::Encoder& encoder) const override
-    {
-        const_cast<DerChoiceDerived2*>(this)->serialize(encoder);
-    }
+    encode(cryptoconditions::der::Encoder& encoder) const override;
 
     void
-    decode(cryptoconditions::der::Decoder& decoder) override
-    {
-        serialize(decoder);
-    }
+    decode(cryptoconditions::der::Decoder& decoder) override;
 
     void
-    print(std::ostream& ostr) const override
-    {
-        ostr << "{d2;\n" << name_ << ";\n" << id_ << ";}\n";
-    }
+    print(std::ostream& ostr) const override;
 
     friend bool
-    operator==(DerChoiceDerived2 const& lhs, DerChoiceDerived2 const& rhs)
-    {
-        return lhs.name_ == rhs.name_ && lhs.id_ == rhs.id_;
-    }
+    operator==(DerChoiceDerived2 const& lhs, DerChoiceDerived2 const& rhs);
+
     friend bool
-    operator!=(DerChoiceDerived2 const& lhs, DerChoiceDerived2 const& rhs)
-    {
-        return !(lhs == rhs);
-    }
+    operator!=(DerChoiceDerived2 const& lhs, DerChoiceDerived2 const& rhs);
 };
 
 struct DerChoiceDerived3 : DerChoiceBaseClass
@@ -222,77 +156,29 @@ struct DerChoiceDerived3 : DerChoiceBaseClass
 
     DerChoiceDerived3() = default;
 
-    DerChoiceDerived3(std::vector<std::unique_ptr<DerChoiceBaseClass>> sub)
-        : subChoices_(std::move(sub))
-    {
-    }
+    DerChoiceDerived3(std::vector<std::unique_ptr<DerChoiceBaseClass>> sub);
 
     std::uint8_t
-    type() const override
-    {
-        return 3;
-    }
+    type() const override;
 
     template <class Coder>
     void
-    serialize(Coder& c)
-    {
-        auto subAsSet = cryptoconditions::der::make_set(subChoices_);
-        c& std::tie(subAsSet);
-    }
+    serialize(Coder& c);
 
     void
-    encode(cryptoconditions::der::Encoder& encoder) const override
-    {
-        const_cast<DerChoiceDerived3*>(this)->serialize(encoder);
-    }
+    encode(cryptoconditions::der::Encoder& encoder) const override;
 
     void
-    decode(cryptoconditions::der::Decoder& decoder) override
-    {
-        serialize(decoder);
-    }
+    decode(cryptoconditions::der::Decoder& decoder) override;
 
     void
-    print(std::ostream& ostr) const override
-    {
-        ostr << "{d3;\n";
-        ostr << '{';
-        for (auto const& c : subChoices_)
-            c->print(ostr);
-        ostr << "}\n}\n";
-    }
+    print(std::ostream& ostr) const override;
 
     friend bool
-    operator==(DerChoiceDerived3 const& lhs, DerChoiceDerived3 const& rhs)
-    {
-        if (lhs.subChoices_.size() != rhs.subChoices_.size())
-            return false;
-
-        // Order doesn't matter (these are der sets
-        std::vector<DerChoiceBaseClass const*> rhsChoices;
-        rhsChoices.reserve(rhs.subChoices_.size());
-        for (auto const& s : rhs.subChoices_)
-            rhsChoices.push_back(s.get());
-
-        for (size_t i = 0; i < lhs.subChoices_.size(); ++i)
-        {
-            auto rhsIt = std::find_if(
-                rhsChoices.begin(), rhsChoices.end(), [&](auto elem) {
-                    return equal(elem, lhs.subChoices_[i].get());
-                });
-            if (rhsIt == rhsChoices.end())
-                return false;
-            *rhsIt = nullptr;  // let it be found exactly once
-        }
-        return true;
-    }
+    operator==(DerChoiceDerived3 const& lhs, DerChoiceDerived3 const& rhs);
 
     friend bool
-    operator!=(DerChoiceDerived3 const& lhs, DerChoiceDerived3 const& rhs)
-    {
-        return !(lhs == rhs);
-    }
+    operator!=(DerChoiceDerived3 const& lhs, DerChoiceDerived3 const& rhs);
 };
 
 struct DerChoiceDerived4 : DerChoiceBaseClass
@@ -302,64 +188,29 @@ struct DerChoiceDerived4 : DerChoiceBaseClass
 
     DerChoiceDerived4() = default;
 
-    DerChoiceDerived4(std::vector<std::unique_ptr<DerChoiceBaseClass>> sub)
-        : subChoices_(std::move(sub))
-    {
-    }
+    DerChoiceDerived4(std::vector<std::unique_ptr<DerChoiceBaseClass>> sub);
 
     std::uint8_t
-    type() const override
-    {
-        return 4;
-    }
+    type() const override;
 
     template <class Coder>
     void
-    serialize(Coder& c)
-    {
-        auto subAsSeq = cryptoconditions::der::make_sequence(subChoices_);
-        c& std::tie(subAsSeq);
-    }
+    serialize(Coder& c);
 
     void
-    encode(cryptoconditions::der::Encoder& encoder) const override
-    {
-        const_cast<DerChoiceDerived4*>(this)->serialize(encoder);
-    }
+    encode(cryptoconditions::der::Encoder& encoder) const override;
 
     void
-    decode(cryptoconditions::der::Decoder& decoder) override
-    {
-        serialize(decoder);
-    }
+    decode(cryptoconditions::der::Decoder& decoder) override;
 
     void
-    print(std::ostream& ostr) const override
-    {
-        ostr << "{d4;\n";
-        ostr << '{';
-        for (auto const& c : subChoices_)
-            c->print(ostr);
-        ostr << "}\n}\n";
-    }
+    print(std::ostream& ostr) const override;
 
     friend bool
-    operator==(DerChoiceDerived4 const& lhs, DerChoiceDerived4 const& rhs)
-    {
-        if (lhs.subChoices_.size() != rhs.subChoices_.size())
-            return false;
-
-        for (size_t i = 0; i < lhs.subChoices_.size(); ++i)
-            if (!equal(lhs.subChoices_[i], rhs.subChoices_[i]))
-                return false;
-        return true;
-    }
+    operator==(DerChoiceDerived4 const& lhs, DerChoiceDerived4 const& rhs);
 
     friend bool
-    operator!=(DerChoiceDerived4 const& lhs, DerChoiceDerived4 const& rhs)
-    {
-        return !(lhs == rhs);
-    }
+    operator!=(DerChoiceDerived4 const& lhs, DerChoiceDerived4 const& rhs);
 };
 
 struct DerChoiceDerived5 : DerChoiceBaseClass
@@ -373,110 +224,30 @@ struct DerChoiceDerived5 : DerChoiceBaseClass
     DerChoiceDerived5(
         std::unique_ptr<DerChoiceBaseClass> sub,
         std::string const& n,
-        std::uint64_t i)
-        : subChoice_(std::move(sub)), name_{n}, id_{i}
-    {
-    }
+        std::uint64_t i);
 
     std::uint8_t
-    type() const override
-    {
-        return 5;
-    }
+    type() const override;
 
     template <class Coder>
     void
-    serialize(Coder& c)
-    {
-        c& std::tie(subChoice_, name_, id_);
-    }
+    serialize(Coder& c);
 
     void
-    encode(cryptoconditions::der::Encoder& encoder) const override
-    {
-        const_cast<DerChoiceDerived5*>(this)->serialize(encoder);
-    }
+    encode(cryptoconditions::der::Encoder& encoder) const override;
 
     void
-    decode(cryptoconditions::der::Decoder& decoder) override
-    {
-        serialize(decoder);
-    }
+    decode(cryptoconditions::der::Decoder& decoder) override;
 
     void
-    print(std::ostream& ostr) const override
-    {
-        ostr << "{d5;\n" << name_ << ";\n" << id_ << ";";
-        ostr << '{';
-        if (subChoice_)
-            subChoice_->print(ostr);
-        ostr << "}\n}\n";
-    }
+    print(std::ostream& ostr) const override;
 
     friend bool
-    operator==(DerChoiceDerived5 const& lhs, DerChoiceDerived5 const& rhs)
-    {
-        return lhs.name_ == rhs.name_ && lhs.id_ == rhs.id_ &&
-            lhs.subChoice_ == rhs.subChoice_;
-    }
+    operator==(DerChoiceDerived5 const& lhs, DerChoiceDerived5 const& rhs);
 
     friend bool
-    operator!=(DerChoiceDerived5 const& lhs, DerChoiceDerived5 const& rhs)
-    {
-        return !(lhs == rhs);
-    }
+    operator!=(DerChoiceDerived5 const& lhs, DerChoiceDerived5 const& rhs);
 };
-
-inline
-bool
-equal(DerChoiceBaseClass const* lhs, DerChoiceBaseClass const* rhs)
-{
-    if (bool(lhs) != bool(rhs))
-        return false;
-    if (!lhs && !rhs)
-        return true;
-    if (auto plhs = dynamic_cast<DerChoiceDerived1 const*>(lhs))
-    {
-        if (auto prhs = dynamic_cast<DerChoiceDerived1 const*>(rhs))
-        {
-            return *plhs == *prhs;
-        }
-        return false;
-    }
-    if (auto plhs = dynamic_cast<DerChoiceDerived2 const*>(lhs))
-    {
-        if (auto prhs = dynamic_cast<DerChoiceDerived2 const*>(rhs))
-        {
-            return *plhs == *prhs;
-        }
-        return false;
-    }
-    if (auto plhs = dynamic_cast<DerChoiceDerived3 const*>(lhs))
-    {
-        if (auto prhs = dynamic_cast<DerChoiceDerived3 const*>(rhs))
-        {
-            return *plhs == *prhs;
-        }
-        return false;
-    }
-    if (auto plhs = dynamic_cast<DerChoiceDerived4 const*>(lhs))
-    {
-        if (auto prhs = dynamic_cast<DerChoiceDerived4 const*>(rhs))
-        {
-            return *plhs == *prhs;
-        }
-        return false;
-    }
-    if (auto plhs = dynamic_cast<DerChoiceDerived5 const*>(lhs))
-    {
-        if (auto prhs = dynamic_cast<DerChoiceDerived5 const*>(rhs))
-        {
-            return *plhs == *prhs;
-        }
-        return false;
-    }
-    return false;
-}
 
 }  // test
 

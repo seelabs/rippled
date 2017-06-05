@@ -5198,6 +5198,9 @@
     <ClCompile Include="..\..\src\test\conditions\Conditions_test.cpp">
       <Filter>test\conditions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\test\conditions\DerChoice.cpp">
+      <Filter>test\conditions</Filter>
+    </ClCompile>
     <ClInclude Include="..\..\src\test\conditions\DerChoice.h">
       <Filter>test\conditions</Filter>
     </ClInclude>
