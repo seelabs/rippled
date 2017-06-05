@@ -190,6 +190,27 @@ encodeContentLength(std::vector<char>& dst, std::uint64_t v)
         dst.push_back(static_cast<char>((v >> (n * 8)) & 0xFF));
 }
 
+size_t
+contentLengthLength(std::uint64_t v)
+{
+    if (v <= 127)
+    {
+        return 1;
+    }
+
+    std::size_t n = sizeof(v);
+
+    // skip leading zeros
+    while (n--)
+    {
+        auto b = static_cast<std::uint8_t>((v >> (n * 8)) & 0xFF);
+        if (b)
+            break;
+    }
+
+    return n + 1;
+}
+
 void
 encodePreamble(std::vector<char>& dst, Preamble const& p)
 {

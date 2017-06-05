@@ -173,11 +173,13 @@ struct DerCoderTraits
         "DerCoderTraits must be specialized for this type");
 
     /// ans.1 class id
-    constexpr static ClassId
+    constexpr static
+    ClassId
     classId();
 
     /// group type
-    constexpr static GroupType
+    constexpr static
+    GroupType
     groupType();
 
     /** ans.1 tag type, if known.
@@ -185,32 +187,39 @@ struct DerCoderTraits
         The tagNum for choice types can only be known from the actual value being
         encoded. In these cases `boost::none` is returned.
     */ 
-    static boost::optional<std::uint8_t> const&
+    static
+    boost::optional<std::uint8_t> const&
     tagNum();
 
     /// ans.1 tag type for this given value.
     template <class TT>
-    static std::uint8_t tagNum(TT);
+    static
+    std::uint8_t
+    tagNum(TT);
 
     /** return true if this type is an asn.1 primitive. return false if this
         type is an asn.1 constructed type.
      */
-    constexpr static bool
+    constexpr static
+    bool
     primitive();
 
-    /// return the number of bytes required to encode the value
+    /// return the number of bytes required to encode the value, not including the preamble
     template <class TT>
-    static size_t
+    static
+    std::uint64_t
     length(TT const& v);
 
     /// serialize the value into the encoder
     template <class TT>
-    static void
+    static
+    void
     encode(Encoder& s, TT v);
 
     /// deserialize the value from the decoder
     template <class TT>
-    static void
+    static
+    void
     decode(Decoder& decoder, TT& v);
 
     /** compare two values so they sort appropriatly for an asn.1 set. Returns -1 if lhs<rhs, 0 if lsh==rhs, 1 if lhs>rhs
@@ -410,6 +419,22 @@ encodeTagNum(std::vector<char>& dst, std::uint64_t v);
 */
 void
 encodeContentLength(std::vector<char>& dst, std::uint64_t v);
+
+/** return the number of bytes required to encode a the given content length
+ */
+std::uint64_t
+contentLengthLength(std::uint64_t);
+
+/** return the number of bytes required to encode the value, including the preamble
+ */
+template <class Trait, class T>
+std::uint64_t
+totalLength(T const& v)
+{
+    auto const contentLength = Trait::length(v);
+    // all crypto-condition preambles are one-byte
+    return 1 + contentLength + contentLengthLength(contentLength); 
+}
 
 /** A value in a hierarchy of values when encoding
 
@@ -1005,19 +1030,22 @@ struct Decoder
 */
 struct IntegerTraits
 {
-    constexpr static ClassId
+    constexpr static
+    ClassId
     classId()
     {
         return ClassId::universal;
     }
 
-    constexpr static GroupType
+    constexpr static
+    GroupType
     groupType()
     {
         return GroupType::integer;
     }
 
-    static boost::optional<std::uint8_t> const&
+    static
+    boost::optional<std::uint8_t> const&
     tagNum()
     {
         static boost::optional<std::uint8_t> tn{2};
@@ -1025,26 +1053,30 @@ struct IntegerTraits
     }
 
     template <class T>
-    static std::uint8_t tagNum(T)
+    static
+    std::uint8_t
+    tagNum(T)
     {
         return 2;
     }
 
-    constexpr static bool
+    constexpr static
+    bool
     primitive()
     {
         return true;
     }
 
     template <class T>
-    static size_t
+    static 
+    std::uint64_t
     length(T const& v)
     {
         const auto isSigned = std::numeric_limits<T>::is_signed;
         if (!v || (isSigned && v == -1))
             return 1;
 
-        std::size_t n = sizeof(v);
+        std::uint64_t n = sizeof(v);
         signed char toSkip = (isSigned && v < 0) ? 0xff : 0;
         // skip leading 0xff for negative signed, otherwise skip leading zeros
         // when skipping 0xff, the next octet's high bit must be set
@@ -1067,7 +1099,8 @@ struct IntegerTraits
     }
 
     template <class T>
-    static void
+    static
+    void
     encode(Encoder& s, T v)
     {
         std::vector<char>& dst = s.buf_;
@@ -1089,7 +1122,8 @@ struct IntegerTraits
     }
 
     template <class T>
-    static void
+    static
+    void
     decode(Decoder& decoder, T& v)
     {
         auto& slice = decoder.parentSlice();
@@ -1191,19 +1225,22 @@ struct DerCoderTraits<std::int64_t> : IntegerTraits
 */
 struct OctetStringTraits
 {
-    constexpr static ClassId
+    constexpr static
+    ClassId
     classId()
     {
         return ClassId::universal;
     }
 
-    constexpr static GroupType
+    constexpr static
+    GroupType
     groupType()
     {
         return GroupType::octetString;
     }
 
-    static boost::optional<std::uint8_t> const&
+    static
+    boost::optional<std::uint8_t> const&
     tagNum()
     {
         static boost::optional<std::uint8_t> tn{4};
@@ -1211,20 +1248,23 @@ struct OctetStringTraits
     }
 
     template <class T>
-    static std::uint8_t
+    static
+    std::uint8_t
     tagNum(T const&)
     {
         return 4;
     }
 
-    constexpr static bool
+    constexpr static
+    bool
     primitive()
     {
         return true;
     }
 
 protected:
-    static void
+    static
+    void
     encode(Encoder& encoder, Slice s)
     {
         if (s.empty())
@@ -1237,7 +1277,8 @@ protected:
         memcpy(&dst[dstIdx], s.data(), s.size());
     }
 
-    static void
+    static
+    void
     decode(Decoder& decoder, void* dstData, std::size_t dstSize)
     {
         auto& slice = decoder.parentSlice();
@@ -1259,19 +1300,28 @@ protected:
 template <>
 struct DerCoderTraits<std::string> : OctetStringTraits
 {
-    static void
+    static
+    void
     encode(Encoder& encoder, std::string const& s)
     {
         OctetStringTraits::encode(encoder, makeSlice(s));
     }
 
-    static void
+    static
+    void
     decode(Decoder& decoder, std::string& v)
     {
         auto& slice = decoder.parentSlice();
         v.resize(slice.size());
         if (!v.empty())
             OctetStringTraits::decode(decoder, &v[0], v.size());
+    }
+
+    static 
+    std::uint64_t
+    length(std::string const& v)
+    {
+        return v.size();
     }
 
     static
@@ -1282,20 +1332,30 @@ struct DerCoderTraits<std::string> : OctetStringTraits
     }
 };
 
-template <std::size_t S>
+template <std::uint64_t S>
 struct DerCoderTraits<std::array<std::uint8_t, S>> : OctetStringTraits
 {
-    static void
+    static
+    void
     encode(Encoder& encoder, std::array<std::uint8_t, S> const& s)
     {
         OctetStringTraits::encode(encoder, makeSlice(s));
     }
 
-    static void
+    static
+    void
     decode(Decoder& decoder, std::array<std::uint8_t, S>& v)
     {
         OctetStringTraits::decode(decoder, v.data(), v.size());
     }
+
+    static 
+    std::uint64_t
+    length(std::array<std::uint8_t, S> const& v)
+    {
+        return S;
+    }
+
 
     static
     int
@@ -1318,19 +1378,28 @@ struct DerCoderTraits<std::array<std::uint8_t, S>> : OctetStringTraits
 template <>
 struct DerCoderTraits<Buffer> : OctetStringTraits
 {
-    static void
+    static
+    void
     encode(Encoder& encoder, Buffer const& b)
     {
         OctetStringTraits::encode(encoder, b);
     }
 
-    static void
+    static
+    void
     decode(Decoder& decoder, Buffer& v)
     {
         auto& slice = decoder.parentSlice();
         v.alloc(slice.size());
         if (!v.empty())
             OctetStringTraits::decode(decoder, v.data(), v.size());
+    }
+
+    static 
+    std::uint64_t
+    length(Buffer const& v)
+    {
+        return v.size();
     }
 
     static
@@ -1420,13 +1489,15 @@ make_octet_string_check_less(T& t, std::size_t s)
 template <class T>
 struct DerCoderTraits<OctetStringCheckEqualSize<T>> : OctetStringTraits
 {
-    static void
+    static
+    void
     encode(Encoder& encoder, OctetStringCheckEqualSize<T> const& v)
     {
         DerCoderTraits<T>::encode(encoder, v.col_);
     }
 
-    static void
+    static
+    void
     decode(Decoder& decoder, OctetStringCheckEqualSize<T>& v)
     {
         auto& slice = decoder.parentSlice();
@@ -1436,6 +1507,13 @@ struct DerCoderTraits<OctetStringCheckEqualSize<T>> : OctetStringTraits
             return;
         }
         DerCoderTraits<T>::decode(decoder, v.col_);
+    }
+
+    static 
+    std::uint64_t
+    length(OctetStringCheckEqualSize<T> const& v)
+    {
+        return DerCoderTraits<T>::length(v.col_);
     }
 
     static 
@@ -1455,13 +1533,15 @@ struct DerCoderTraits<OctetStringCheckEqualSize<T>> : OctetStringTraits
 template <class T>
 struct DerCoderTraits<OctetStringCheckLessSize<T>> : OctetStringTraits
 {
-    static void
+    static
+    void
     encode(Encoder& encoder, OctetStringCheckLessSize<T> const& v)
     {
         DerCoderTraits<T>::encode(encoder, v.col_);
     }
 
-    static void
+    static
+    void
     decode(Decoder& decoder, OctetStringCheckLessSize<T>& v)
     {
         auto& slice = decoder.parentSlice();
@@ -1474,6 +1554,13 @@ struct DerCoderTraits<OctetStringCheckLessSize<T>> : OctetStringTraits
             return;
         }
         DerCoderTraits<T>::decode(decoder, v.col_);
+    }
+
+    static 
+    std::uint64_t
+    length(OctetStringCheckLessSize<T> const& v)
+    {
+        return DerCoderTraits<T>::length(v.col_);
     }
 
     static
@@ -1499,35 +1586,44 @@ struct DerCoderTraits<std::bitset<S>>
     constexpr static std::uint8_t const minUnusedBits = mod8 ? 8 - mod8 : 0;
     constexpr static std::uint8_t const maxBytes = mod8 ? 1 + S / 8 : S / 8;
 
-    constexpr static GroupType
+    constexpr static
+    GroupType
     groupType()
     {
         return GroupType::bitString;
     }
 
-    constexpr static ClassId
+    constexpr static
+    ClassId
     classId()
     {
         return ClassId::universal;
     }
-    static boost::optional<std::uint8_t> const&
+    
+    static
+    boost::optional<std::uint8_t> const&
     tagNum()
     {
         static boost::optional<std::uint8_t> tn{3};
         return tn;
     }
-    static std::uint8_t
+
+    static
+    std::uint8_t
     tagNum(std::bitset<S> const&)
     {
         return 3;
     }
-    constexpr static bool
+
+    constexpr static
+    bool
     primitive()
     {
         return true;
     }
 
-    static std::uint8_t
+    static
+    std::uint8_t
     reverseBits(std::uint8_t b)
     {
         static constexpr std::uint8_t lut[256] = 
@@ -1630,7 +1726,8 @@ struct DerCoderTraits<std::bitset<S>>
         }
     }
 
-    static void
+    static
+    void
     decode(Decoder& decoder, std::bitset<S>& v)
     {
         auto& slice = decoder.parentSlice();
@@ -1682,6 +1779,25 @@ struct DerCoderTraits<std::bitset<S>>
         }
 
         v = bits;
+    }
+
+    static 
+    std::uint64_t
+    length(std::bitset<S> const& s)
+    {
+        static_assert(
+            maxBytes > 0 && maxBytes <= sizeof(unsigned long),
+            "Unsupported bitset size");
+        auto const bits = s.to_ulong();
+
+        if (bits == 0)
+        {
+            return 2;
+        }
+
+        std::size_t const leadingZeroBytes = numLeadingZeroBytes(s);
+        // +1 to store unusedBits
+        return 1 + maxBytes - leadingZeroBytes;
     }
 
     static
@@ -1857,6 +1973,17 @@ struct DerCoderTraits<SetOfWrapper<T>>
                 return;
         }
     }
+
+    static 
+    std::uint64_t
+    length(SetOfWrapper<T> const& v)
+    {
+        using ValueTraits = DerCoderTraits<typename T::value_type>;
+        std::uint64_t l = 0;
+        for (auto const& e : v.col_)
+            l += totalLength<ValueTraits>(e);
+        return l;
+    }
 };
 
 /** DerCoderTraits for types that will be coded as asn.1 sequences
@@ -1868,28 +1995,35 @@ struct DerCoderTraits<SetOfWrapper<T>>
 template <class T>
 struct DerCoderTraits<SequenceOfWrapper<T>>
 {
-    constexpr static GroupType
+    constexpr static
+    GroupType
     groupType()
     {
         return GroupType::sequence;
     }
 
-    constexpr static ClassId
+    constexpr static
+    ClassId
     classId()
     {
         return ClassId::universal;
     }
-    static boost::optional<std::uint8_t> const&
+
+    static
+    boost::optional<std::uint8_t> const&
     tagNum()
     {
         static boost::optional<std::uint8_t> tn{16};
         return tn;
     }
-    static std::uint8_t
+
+    static
+    std::uint8_t
     tagNum(SequenceOfWrapper<T> const&)
     {
         return 16;
     }
+
     constexpr static bool
     primitive()
     {
@@ -1918,6 +2052,17 @@ struct DerCoderTraits<SequenceOfWrapper<T>>
             if (decoder.ec())
                 return;
         }
+    }
+
+    static 
+    std::uint64_t
+    length(SequenceOfWrapper<T> const& v)
+    {
+        using ValueTraits = DerCoderTraits<typename T::value_type>;
+        std::uint64_t l = 0;
+        for (auto const& e : v.col_)
+            l += totalLength<ValueTraits>(e);
+        return l;
     }
 };
 
@@ -1961,18 +2106,18 @@ struct DerCoderTraits<std::tuple<Ts&...>>
         return false;
     }
 
-    template <std::size_t... Is>
+    template <class F, std::size_t... Is>
     static
     void
-    encodeElementsHelper(
-        Encoder& encoder,
+    forEachElement(
         Tuple const& elements,
-        std::index_sequence<Is...>)
+        std::index_sequence<Is...>,
+        F&& f)
     {
         // Sean Parent for_each_argument trick (C++ fold expressions would be
         // nice here)
         (void)std::array<int, sizeof...(Ts)>{
-            {((encoder << std::get<Is>(elements)), 0)...}};
+            {(f(std::get<Is>(elements)), 0)...}};
     }
 
     template <std::size_t... Is>
@@ -1993,16 +2138,32 @@ struct DerCoderTraits<std::tuple<Ts&...>>
     void
     encode(Encoder& encoder, Tuple const& elements)
     {
-        encodeElementsHelper(
-            encoder, elements, std::index_sequence_for<Ts...>{});
+        forEachElement(
+            elements,
+            std::index_sequence_for<Ts...>{},
+            [&encoder](auto const& e) { encoder << e; });
     }
 
     static
     void
     decode(Decoder& decoder, Tuple const& elements)
     {
-        decodeElementsHelper(
-            decoder, elements, std::index_sequence_for<Ts...>{});
+        forEachElement(
+            elements, std::index_sequence_for<Ts...>{},
+            [&decoder](auto& e) {decoder >> e;});
+    }
+
+    static 
+    std::uint64_t
+    length(Tuple const& elements)
+    {
+        std::uint64_t l = 0;
+        forEachElement(
+            elements, std::index_sequence_for<Ts...>{}, [&l](auto const& e) {
+                using ElementTraits = DerCoderTraits<std::decay<decltype(e)>>;
+                l += totalLength<ElementTraits>(e);
+            });
+        return l;
     }
 
     template <class T>
