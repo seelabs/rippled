@@ -2204,6 +2204,59 @@ struct DerCoderTraits<std::tuple<Ts&...>>
     }
 };
 
+/** For types that define `withTuple`, encode the type.
+
+    @note If the user defined type defines the function `withTuple`, then
+    `withTupleEncodeHelper`, `withTupleDecodeHelper`, and
+    `withTupleEncodeHelper` may be used to help implement the DerCoderTraits
+    functions `encode`, `decode`, and `length`. The `withTuple` function should
+    take a single parameter: a callback function. That callback function should
+    take a single parameter, a tuple of references that represent the object being
+    coded.
+ */
+template<class TChoice>
+static
+void
+withTupleEncodeHelper(TChoice const& c, cryptoconditions::der::Encoder& encoder)
+{
+    c.withTuple([&encoder](auto const& tup){
+        encoder << tup;
+    });
+}
+
+/** For types that define `withTuple`, decode the type.
+
+    @see note on {@link #withTupleEncodeHelper}
+ */
+template<class TChoice>
+static
+void
+withTupleDecodeHelper(TChoice& c, cryptoconditions::der::Decoder& decoder)
+{
+    c.withTuple([&decoder](auto&& tup){
+        decoder >> tup;
+    });
+}
+
+/** For types that define `withTuple`, find the length, in bytes, of the encoded content.
+
+    @see note on {@link #withTupleEncodeHelper}
+ */
+template<class TChoice>
+static
+std::uint64_t
+withTupleEncodedLengthHelper(TChoice const& c)
+{
+    std::uint64_t result = 0;
+    c.withTuple([&result](auto const& tup) {
+        using T = std::decay_t<decltype(tup)>;
+        using Traits = cryptoconditions::der::DerCoderTraits<T>;
+        result = Traits::length(tup);
+    });
+    return result;
+}
+
+
 }  // der
 }  // cryptoconditions
 }  // ripple

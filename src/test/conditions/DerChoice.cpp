@@ -23,40 +23,6 @@ namespace ripple {
 
 namespace test {
 
-template<class TChoice>
-static
-void
-encodeTupHelper(TChoice const& c, cryptoconditions::der::Encoder& encoder)
-{
-    c.withTuple([&encoder](auto const& tup){
-        encoder << tup;
-    });
-}
-
-template<class TChoice>
-static
-void
-decodeTupHelper(TChoice& c, cryptoconditions::der::Decoder& decoder)
-{
-    c.withTuple([&decoder](auto&& tup){
-        decoder >> tup;
-    });
-}
-
-template<class TChoice>
-static
-std::uint64_t
-derEncodedLengthHelper(TChoice const& c)
-{
-    std::uint64_t result = 0;
-    c.withTuple([&result](auto const& tup) {
-        using T = std::decay_t<decltype(tup)>;
-        using Traits = cryptoconditions::der::DerCoderTraits<T>;
-        result = Traits::length(tup);
-    });
-    return result;
-}
-
 DerChoiceDerived1::DerChoiceDerived1(
     std::vector<char> const& b,
     std::vector<std::unique_ptr<DerChoiceBaseClass>> sub,
@@ -82,19 +48,19 @@ DerChoiceDerived1::withTuple(F&& f)
 std::uint64_t
 DerChoiceDerived1::derEncodedLength() const
 {
-    return derEncodedLengthHelper(*this);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
 }
 
 void
 DerChoiceDerived1::encode(cryptoconditions::der::Encoder& encoder) const
 {
-    encodeTupHelper(*this, encoder);
+    cryptoconditions::der::withTupleEncodeHelper(*this, encoder);
 }
 
 void
 DerChoiceDerived1::decode(cryptoconditions::der::Decoder& decoder)
 {
-    decodeTupHelper(*this, decoder);
+    cryptoconditions::der::withTupleDecodeHelper(*this, decoder);
 }
 
 void
@@ -155,19 +121,19 @@ DerChoiceDerived2::withTuple(F&& f)
 std::uint64_t
 DerChoiceDerived2::derEncodedLength() const
 {
-    return derEncodedLengthHelper(*this);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
 }
 
 void
 DerChoiceDerived2::encode(cryptoconditions::der::Encoder& encoder) const
 {
-    encodeTupHelper(*this, encoder);
+    cryptoconditions::der::withTupleEncodeHelper(*this, encoder);
 }
 
 void
 DerChoiceDerived2::decode(cryptoconditions::der::Decoder& decoder)
 {
-    decodeTupHelper(*this, decoder);
+    cryptoconditions::der::withTupleDecodeHelper(*this, decoder);
 }
 
 void
@@ -210,19 +176,19 @@ DerChoiceDerived3::withTuple(F&& f)
 std::uint64_t
 DerChoiceDerived3::derEncodedLength() const
 {
-    return derEncodedLengthHelper(*this);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
 }
 
 void
 DerChoiceDerived3::encode(cryptoconditions::der::Encoder& encoder) const
 {
-    encodeTupHelper(*this, encoder);
+    cryptoconditions::der::withTupleEncodeHelper(*this, encoder);
 }
 
 void
 DerChoiceDerived3::decode(cryptoconditions::der::Decoder& decoder)
 {
-    decodeTupHelper(*this, decoder);
+    cryptoconditions::der::withTupleDecodeHelper(*this, decoder);
 }
 
 void
@@ -288,19 +254,19 @@ DerChoiceDerived4::withTuple(F&& f)
 std::uint64_t
 DerChoiceDerived4::derEncodedLength() const
 {
-    return derEncodedLengthHelper(*this);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
 }
 
 void
 DerChoiceDerived4::encode(cryptoconditions::der::Encoder& encoder) const
 {
-    encodeTupHelper(*this, encoder);
+    cryptoconditions::der::withTupleEncodeHelper(*this, encoder);
 }
 
 void
 DerChoiceDerived4::decode(cryptoconditions::der::Decoder& decoder)
 {
-    decodeTupHelper(*this, decoder);
+    cryptoconditions::der::withTupleDecodeHelper(*this, decoder);
 }
 
 void
@@ -355,19 +321,19 @@ DerChoiceDerived5::withTuple(F&& f)
 std::uint64_t
 DerChoiceDerived5::derEncodedLength() const
 {
-    return derEncodedLengthHelper(*this);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
 }
 
 void
 DerChoiceDerived5::encode(cryptoconditions::der::Encoder& encoder) const
 {
-    encodeTupHelper(*this, encoder);
+    cryptoconditions::der::withTupleEncodeHelper(*this, encoder);
 }
 
 void
 DerChoiceDerived5::decode(cryptoconditions::der::Decoder& decoder)
 {
-    decodeTupHelper(*this, decoder);
+    cryptoconditions::der::withTupleDecodeHelper(*this, decoder);
 }
 
 void
