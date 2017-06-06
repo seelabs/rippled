@@ -45,13 +45,6 @@ class Ed25519 final : public Fulfillment
     std::array<std::uint8_t, pubkey_size_> publicKey_;
     std::array<std::uint8_t, signature_size_> signature_;
 
-    template <class Coder>
-    void
-    serialize(Coder& c)
-    {
-        c & std::tie(publicKey_, signature_);
-    }
-
     void
     encodeFingerprint(der::Encoder& encoder) const override;
 
@@ -72,6 +65,20 @@ public:
         std::array<std::uint8_t, signature_size_> const& signature)
         : publicKey_(publicKey), signature_(signature)
     {
+    }
+
+    template <class F>
+    void
+    withTuple(F&& f)
+    {
+        f(std::tie(publicKey_, signature_));
+    }
+
+    template<class F>
+    void
+    withTuple(F&& f) const
+    {
+        const_cast<Ed25519*>(this)->withTuple(std::forward<F>(f));
     }
 
     Type
@@ -106,6 +113,9 @@ public:
 
     void
     decode(der::Decoder& decoder) override;
+
+    std::uint64_t
+    derEncodedLength() const override;
 };
 }
 }

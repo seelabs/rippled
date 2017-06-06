@@ -62,6 +62,9 @@ public:
     Condition
     deserialize(Slice s, std::error_code& ec);
 
+    static
+    bool
+    isCompoundCondition(Type t);
 public:
     Type type;
 
@@ -93,6 +96,23 @@ public:
     /// Construct for der serialization
     explicit
     Condition(der::Constructor const&);
+
+    template<class F>
+    void withTuple(F&& f)
+    {
+        auto constraintedFp =
+            der::make_octet_string_check_equal(fingerprint, 32);
+        if (isCompoundCondition(type))
+            f(std::tie(constraintedFp, cost, subtypes));
+        else
+            f(std::tie(constraintedFp, cost));
+    }
+
+    template<class F>
+    void withTuple(F&& f) const
+    {
+        const_cast<Condition*>(this)->withTuple(std::forward<F>(f));
+    }
 
     /** Return the subtypes that this type depends on, including this type.
 
@@ -153,20 +173,16 @@ struct DerCoderTraits<Condition>
     }
     constexpr static bool primitive(){return false;}
 
-    static
-    bool
-    isCompoundCondition(Type t);
-
-    template<class Coder>
-    static void
-    serialize(Coder& coder, Condition& c);
-
     static void
     encode(Encoder& encoder, Condition const& c);
 
     static
     void
     decode(Decoder& decoder, Condition& v);
+
+    static 
+    std::uint64_t
+    length(Condition const& v);
 };
 } // der
 } // cryptoconditions

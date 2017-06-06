@@ -32,9 +32,8 @@
 namespace ripple {
 namespace cryptoconditions {
 
-namespace der {
 bool
-DerCoderTraits<Condition>::
+Condition::
 isCompoundCondition(Type t)
 {
     static_assert(Type::last == Type::ed25519Sha256, "Add new case");
@@ -52,28 +51,14 @@ isCompoundCondition(Type t)
     return false;  // silence compiler warning
 }
 
-template <class Coder>
-void
-DerCoderTraits<Condition>::
-serialize(
-    Coder& coder,
-    Condition& c)
-{
-    auto constraintedFp =
-        der::make_octet_string_check_equal(c.fingerprint, 32);
-    if (isCompoundCondition(c.type))
-        coder & std::tie(constraintedFp, c.cost, c.subtypes);
-    else
-        coder & std::tie(constraintedFp, c.cost);
-}
-
+namespace der {
 void
 DerCoderTraits<Condition>::
 encode(
     Encoder& encoder,
     Condition const& c)
 {
-    serialize(encoder, const_cast<Condition&>(c));
+    cryptoconditions::der::withTupleEncodeHelper(c, encoder);
 }
 
 void
@@ -108,7 +93,7 @@ decode(
     }
 
     v.type = static_cast<Type>(parentTag->tagNum);
-    serialize(decoder, v);
+    cryptoconditions::der::withTupleDecodeHelper(v, decoder);
 
     if (decoder.ec_)
         return;
@@ -118,6 +103,13 @@ decode(
     {
         decoder.ec_ = error::preimage_too_long;
     }
+}
+
+std::uint64_t
+DerCoderTraits<Condition>::
+length(Condition const& v)
+{
+    return cryptoconditions::der::withTupleEncodedLengthHelper(v);
 }
 
 }  // der

@@ -51,15 +51,6 @@ class ThresholdSha256 final : public Fulfillment
      */
     std::vector<Condition> subconditions_;
 
-    template <class Coder>
-    void
-    serialize(Coder& c)
-    {
-        auto fulfillmentsSet = der::make_set(subfulfillments_);
-        auto conditionsSet = der::make_set(subconditions_);
-        c& std::tie(fulfillmentsSet, conditionsSet);
-    }
-
     void
     encodeFingerprint(der::Encoder& encoder) const override;
 
@@ -75,6 +66,20 @@ public:
     ThresholdSha256(
         std::vector<std::unique_ptr<Fulfillment>> subfulfillments,
         std::vector<Condition> subconditions);
+
+    template<class F>
+    void withTuple(F&& f)
+    {
+        auto fulfillmentsSet = der::make_set(subfulfillments_);
+        auto conditionsSet = der::make_set(subconditions_);
+        f(std::tie(fulfillmentsSet, conditionsSet));
+    }
+
+    template<class F>
+    void withTuple(F&& f) const
+    {
+        const_cast<ThresholdSha256*>(this)->withTuple(std::forward<F>(f));
+    }
 
     Type
     type() const override
@@ -99,6 +104,9 @@ public:
 
     void
     decode(der::Decoder& decoder) override;
+
+    std::uint64_t
+    derEncodedLength() const override;
 };
 
 }

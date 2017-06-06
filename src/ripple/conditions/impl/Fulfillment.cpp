@@ -106,6 +106,14 @@ decode(Decoder& decoder, std::unique_ptr<Fulfillment>& v)
     if (decoder.ec_)
         v.reset();
 }
+
+std::uint64_t
+DerCoderTraits<std::unique_ptr<Fulfillment>>::
+length(std::unique_ptr<Fulfillment> const& v)
+{
+    return v->derEncodedLength();
+}
+
 }  // der
 
 Condition

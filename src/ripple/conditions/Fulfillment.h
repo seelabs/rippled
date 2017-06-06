@@ -162,6 +162,12 @@ public:
     virtual
     void
     decode(der::Decoder&) = 0;
+
+    /// return the size in bytes of the content when encoded (does not include the size of the preamble)
+    virtual
+    std::uint64_t
+    derEncodedLength() const = 0;
+
 };
 
 /// compare two fulfillments for equality
@@ -269,6 +275,10 @@ struct DerCoderTraits<std::unique_ptr<Fulfillment>>
     static
     void
     decode(Decoder& decoder, std::unique_ptr<Fulfillment>& v);
+
+    static
+    std::uint64_t
+    length(std::unique_ptr<Fulfillment> const& v);
 };
 
 } // der

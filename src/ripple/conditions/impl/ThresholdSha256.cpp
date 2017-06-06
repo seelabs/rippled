@@ -100,16 +100,22 @@ ThresholdSha256::subtypes() const
     return result;
 }
 
-void
-ThresholdSha256::encode(der::Encoder& encoder) const
+std::uint64_t
+ThresholdSha256::derEncodedLength() const
 {
-    const_cast<ThresholdSha256*>(this)->serialize(encoder);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
 }
 
 void
-ThresholdSha256::decode(der::Decoder& decoder)
+ThresholdSha256::encode(cryptoconditions::der::Encoder& encoder) const
 {
-    serialize(decoder);
+    cryptoconditions::der::withTupleEncodeHelper(*this, encoder);
+}
+
+void
+ThresholdSha256::decode(cryptoconditions::der::Decoder& decoder)
+{
+    cryptoconditions::der::withTupleDecodeHelper(*this, decoder);
 }
 
 bool

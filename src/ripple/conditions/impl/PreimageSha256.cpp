@@ -63,10 +63,16 @@ bool PreimageSha256::validate(Slice) const
     return true;
 }
 
-void
-PreimageSha256::encode(der::Encoder& encoder) const
+std::uint64_t
+PreimageSha256::derEncodedLength() const
 {
-    const_cast<PreimageSha256*>(this)->serialize(encoder);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
+}
+
+void
+PreimageSha256::encode(cryptoconditions::der::Encoder& encoder) const
+{
+    cryptoconditions::der::withTupleEncodeHelper(*this, encoder);
 }
 
 void
@@ -78,7 +84,7 @@ PreimageSha256::decode(der::Decoder& decoder)
         return;
     }
 
-    serialize(decoder);
+    cryptoconditions::der::withTupleDecodeHelper(*this, decoder);
 }
 
 

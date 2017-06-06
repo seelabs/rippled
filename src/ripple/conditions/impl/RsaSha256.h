@@ -38,13 +38,6 @@ class RsaSha256 final : public Fulfillment
     Buffer modulus_;
     Buffer signature_;
 
-    template <class Coder>
-    void
-    serialize(Coder& c)
-    {
-        c & std::tie(modulus_, signature_);
-    }
-
     void
     encodeFingerprint(der::Encoder& encoder) const override;
 
@@ -61,6 +54,18 @@ public:
 
     RsaSha256(Buffer m, Buffer s);
     RsaSha256(Slice m, Slice s);
+
+    template<class F>
+    void withTuple(F&& f)
+    {
+        f(std::tie(modulus_, signature_));
+    }
+
+    template<class F>
+    void withTuple(F&& f) const
+    {
+        const_cast<RsaSha256*>(this)->withTuple(std::forward<F>(f));
+    }
 
     Type
     type() const override
@@ -85,6 +90,9 @@ public:
 
     void
     decode(der::Decoder& decoder) override;
+
+    std::uint64_t
+    derEncodedLength() const override;
 };
 
 }

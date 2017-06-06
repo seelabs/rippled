@@ -53,13 +53,6 @@ public:
 private:
     Buffer payload_;
 
-    template <class Coder>
-    void
-    serialize(Coder& c)
-    {
-        c & std::tie(payload_);
-    }
-
     void
     encodeFingerprint(der::Encoder& encoder) const override;
 
@@ -77,6 +70,18 @@ public:
 
     PreimageSha256(Slice s) noexcept : payload_(s)
     {
+    }
+
+    template<class F>
+    void withTuple(F&& f)
+    {
+        f(std::tie(payload_));
+    }
+
+    template<class F>
+    void withTuple(F&& f) const
+    {
+        const_cast<PreimageSha256*>(this)->withTuple(std::forward<F>(f));
     }
 
     Type
@@ -101,6 +106,9 @@ public:
 
     void
     decode(der::Decoder& decoder) override;
+
+    std::uint64_t
+    derEncodedLength() const override;
 };
 
 }

@@ -40,18 +40,23 @@ Ed25519::validate(Slice data) const
                signature_.data()) == 0;
 }
 
-void
-Ed25519::encode(der::Encoder& encoder) const
+std::uint64_t
+Ed25519::derEncodedLength() const
 {
-    const_cast<Ed25519*>(this)->serialize(encoder);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
 }
 
 void
-Ed25519::decode(der::Decoder& decoder)
+Ed25519::encode(cryptoconditions::der::Encoder& encoder) const
 {
-    serialize(decoder);
+    cryptoconditions::der::withTupleEncodeHelper(*this, encoder);
 }
 
+void
+Ed25519::decode(cryptoconditions::der::Decoder& decoder)
+{
+    cryptoconditions::der::withTupleDecodeHelper(*this, decoder);
+}
 
 bool
 Ed25519::checkEqual(Fulfillment const& rhs) const

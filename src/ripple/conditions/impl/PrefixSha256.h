@@ -42,13 +42,6 @@ class PrefixSha256 final : public Fulfillment
     /// subfulfillment used to verify the newly created message
     std::unique_ptr<Fulfillment> subfulfillment_;
 
-    template <class Coder>
-    void
-    serialize(Coder& c)
-    {
-        c & std::tie(prefix_, maxMessageLength_, subfulfillment_);
-    }
-
     void
     encodeFingerprint(der::Encoder& encoder) const override;
 
@@ -67,6 +60,18 @@ public:
         Slice prefix,
         std::uint64_t maxLength,
         std::unique_ptr<Fulfillment> subfulfillment);
+
+    template<class F>
+    void withTuple(F&& f)
+    {
+        f(std::tie(prefix_, maxMessageLength_, subfulfillment_));
+    }
+
+    template<class F>
+    void withTuple(F&& f) const
+    {
+        const_cast<PrefixSha256*>(this)->withTuple(std::forward<F>(f));
+    }
 
     Type
     type() const override
@@ -91,6 +96,9 @@ public:
 
     void
     decode(der::Decoder& decoder) override;
+
+    std::uint64_t
+    derEncodedLength() const override;
 };
 }
 }
