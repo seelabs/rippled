@@ -47,7 +47,9 @@ struct DerChoiceBaseClass
 
     virtual
     std::uint64_t
-    derEncodedLength() const = 0;
+    derEncodedLength(
+        boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
+        cryptoconditions::der::TagMode encoderTagMode) const = 0;
 
     // for debugging
     virtual
@@ -111,7 +113,9 @@ struct DerChoiceDerived1 : DerChoiceBaseClass
     type() const override;
 
     std::uint64_t
-    derEncodedLength() const override;
+    derEncodedLength(
+        boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
+        cryptoconditions::der::TagMode encoderTagMode) const override;
 
     void
     encode(cryptoconditions::der::Encoder& encoder) const override;
@@ -153,7 +157,9 @@ struct DerChoiceDerived2 : DerChoiceBaseClass
     type() const override;
 
     std::uint64_t
-    derEncodedLength() const override;
+    derEncodedLength(
+        boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
+        cryptoconditions::der::TagMode encoderTagMode) const override;
 
     void
     encode(cryptoconditions::der::Encoder& encoder) const override;
@@ -195,7 +201,9 @@ struct DerChoiceDerived3 : DerChoiceBaseClass
     type() const override;
 
     std::uint64_t
-    derEncodedLength() const override;
+    derEncodedLength(
+        boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
+        cryptoconditions::der::TagMode encoderTagMode) const override;
 
     void
     encode(cryptoconditions::der::Encoder& encoder) const override;
@@ -237,7 +245,9 @@ struct DerChoiceDerived4 : DerChoiceBaseClass
     type() const override;
 
     std::uint64_t
-    derEncodedLength() const override;
+    derEncodedLength(
+        boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
+        cryptoconditions::der::TagMode encoderTagMode) const override;
 
     void
     encode(cryptoconditions::der::Encoder& encoder) const override;
@@ -283,7 +293,9 @@ struct DerChoiceDerived5 : DerChoiceBaseClass
     type() const override;
 
     std::uint64_t
-    derEncodedLength() const override;
+    derEncodedLength(
+        boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
+        cryptoconditions::der::TagMode encoderTagMode) const override;
 
     void
     encode(cryptoconditions::der::Encoder& encoder) const override;
@@ -390,9 +402,17 @@ struct DerCoderTraits<std::unique_ptr<test::DerChoiceBaseClass>>
 
     static 
     std::uint64_t
-    length(std::unique_ptr<test::DerChoiceBaseClass> const& v)
+    length(
+        std::unique_ptr<test::DerChoiceBaseClass> const& v,
+        boost::optional<GroupType> const& parentGroupType,
+        TagMode encoderTagMode)
     {
-        return v->derEncodedLength();
+        auto const l = v->derEncodedLength(groupType(), encoderTagMode);
+        if (encoderTagMode == TagMode::automatic)
+            return l;
+
+        auto const cll = contentLengthLength(l); 
+        return 1 + cll + l;
     }
 };
 }  // der

@@ -64,9 +64,12 @@ bool PreimageSha256::validate(Slice) const
 }
 
 std::uint64_t
-PreimageSha256::derEncodedLength() const
+PreimageSha256::derEncodedLength(
+    boost::optional<der::GroupType> const& parentGroupType,
+    der::TagMode encoderTagMode) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(
+        *this, parentGroupType, encoderTagMode);
 }
 
 void

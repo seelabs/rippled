@@ -179,9 +179,12 @@ RsaSha256::subtypes() const
 }
 
 std::uint64_t
-RsaSha256::derEncodedLength() const
+RsaSha256::derEncodedLength(
+    boost::optional<der::GroupType> const& parentGroupType,
+    der::TagMode encoderTagMode) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(
+        *this, parentGroupType, encoderTagMode);
 }
 
 void

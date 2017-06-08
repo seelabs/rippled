@@ -110,9 +110,12 @@ PrefixSha256::subtypes() const
 }
 
 std::uint64_t
-PrefixSha256::derEncodedLength() const
+PrefixSha256::derEncodedLength(
+    boost::optional<der::GroupType> const& parentGroupType,
+    der::TagMode encoderTagMode) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(
+        *this, parentGroupType, encoderTagMode);
 }
 
 void

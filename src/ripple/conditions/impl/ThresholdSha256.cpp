@@ -101,9 +101,12 @@ ThresholdSha256::subtypes() const
 }
 
 std::uint64_t
-ThresholdSha256::derEncodedLength() const
+ThresholdSha256::derEncodedLength(
+    boost::optional<der::GroupType> const& parentGroupType,
+    der::TagMode encoderTagMode) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(
+        *this, parentGroupType, encoderTagMode);
 }
 
 void

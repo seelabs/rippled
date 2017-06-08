@@ -46,9 +46,11 @@ DerChoiceDerived1::withTuple(F&& f)
 }
 
 std::uint64_t
-DerChoiceDerived1::derEncodedLength() const
+DerChoiceDerived1::derEncodedLength(
+    boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
+    cryptoconditions::der::TagMode encoderTagMode) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(*this, parentGroupType, encoderTagMode);
 }
 
 void
@@ -119,9 +121,11 @@ DerChoiceDerived2::withTuple(F&& f)
 }
 
 std::uint64_t
-DerChoiceDerived2::derEncodedLength() const
+DerChoiceDerived2::derEncodedLength(
+    boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
+    cryptoconditions::der::TagMode encoderTagMode) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(*this, parentGroupType, encoderTagMode);
 }
 
 void
@@ -174,9 +178,11 @@ DerChoiceDerived3::withTuple(F&& f)
 }
 
 std::uint64_t
-DerChoiceDerived3::derEncodedLength() const
+DerChoiceDerived3::derEncodedLength(
+    boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
+    cryptoconditions::der::TagMode encoderTagMode) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(*this, parentGroupType, encoderTagMode);
 }
 
 void
@@ -252,9 +258,11 @@ DerChoiceDerived4::withTuple(F&& f)
 }
 
 std::uint64_t
-DerChoiceDerived4::derEncodedLength() const
+DerChoiceDerived4::derEncodedLength(
+    boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
+    cryptoconditions::der::TagMode encoderTagMode) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(*this, parentGroupType, encoderTagMode);
 }
 
 void
@@ -319,9 +327,11 @@ DerChoiceDerived5::withTuple(F&& f)
 }
 
 std::uint64_t
-DerChoiceDerived5::derEncodedLength() const
+DerChoiceDerived5::derEncodedLength(
+    boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
+    cryptoconditions::der::TagMode encoderTagMode) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(*this, parentGroupType, encoderTagMode);
 }
 
 void

@@ -204,11 +204,21 @@ struct DerCoderTraits
     bool
     primitive();
 
-    /// return the number of bytes required to encode the value, not including the preamble
+    /** return the number of bytes required to encode the value, not including
+        the preamble
+
+        @param v the value to find the length of
+        @param parentGroupType type of the parent group.
+        @param encoderTagMode tag mode of the encoder.
+
+        @note Choice parents groups in automatic tag mode are treated specially.
+     */
     template <class TT>
-    static
-    std::uint64_t
-    length(TT const& v);
+    static std::uint64_t
+    length(
+        TT const& v,
+        boost::optional<GroupType> const& parentGroupType,
+        TagMode encoderTagMode);
 
     /// serialize the value into the encoder
     template <class TT>
@@ -429,9 +439,12 @@ contentLengthLength(std::uint64_t);
  */
 template <class Trait, class T>
 std::uint64_t
-totalLength(T const& v)
+totalLength(
+    T const& v,
+    boost::optional<GroupType> const& parentGroupType,
+    TagMode encoderTagMode)
 {
-    auto const contentLength = Trait::length(v);
+    auto const contentLength = Trait::length(v, parentGroupType, encoderTagMode);
     // all crypto-condition preambles are one-byte
     return 1 + contentLength + contentLengthLength(contentLength); 
 }
@@ -588,6 +601,8 @@ public:
     /// return the number of sub-values
     size_t
     numChildren() const;
+
+    GroupType groupType() const;
 };
 
 /// encode the preamble from p into dst
@@ -1070,7 +1085,10 @@ struct IntegerTraits
     template <class T>
     static 
     std::uint64_t
-    length(T const& v)
+    length(
+        T const& v,
+        boost::optional<GroupType> const& parentGroupType,
+        TagMode encoderTagMode)
     {
         const auto isSigned = std::numeric_limits<T>::is_signed;
         if (!v || (isSigned && v == -1))
@@ -1111,7 +1129,10 @@ struct IntegerTraits
             return;
         }
 
-        std::size_t n = length(v);
+        boost::optional<GroupType> parentGroupType;
+        if (!s.subgroups_.empty())
+            parentGroupType.emplace(s.subgroups_.top().groupType());
+        std::size_t n = length(v, parentGroupType, s.tagMode_);
         while (n--)
         {
             if (n >= sizeof(T))
@@ -1319,7 +1340,10 @@ struct DerCoderTraits<std::string> : OctetStringTraits
 
     static 
     std::uint64_t
-    length(std::string const& v)
+    length(
+        std::string const& v,
+        boost::optional<GroupType> const& parentGroupType,
+        TagMode encoderTagMode)
     {
         return v.size();
     }
@@ -1351,7 +1375,10 @@ struct DerCoderTraits<std::array<std::uint8_t, S>> : OctetStringTraits
 
     static 
     std::uint64_t
-    length(std::array<std::uint8_t, S> const& v)
+    length(
+        std::array<std::uint8_t, S> const& v,
+        boost::optional<GroupType> const& parentGroupType,
+        TagMode encoderTagMode)
     {
         return S;
     }
@@ -1397,7 +1424,10 @@ struct DerCoderTraits<Buffer> : OctetStringTraits
 
     static 
     std::uint64_t
-    length(Buffer const& v)
+    length(
+        Buffer const& v,
+        boost::optional<GroupType> const& parentGroupType,
+        TagMode encoderTagMode)
     {
         return v.size();
     }
@@ -1511,9 +1541,12 @@ struct DerCoderTraits<OctetStringCheckEqualSize<T>> : OctetStringTraits
 
     static 
     std::uint64_t
-    length(OctetStringCheckEqualSize<T> const& v)
+    length(
+        OctetStringCheckEqualSize<T> const& v,
+        boost::optional<GroupType> const& parentGroupType,
+        TagMode encoderTagMode)
     {
-        return DerCoderTraits<T>::length(v.col_);
+        return DerCoderTraits<T>::length(v.col_, parentGroupType, encoderTagMode);
     }
 
     static 
@@ -1558,9 +1591,12 @@ struct DerCoderTraits<OctetStringCheckLessSize<T>> : OctetStringTraits
 
     static 
     std::uint64_t
-    length(OctetStringCheckLessSize<T> const& v)
+    length(
+        OctetStringCheckLessSize<T> const& v,
+        boost::optional<GroupType> const& parentGroupType,
+        TagMode encoderTagMode)
     {
-        return DerCoderTraits<T>::length(v.col_);
+        return DerCoderTraits<T>::length(v.col_, parentGroupType, encoderTagMode);
     }
 
     static
@@ -1783,7 +1819,10 @@ struct DerCoderTraits<std::bitset<S>>
 
     static 
     std::uint64_t
-    length(std::bitset<S> const& s)
+    length(
+        std::bitset<S> const& s,
+        boost::optional<GroupType> const& parentGroupType,
+        TagMode encoderTagMode)
     {
         static_assert(
             maxBytes > 0 && maxBytes <= sizeof(unsigned long),
@@ -1976,12 +2015,16 @@ struct DerCoderTraits<SetOfWrapper<T>>
 
     static 
     std::uint64_t
-    length(SetOfWrapper<T> const& v)
+    length(
+        SetOfWrapper<T> const& v,
+        boost::optional<GroupType> const& parentGroupType,
+        TagMode encoderTagMode)
     {
         using ValueTraits = DerCoderTraits<typename T::value_type>;
         std::uint64_t l = 0;
+        boost::optional<GroupType> thisGroupType(groupType());
         for (auto const& e : v.col_)
-            l += totalLength<ValueTraits>(e);
+            l += totalLength<ValueTraits>(e, thisGroupType, encoderTagMode);
         return l;
     }
 };
@@ -2056,12 +2099,16 @@ struct DerCoderTraits<SequenceOfWrapper<T>>
 
     static 
     std::uint64_t
-    length(SequenceOfWrapper<T> const& v)
+    length(
+        SequenceOfWrapper<T> const& v,
+        boost::optional<GroupType> const& parentGroupType,
+        TagMode encoderTagMode)
     {
         using ValueTraits = DerCoderTraits<typename T::value_type>;
         std::uint64_t l = 0;
+        boost::optional<GroupType> thisGroupType(groupType());
         for (auto const& e : v.col_)
-            l += totalLength<ValueTraits>(e);
+            l += totalLength<ValueTraits>(e, thisGroupType, encoderTagMode);
         return l;
     }
 };
@@ -2155,13 +2202,17 @@ struct DerCoderTraits<std::tuple<Ts&...>>
 
     static 
     std::uint64_t
-    length(Tuple const& elements)
+    length(
+        Tuple const& elements,
+        boost::optional<GroupType> const& parentGroupType,
+        TagMode encoderTagMode)
     {
         std::uint64_t l = 0;
+        boost::optional<GroupType> thisGroupType(groupType());
         forEachElement(
-            elements, std::index_sequence_for<Ts...>{}, [&l](auto const& e) {
+            elements, std::index_sequence_for<Ts...>{}, [&](auto const& e) {
                 using ElementTraits = DerCoderTraits<std::decay_t<decltype(e)>>;
-                l += totalLength<ElementTraits>(e);
+                l += totalLength<ElementTraits>(e, thisGroupType, encoderTagMode);
             });
         return l;
     }
@@ -2199,7 +2250,7 @@ struct DerCoderTraits<std::tuple<Ts&...>>
     int
     compare(Tuple const& lhs, Tuple const& rhs)
     {
-        compareElementsHelper(
+        return compareElementsHelper(
             lhs, rhs, std::index_sequence_for<Ts...>{});
     }
 };
@@ -2242,16 +2293,19 @@ withTupleDecodeHelper(TChoice& c, cryptoconditions::der::Decoder& decoder)
 
     @see note on {@link #withTupleEncodeHelper}
  */
-template<class TChoice>
+template <class TChoice>
 static
 std::uint64_t
-withTupleEncodedLengthHelper(TChoice const& c)
+withTupleEncodedLengthHelper(TChoice const& c,
+    boost::optional<GroupType> const& parentGroupType,
+    TagMode encoderTagMode)
 {
     std::uint64_t result = 0;
-    c.withTuple([&result](auto const& tup) {
+    boost::optional<GroupType> thisGroupType(GroupType::sequence);
+    c.withTuple([&](auto const& tup) {
         using T = std::decay_t<decltype(tup)>;
         using Traits = cryptoconditions::der::DerCoderTraits<T>;
-        result = Traits::length(tup);
+        result = Traits::length(tup, thisGroupType, encoderTagMode);
     });
     return result;
 }

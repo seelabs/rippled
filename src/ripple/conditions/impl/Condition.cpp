@@ -107,9 +107,16 @@ decode(
 
 std::uint64_t
 DerCoderTraits<Condition>::
-length(Condition const& v)
+length(
+    Condition const& v,
+    boost::optional<GroupType> const& parentGroupType,
+    TagMode encoderTagMode)
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(v);
+    auto const l = cryptoconditions::der::withTupleEncodedLengthHelper(
+        v, parentGroupType, encoderTagMode);
+    if (encoderTagMode == TagMode::automatic)
+        return l;
+    return 1 + l + contentLengthLength(l);
 }
 
 }  // der

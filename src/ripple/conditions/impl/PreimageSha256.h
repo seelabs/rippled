@@ -108,7 +108,9 @@ public:
     decode(der::Decoder& decoder) override;
 
     std::uint64_t
-    derEncodedLength() const override;
+    derEncodedLength(
+        boost::optional<der::GroupType> const& parentGroupType,
+        der::TagMode encoderTagMode) const override;
 };
 
 }

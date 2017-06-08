@@ -208,7 +208,7 @@ contentLengthLength(std::uint64_t v)
             break;
     }
 
-    return n + 1;
+    return n + 2;
 }
 
 void
@@ -484,6 +484,11 @@ size_t
 Group::numChildren() const
 {
     return children_.size();
+}
+
+GroupType Group::groupType() const
+{
+    return groupType_;
 }
 
 //------------------------------------------------------------------------------

@@ -41,9 +41,11 @@ Ed25519::validate(Slice data) const
 }
 
 std::uint64_t
-Ed25519::derEncodedLength() const
+Ed25519::derEncodedLength(
+    boost::optional<der::GroupType> const& parentGroupType,
+    der::TagMode encoderTagMode) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(*this, parentGroupType, encoderTagMode);
 }
 
 void

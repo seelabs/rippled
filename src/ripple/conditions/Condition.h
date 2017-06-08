@@ -182,7 +182,10 @@ struct DerCoderTraits<Condition>
 
     static 
     std::uint64_t
-    length(Condition const& v);
+    length(
+        Condition const& v,
+        boost::optional<GroupType> const& parentGroupType,
+        TagMode encoderTagMode);
 };
 } // der
 } // cryptoconditions

@@ -166,8 +166,9 @@ public:
     /// return the size in bytes of the content when encoded (does not include the size of the preamble)
     virtual
     std::uint64_t
-    derEncodedLength() const = 0;
-
+    derEncodedLength(
+        boost::optional<der::GroupType> const& parentGroupType,
+        der::TagMode encoderTagMode) const = 0;
 };
 
 /// compare two fulfillments for equality
@@ -278,7 +279,10 @@ struct DerCoderTraits<std::unique_ptr<Fulfillment>>
 
     static
     std::uint64_t
-    length(std::unique_ptr<Fulfillment> const& v);
+    length(
+        std::unique_ptr<Fulfillment> const& v,
+        boost::optional<GroupType> const& parentGroupType,
+        TagMode encoderTagMode);
 };
 
 } // der

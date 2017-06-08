@@ -109,9 +109,15 @@ decode(Decoder& decoder, std::unique_ptr<Fulfillment>& v)
 
 std::uint64_t
 DerCoderTraits<std::unique_ptr<Fulfillment>>::
-length(std::unique_ptr<Fulfillment> const& v)
+length(
+    std::unique_ptr<Fulfillment> const& v,
+    boost::optional<GroupType> const& parentGroupType,
+    TagMode encoderTagMode)
 {
-    return v->derEncodedLength();
+    auto const l = v->derEncodedLength(parentGroupType, encoderTagMode);
+    if (encoderTagMode == TagMode::automatic)
+        return l;
+    return 1 + l + contentLengthLength(l);
 }
 
 }  // der
