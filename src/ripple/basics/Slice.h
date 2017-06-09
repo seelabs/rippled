@@ -40,24 +40,42 @@ namespace ripple {
     A Slice is lightweight and copyable, it retains no ownership
     of the underlying memory.
 */
-class Slice
+template<bool Mutable>
+class SliceImpl
 {
 private:
-    std::uint8_t const* data_ = nullptr;
+    using TData = typename std::conditional<Mutable, std::uint8_t*, std::uint8_t const*>::type;
+    using TVoidData = typename std::conditional<Mutable, void*, void const*>::type;
+    TData data_ = nullptr;
     std::size_t size_ = 0;
 
 public:
     /** Default constructed Slice has length 0. */
-    Slice() noexcept = default;
+    SliceImpl() noexcept = default;
 
-    Slice (Slice const&) noexcept = default;
-    Slice& operator= (Slice const&) noexcept = default;
+    SliceImpl (SliceImpl const&) noexcept = default;
+    SliceImpl& operator= (SliceImpl const&) noexcept = default;
 
     /** Create a slice pointing to existing memory. */
-    Slice (void const* data, std::size_t size) noexcept
-        : data_ (reinterpret_cast<std::uint8_t const*>(data))
+    SliceImpl (TVoidData data, std::size_t size) noexcept
+        : data_ (reinterpret_cast<TData>(data))
         , size_ (size)
     {
+    }
+
+    /** Can convert from a mutable slice to a non-mutable slice */
+    template<class = std::enable_if<!Mutable>>
+    SliceImpl (SliceImpl<true> const& rhs) noexcept
+        :SliceImpl{rhs.data(), rhs.size()}
+    {
+    }
+
+    /** Can assign from a mutable slice to a non-mutable slice */
+    template<class = std::enable_if<!Mutable>>
+    SliceImpl& operator= (SliceImpl const& rhs) noexcept
+    {
+        data_ = rhs.data_;
+        size_ = rhs.size_;
     }
 
     /** Return `true` if the byte range is empty. */
@@ -81,7 +99,7 @@ public:
         @note The return type is guaranteed to be a pointer
               to a single byte, to facilitate pointer arithmetic.
     */
-    std::uint8_t const*
+    TData
     data() const noexcept
     {
         return data_;
@@ -97,7 +115,7 @@ public:
 
     /** Advance the buffer. */
     /** @{ */
-    Slice&
+    SliceImpl&
     operator+= (std::size_t n)
     {
         if (n > size_)
@@ -107,14 +125,26 @@ public:
         return *this;
     }
 
-    Slice
+    SliceImpl
     operator+ (std::size_t n) const
     {
-        Slice temp = *this;
+        SliceImpl temp = *this;
         return temp += n;
     }
     /** @} */
+
+    template<class = std::enable_if<Mutable>>
+    void
+    push_back(std::uint8_t v)
+    {
+        assert(size_ != 0);
+        *data_ = v;
+        *this += 1;
+    }
 };
+
+using Slice = SliceImpl<false>;
+using MutableSlice = SliceImpl<true>;
 
 //------------------------------------------------------------------------------
 
