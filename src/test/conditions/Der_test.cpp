@@ -590,7 +590,17 @@ class Der_test : public beast::unit_test::suite
                         std::make_unique<DerChoiceDerived2>(p.first, p.second));
                 return result;
             };
-
+        {
+            // Notice that unlike the other tests, this one is in direct mode
+            /*
+            db Db ::=
+            d2: {name 'FF'H, unsignedInt 64}
+            */
+            auto const expected = "\xA2\x08\x30\x06\x04\x01\xFF\x02\x01\x40"s;
+            std::unique_ptr<DerChoiceBaseClass> val =
+                std::make_unique<DerChoiceDerived2>("\xFF", 64);
+            test(val, expected, TagMode::direct);
+        }
         {
             /*
             db Db ::=
