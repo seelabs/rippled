@@ -445,8 +445,20 @@ totalLength(
     TagMode encoderTagMode)
 {
     auto const contentLength = Trait::length(v, parentGroupType, encoderTagMode);
+    if (encoderTagMode == TagMode::automatic && parentGroupType && *parentGroupType == GroupType::choice)
+        return contentLength;
+
+    auto const oneTagResult = 1 + contentLength + contentLengthLength(contentLength);
+    if (parentGroupType && *parentGroupType == GroupType::autoSequence &&
+        DerCoderTraits<T>::groupType() == GroupType::choice)
+    {
+        // auto sequences with a choice write a two tags: one for the sequence number and one for the choice
+        // swd TBD note: This breaks down if the sequence number is large enough to require more than one byte for the tag
+        return 1 + oneTagResult + contentLengthLength(oneTagResult);
+    }
+
     // all crypto-condition preambles are one-byte
-    return 1 + contentLength + contentLengthLength(contentLength); 
+    return oneTagResult;
 }
 
 /** A value in a hierarchy of values when encoding
