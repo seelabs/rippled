@@ -799,6 +799,25 @@ struct Encoder
         using traits = DerCoderTraits<std::decay_t<T>>;
         auto const groupType = traits::groupType();
 
+        // swd TBD remove this - transitional code
+        auto checkExpectedSize = [&] {
+            boost::optional<GroupType> parentGroupType;
+            if (!s.subgroups_.empty())
+                parentGroupType.emplace(s.subgroups_.top().groupType());
+
+            auto const expectedSize =
+                traits::length(v, parentGroupType, s.tagMode_);
+            auto& top = s.subgroups_.top();
+            if (!(top.isChoice() && s.tagMode_ == TagMode::automatic))
+                top.calcPreamble();
+            auto const actualSize =
+                s.buf_.size() - top.start() + top.childPreambleSize();
+            if (expectedSize != actualSize)
+            {
+                std::cerr << "Error: (expectedSize : actualSize): " << expectedSize << " : " << actualSize << '\n';
+            }
+        };
+
         if (s.parentIsAutoSequence())
         {
             if (groupType == GroupType::choice)
@@ -814,6 +833,8 @@ struct Encoder
                 if (s.ec_)
                     return s;
                 traits::encode(s, std::forward<T>(v));
+                // swd TBD remove this - transitional code
+                checkExpectedSize();
             }
             else
             {
@@ -824,6 +845,8 @@ struct Encoder
                 if (s.ec_)
                     return s;
                 traits::encode(s, std::forward<T>(v));
+                // swd TBD remove this - transitional code
+                checkExpectedSize();
             }
         }
         else
@@ -833,6 +856,8 @@ struct Encoder
             if (s.ec_)
                 return s;
             traits::encode(s, std::forward<T>(v));
+            // swd TBD remove this - transitional code
+            checkExpectedSize();
         }
 
         return s;
