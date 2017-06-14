@@ -135,8 +135,9 @@ Tag::isSet() const
 
 //------------------------------------------------------------------------------
 
+template<class Dst>
 void
-encodeTagNum(std::vector<char>& dst, std::uint64_t v)
+encodeTagNumHelper(Dst& dst, std::uint64_t v)
 {
     assert(v > 30);
     std::size_t n = 1 + 8 * sizeof(v) / 7;
@@ -164,7 +165,20 @@ encodeTagNum(std::vector<char>& dst, std::uint64_t v)
 }
 
 void
-encodeContentLength(std::vector<char>& dst, std::uint64_t v)
+encodeTagNum(std::vector<char>& dst, std::uint64_t v)
+{
+    encodeTagNumHelper(dst, v);
+}
+
+void
+encodeTagNum(MutableSlice& dst, std::uint64_t v)
+{
+    encodeTagNumHelper(dst, v);
+}
+
+template<class Dst>
+void
+encodeContentLengthHelper(Dst& dst, std::uint64_t v)
 {
     if (v <= 127)
     {
@@ -190,6 +204,18 @@ encodeContentLength(std::vector<char>& dst, std::uint64_t v)
         dst.push_back(static_cast<char>((v >> (n * 8)) & 0xFF));
 }
 
+void
+encodeContentLength(std::vector<char>& dst, std::uint64_t v)
+{
+    return encodeContentLengthHelper(dst, v);
+}
+
+void
+encodeContentLength(MutableSlice& dst, std::uint64_t v)
+{
+    return encodeContentLengthHelper(dst, v);
+}
+
 size_t
 contentLengthLength(std::uint64_t v)
 {
@@ -211,8 +237,29 @@ contentLengthLength(std::uint64_t v)
     return n + 2;
 }
 
+std::uint64_t
+tagLength(Tag t)
+{
+    if (t.tagNum <= 30)
+        return 1;
+
+    auto v = t.tagNum;
+    std::size_t n = 1 + 8 * sizeof(v) / 7;
+
+    // skip leading zeros
+    while (n--)
+    {
+        auto b = static_cast<std::uint8_t>((v >> (n * 7)) & 0xFF);
+        if (b)
+            break;
+    }
+
+    return 2+n;
+}
+
+template<class Dst>
 void
-encodePreamble(std::vector<char>& dst, Preamble const& p)
+encodePreambleHelper(Dst& dst, Preamble const& p)
 {
     char d = (static_cast<uint8_t>(p.tag_.classId) << 6);
     if (!p.tag_.primitive)
@@ -231,6 +278,19 @@ encodePreamble(std::vector<char>& dst, Preamble const& p)
     }
     encodeContentLength(dst, p.contentLength_);
 }
+
+void
+encodePreamble(MutableSlice& dst, Preamble const& p)
+{
+    encodePreambleHelper(dst, p);
+}
+
+void
+encodePreamble(std::vector<char>& dst, Preamble const& p)
+{
+    encodePreambleHelper(dst, p);
+}
+
 
 void
 decodePreamble(Slice& slice, Preamble& p, std::error_code& ec)
@@ -345,12 +405,14 @@ Group::Group(
     Tag t,
     std::size_t s,
     TagMode tagMode,
-    GroupType groupType)
+    GroupType groupType,
+    MutableSlice slice)
     : id_(t)
     , start_(s)
     , end_(s)
     , tagMode_(tagMode)
     , groupType_(groupType)
+    , slice_(slice)
 {
 }
 
@@ -391,6 +453,12 @@ size_t
 Group::size() const
 {
     return end_ - start_ + totalPreambleSize();
+}
+
+MutableSlice&
+Group::slice()
+{
+    return slice_;
 }
 
 void
@@ -474,7 +542,7 @@ Group::isChoice() const
 }
 
 void
-Group::setPrimitiveAndType(bool primitive, GroupType bt)
+Group::set(bool primitive, GroupType bt)
 {
     id_.primitive = primitive;
     groupType_ = bt;
@@ -512,7 +580,7 @@ Encoder::~Encoder()
 }
 
 void
-Encoder::startGroup(Tag t, GroupType groupType)
+Encoder::startGroup(Tag t, GroupType groupType, std::uint64_t contentSize)
 {
     if (ec_)
         return;
@@ -527,14 +595,43 @@ Encoder::startGroup(Tag t, GroupType groupType)
     if (parentIsChoice() && tagMode_ == TagMode::automatic)
     {
         auto g = subgroups_.top();
-        g.setPrimitiveAndType(t.primitive, groupType);
+        g.set(t.primitive, groupType);
         subgroups_.emplace(std::move(g));
+        return;
     }
-    else
+
+    auto const contentLL = contentLengthLength(contentSize);
+    auto const tagL = tagLength(t);
+    auto const sliceSize = contentSize + contentLL + tagL;
+
+    auto const parentSlice = [&]
     {
-        subgroups_.emplace(
-            t, buf_.size(), tagMode_, groupType);
+        if (!subgroups_.empty())
+            return subgroups_.top().slice();
+        rootBufs_.push_back(std::vector<char>(sliceSize));
+        return MutableSlice(rootBufs_.back().data(), rootBufs_.back().size());
+    }();
+
+    MutableSlice thisSlice{parentSlice.data(), sliceSize};
+
+    auto const preambleLength = sliceSize - contentSize;
+    if (preambleLength > thisSlice.size())
+    {
+        // incorrect length calculation
+        ec_ = make_error_code(Error::logicError);
+        return;
     }
+    MutableSlice preambleSlice{thisSlice.data(), preambleLength};
+    encodePreamble(preambleSlice, Preamble{t, contentSize});
+    if (!preambleSlice.empty())
+    {
+        // incorrect length calculation
+        ec_ = make_error_code(Error::logicError);
+        return;
+    }
+    thisSlice += preambleLength;
+
+    subgroups_.emplace(t, buf_.size(), tagMode_, groupType, thisSlice);
 };
 
 void
@@ -552,6 +649,14 @@ Encoder::endGroup()
     Group top(std::move(subgroups_.top()));
     top.end(buf_.size());
     subgroups_.pop();
+
+    if (!top.slice().empty())
+    {
+        // incorrect length calculation
+        ec_ = make_error_code(Error::logicError);
+        return;
+    }
+
     if (!(top.isChoice() && tagMode_ == TagMode::automatic))
         top.calcPreamble();
 
@@ -565,7 +670,18 @@ Encoder::endGroup()
     if (subgroups_.empty())
         roots_.emplace_back(std::move(top));
     else
+    {
+        auto& parentSlice = subgroups_.top().slice();
+        auto const inc = std::distance(parentSlice.data(), top.slice().data());
+        if (inc < 0 || inc > parentSlice.size())
+        {
+            // incorrect length calculation
+            ec_ = make_error_code(Error::logicError);
+            return;
+        }
+        parentSlice += inc;
         subgroups_.top().emplaceChild(std::move(top));
+    }
 };
 
 void
@@ -590,6 +706,15 @@ Encoder::size() const
     for (auto const& r : roots_)
         result += r.size();
     return result;
+}
+
+MutableSlice&
+Encoder::parentSlice()
+{
+    static MutableSlice empty{nullptr, 0};
+    if (!subgroups_.empty())
+        return subgroups_.top().slice();
+    return empty;
 }
 
 std::error_code const&

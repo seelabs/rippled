@@ -267,9 +267,8 @@ class Der_test : public beast::unit_test::suite
         {
             cryptoconditions::der::Encoder s{TagMode::direct};
             {
-                EosGuard<Encoder> eg{s};
-                GroupGuard<Encoder> sq1{s, SequenceTag{}};
-                s << 10;
+                std::vector<int> v({10});
+                s << make_sequence(v) << eos;
             }
             std::vector<char> expected({48, 3, 2, 1, 10});
             std::vector<char> encoded;
@@ -281,9 +280,8 @@ class Der_test : public beast::unit_test::suite
         {
             cryptoconditions::der::Encoder s{TagMode::direct};
             {
-                EosGuard<Encoder> eg{s};
-                GroupGuard<Encoder> sq1{s, SequenceTag{}};
-                s << 10 << 100000 << std::uint64_t(100000000000);
+                std::vector<std::uint64_t> v({10, 100000, std::uint64_t(100000000000)});
+                s << make_sequence(v) << eos;
             }
             std::vector<char>
                     expected({48, 15, 2, 1, 10, 2, 3, 1, -122, -96, 2, 5, 23,
@@ -352,20 +350,6 @@ class Der_test : public beast::unit_test::suite
         testcase("set");
 
         using namespace cryptoconditions::der;
-        {
-            Encoder s{TagMode::direct};
-            {
-                EosGuard<Encoder> eg{s};
-                GroupGuard<Encoder> st1{s, SetTag{}};
-                s << 100 << 1 << 10;
-            }
-            std::vector<char> expected({49, 9, 2, 1, 1, 2, 1, 10, 2, 1, 100});
-            std::vector<char> encoded;
-            encoded.reserve(s.size());
-            s.write(encoded);
-            BEAST_EXPECT(expected == encoded);
-            BEAST_EXPECT(!s.ec());
-        }
         {
             std::vector<int> v({100, 1, 10});
             std::vector<char> expected({49, 9, 2, 1, 1, 2, 1, 10, 2, 1, 100});

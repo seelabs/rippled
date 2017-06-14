@@ -332,6 +332,13 @@ public:
     }
 
     explicit
+    GroupGuard(Coder& s, Tag t, GroupType bt, std::uint64_t contentSize)
+        : s_(s)
+    {
+        s_.startGroup(t, bt, contentSize);
+    }
+
+    explicit
     GroupGuard(Coder& s, boost::optional<Tag> const& t, GroupType bt)
         : s_(s)
     {
@@ -422,6 +429,8 @@ public:
 */
 void
 encodeTagNum(std::vector<char>& dst, std::uint64_t v);
+void
+encodeTagNum(MutableSlice& dst, std::uint64_t v);
 
 /** Encode the integer in a format appropriate for an ans.1 content length
 
@@ -429,11 +438,18 @@ encodeTagNum(std::vector<char>& dst, std::uint64_t v);
 */
 void
 encodeContentLength(std::vector<char>& dst, std::uint64_t v);
+void
+encodeContentLength(MutableSlice& dst, std::uint64_t v);
 
 /** return the number of bytes required to encode a the given content length
  */
 std::uint64_t
 contentLengthLength(std::uint64_t);
+
+/** return the number of bytes required to encode a the given tag
+ */
+std::uint64_t
+tagLength(Tag t);
 
 /** return the number of bytes required to encode the value, including the preamble
  */
@@ -496,6 +512,12 @@ class Group
     /// additional type information for the group
     GroupType groupType_;
 
+    /** data slice reserved for both the preamble and contents of the group
+
+        @note: it _must_ be the correct size. It will not be resized.
+    */
+    MutableSlice slice_;
+
     /** cache of the serialization
 
         asn.1 sets must be output in sorted order. When serializing the children
@@ -519,7 +541,8 @@ public:
         Tag t,
         std::size_t s,
         TagMode tagMode,
-        GroupType groupType);
+        GroupType groupType,
+        MutableSlice slice);
 
     /// size in bytes of the preambles of all the children
     size_t
@@ -557,6 +580,10 @@ public:
      */
     size_t
     size() const;
+
+    /// the data slice reserved for both the pramble and contents of the group
+    MutableSlice&
+    slice();
 
     /** calculate the preamble
 
@@ -608,7 +635,7 @@ public:
         @param bt the groups type information
      */
     void
-    setPrimitiveAndType(bool primitive, GroupType bt);
+    set(bool primitive, GroupType bt);
 
     /// return the number of sub-values
     size_t
@@ -620,6 +647,9 @@ public:
 /// encode the preamble from p into dst
 void
 encodePreamble(std::vector<char>& dst, Preamble const& p);
+
+void
+encodePreamble(MutableSlice& dst, Preamble const& p);
 
 /// decode the preamble from slice into p
 void
@@ -694,6 +724,7 @@ struct Encoder
         @note Typically there will only be one root object.
     */
     std::vector<Group> roots_;
+    std::vector<std::vector<char>> rootBufs_;
 
     /** the error code of the first error encountered
 
@@ -714,7 +745,7 @@ struct Encoder
 
     /// prepare to add a new value as a child of the current value
     void
-    startGroup(Tag t, GroupType groupType);
+    startGroup(Tag t, GroupType groupType, std::uint64_t contentSize);
 
     /// finish adding the new value
     void
@@ -732,6 +763,10 @@ struct Encoder
     /// total size in bytes of the content and all the preambles
     size_t
     size() const;
+
+    /// return the portion of the buffer that represents the parent value
+    MutableSlice&
+    parentSlice();
 
     /** return the first error code encountered
 
@@ -818,6 +853,13 @@ struct Encoder
             }
         };
 
+        auto contentSize = [&] {
+            boost::optional<GroupType> parentGroupType;
+            if (!s.subgroups_.empty())
+                parentGroupType.emplace(s.subgroups_.top().groupType());
+            return traits::length(v, parentGroupType, s.tagMode_);
+        };
+
         if (s.parentIsAutoSequence())
         {
             if (groupType == GroupType::choice)
@@ -825,11 +867,13 @@ struct Encoder
                 Tag const tag1{ClassId::contextSpecific,
                                s.subgroups_.top().numChildren(),
                                traits::primitive()};
-                GroupGuard<Encoder> g1(s, tag1, GroupType::sequenceChild);
+                Tag const tag2{traits{}, traits::tagNum(v)};
+                auto const contentSize = traits::length(v, GroupType::sequenceChild, s.tagMode_);
+                GroupGuard<Encoder> g1(s, tag1, GroupType::sequenceChild,
+                    tagLength(tag2) + contentLengthLength(contentSize) + contentSize);
                 if (s.ec_)
                     return s;
-                Tag const tag2{traits{}, traits::tagNum(v)};
-                GroupGuard<Encoder> g2(s, tag2, groupType);
+                GroupGuard<Encoder> g2(s, tag2, groupType, contentSize);
                 if (s.ec_)
                     return s;
                 traits::encode(s, std::forward<T>(v));
@@ -841,7 +885,7 @@ struct Encoder
                 Tag const tag{ClassId::contextSpecific,
                               s.subgroups_.top().numChildren(),
                               traits::primitive()};
-                GroupGuard<Encoder> g(s, tag, groupType);
+                GroupGuard<Encoder> g(s, tag, groupType, contentSize());
                 if (s.ec_)
                     return s;
                 traits::encode(s, std::forward<T>(v));
@@ -852,7 +896,7 @@ struct Encoder
         else
         {
             Tag const tag{traits{}, traits::tagNum(v)};
-            GroupGuard<Encoder> g(s, tag, groupType);
+            GroupGuard<Encoder> g(s, tag, groupType, contentSize());
             if (s.ec_)
                 return s;
             traits::encode(s, std::forward<T>(v));
@@ -1158,11 +1202,19 @@ struct IntegerTraits
     void
     encode(Encoder& s, T v)
     {
+        if (s.subgroups_.empty())
+        {
+            s.ec_ = make_error_code(Error::logicError);
+            return;
+        }
+
         std::vector<char>& dst = s.buf_;
+        auto& parentSlice = s.parentSlice();
 
         if (!v)
         {
             dst.push_back(0);
+            parentSlice.push_back(0);
             return;
         }
 
@@ -1173,9 +1225,15 @@ struct IntegerTraits
         while (n--)
         {
             if (n >= sizeof(T))
+            {
                 dst.push_back(static_cast<char>(0));
+                parentSlice.push_back(static_cast<char>(0));
+            }
             else
+            {
                 dst.push_back(static_cast<char>((v >> (n * 8)) & 0xFF));
+                parentSlice.push_back(static_cast<char>((v >> (n * 8)) & 0xFF));
+            }
         }
     }
 
@@ -1333,6 +1391,16 @@ protected:
         auto const dstIdx = dst.size();
         dst.resize(dst.size() + s.size());
         memcpy(&dst[dstIdx], s.data(), s.size());
+
+
+        auto& parentSlice = encoder.parentSlice();
+        if (parentSlice.size() < s.size())
+        {
+            encoder.ec_ = make_error_code(Error::logicError);
+            return;
+        }
+        memcpy(parentSlice.data(), s.data(), s.size());
+        parentSlice += s.size();
     }
 
     static
@@ -1772,6 +1840,7 @@ struct DerCoderTraits<std::bitset<S>>
     encode(Encoder& encoder, std::bitset<S> const& s)
     {
         std::vector<char>& dst = encoder.buf_;
+        auto& parentSlice = encoder.parentSlice();
         dst.reserve(
             dst.size() + 1 + maxBytes);  // +1 for encoding the unusedBits
 
@@ -1784,18 +1853,34 @@ struct DerCoderTraits<std::bitset<S>>
         {
             dst.push_back(7);
             dst.push_back(0);
+
+            if (parentSlice.size() < 2)
+            {
+                encoder.ec_ = make_error_code(Error::logicError);
+                return;
+            }
+            parentSlice.push_back(7);
+            parentSlice.push_back(0);
             return;
         }
 
         std::size_t const leadingZeroBytes = numLeadingZeroBytes(s);
         std::uint8_t const unusedBits = numUnusedBits(s, leadingZeroBytes);
 
+        if (parentSlice.size() < 1 + maxBytes - leadingZeroBytes)
+        {
+            encoder.ec_ = make_error_code(Error::logicError);
+            return;
+        }
+
         dst.push_back(unusedBits);
+        parentSlice.push_back(unusedBits);
 
         for (size_t curByte = 0; curByte < maxBytes - leadingZeroBytes; ++curByte)
         {
             uint8_t const v = (bits >> curByte * 8) & 0xff;
             dst.push_back(reverseBits(v));
+            parentSlice.push_back(reverseBits(v));
         }
     }
 
