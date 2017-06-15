@@ -585,6 +585,9 @@ public:
     MutableSlice&
     slice();
 
+    Slice
+    slice() const;
+
     /** calculate the preamble
 
         @note: the length of the preamble depends on the length of the content, so
@@ -725,6 +728,7 @@ struct Encoder
     */
     std::vector<Group> roots_;
     std::vector<std::vector<char>> rootBufs_;
+    Slice rootSlice_;
 
     /** the error code of the first error encountered
 

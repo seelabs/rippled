@@ -461,6 +461,12 @@ Group::slice()
     return slice_;
 }
 
+Slice
+Group::slice() const
+{
+    return slice_;
+}
+
 void
 Group::calcPreamble()
 {
@@ -609,6 +615,7 @@ Encoder::startGroup(Tag t, GroupType groupType, std::uint64_t contentSize)
         if (!subgroups_.empty())
             return subgroups_.top().slice();
         rootBufs_.push_back(std::vector<char>(sliceSize));
+        rootSlice_ = Slice{rootBufs_.back().data(), rootBufs_.back().size()};
         return MutableSlice(rootBufs_.back().data(), rootBufs_.back().size());
     }();
 
@@ -728,6 +735,17 @@ Encoder::write(std::vector<char>& dst) const
 {
     if (ec_)
         return;
+
+    if (!roots_.empty())
+    {
+        assert(roots_.size() == 1);
+        // use slices
+        auto const slice = rootSlice_;
+        auto const curIndex = dst.size();
+        dst.resize(curIndex + slice.size());
+        memcpy(dst.data(), slice.data(), slice.size());
+        return;
+    }
 
     if (roots_.empty())
     {
