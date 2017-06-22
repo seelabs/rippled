@@ -72,7 +72,7 @@ DerChoiceDerived1::compare(DerChoiceBaseClass const& rhs) const
 }
 
 void
-DerChoiceDerived1::print(std::ostream& ostr) const
+DerChoiceDerived1::print(std::ostream& ostr, bool ordered) const
 {
     ostr << "{d1;\n" << signedInt_ << ";\n";
     auto const d = buf_.data();
@@ -86,7 +86,7 @@ DerChoiceDerived1::print(std::ostream& ostr) const
     ostr << "};";
     ostr << '{';
     for (auto const& c : subChoices_)
-        c->print(ostr);
+        c->print(ostr, ordered);
     ostr << "}\n}\n";
 }
 
@@ -153,7 +153,7 @@ DerChoiceDerived2::compare(DerChoiceBaseClass const& rhs) const
 }
 
 void
-DerChoiceDerived2::print(std::ostream& ostr) const
+DerChoiceDerived2::print(std::ostream& ostr, bool ordered) const
 {
     ostr << "{d2;\n" << name_ << ";\n" << id_ << ";}\n";
 }
@@ -175,11 +175,7 @@ DerChoiceDerived3::DerChoiceDerived3(std::vector<std::unique_ptr<DerChoiceBaseCl
 {
 }
 
-std::uint8_t
-DerChoiceDerived3::type() const
-{
-    return 3;
-}
+std::uint8_t DerChoiceDerived3::type() const { return 3; }
 
 template<class F>
 void
@@ -216,12 +212,21 @@ DerChoiceDerived3::compare(DerChoiceBaseClass const& rhs) const
 }
 
 void
-DerChoiceDerived3::print(std::ostream& ostr) const
+DerChoiceDerived3::print(std::ostream& ostr, bool ordered) const
 {
     ostr << "{d3;\n";
     ostr << '{';
-    for (auto const& c : subChoices_)
-        c->print(ostr);
+    if (!ordered)
+    {
+        for (auto const& c : subChoices_)
+            c->print(ostr, ordered);
+    }
+    else
+    {
+        auto const wrapped = cryptoconditions::der::make_set(subChoices_);
+        for(auto i : wrapped.sortOrder_)
+            subChoices_[i]->print(ostr, ordered);
+    }
     ostr << "}\n}\n";
 }
 
@@ -302,12 +307,12 @@ DerChoiceDerived4::compare(DerChoiceBaseClass const& rhs) const
 }
 
 void
-DerChoiceDerived4::print(std::ostream& ostr) const
+DerChoiceDerived4::print(std::ostream& ostr, bool ordered) const
 {
     ostr << "{d4;\n";
     ostr << '{';
     for (auto const& c : subChoices_)
-        c->print(ostr);
+        c->print(ostr, ordered);
     ostr << "}\n}\n";
 }
 
@@ -377,12 +382,12 @@ DerChoiceDerived5::compare(DerChoiceBaseClass const& rhs) const
 }
 
 void
-DerChoiceDerived5::print(std::ostream& ostr) const
+DerChoiceDerived5::print(std::ostream& ostr, bool ordered) const
 {
     ostr << "{d5;\n" << name_ << ";\n" << id_ << ";";
     ostr << '{';
     if (subChoice_)
-        subChoice_->print(ostr);
+        subChoice_->print(ostr, ordered);
     ostr << "}\n}\n";
 }
 

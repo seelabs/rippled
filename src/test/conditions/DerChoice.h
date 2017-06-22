@@ -58,7 +58,7 @@ struct DerChoiceBaseClass
     // for debugging
     virtual
     void
-    print(std::ostream& ostr) const = 0;
+    print(std::ostream& ostr, bool ordered=false) const = 0;
 };
 
 bool
@@ -131,7 +131,7 @@ struct DerChoiceDerived1 : DerChoiceBaseClass
     compare(DerChoiceBaseClass const& rhs) const override;
 
     void
-    print(std::ostream& ostr) const override;
+    print(std::ostream& ostr, bool ordered=false) const override;
 
     friend
     bool
@@ -178,7 +178,7 @@ struct DerChoiceDerived2 : DerChoiceBaseClass
     compare(DerChoiceBaseClass const& rhs) const override;
 
     void
-    print(std::ostream& ostr) const override;
+    print(std::ostream& ostr, bool ordered=false) const override;
 
     friend
     bool
@@ -225,7 +225,7 @@ struct DerChoiceDerived3 : DerChoiceBaseClass
     compare(DerChoiceBaseClass const& rhs) const override;
 
     void
-    print(std::ostream& ostr) const override;
+    print(std::ostream& ostr, bool ordered=false) const override;
 
     friend
     bool
@@ -272,7 +272,7 @@ struct DerChoiceDerived4 : DerChoiceBaseClass
     compare(DerChoiceBaseClass const& rhs) const override;
 
     void
-    print(std::ostream& ostr) const override;
+    print(std::ostream& ostr, bool ordered=false) const override;
 
     friend
     bool
@@ -323,7 +323,7 @@ struct DerChoiceDerived5 : DerChoiceBaseClass
     compare(DerChoiceBaseClass const& rhs) const override;
 
     void
-    print(std::ostream& ostr) const override;
+    print(std::ostream& ostr, bool ordered=false) const override;
 
     friend
     bool

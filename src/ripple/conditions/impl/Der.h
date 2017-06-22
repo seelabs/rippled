@@ -234,7 +234,9 @@ struct DerCoderTraits
     void
     decode(Decoder& decoder, TT& v);
 
-    /** compare two values so they sort appropriatly for an asn.1 set. Returns -1 if lhs<rhs, 0 if lsh==rhs, 1 if lhs>rhs
+    /** compare two values so they sort appropriatly for an asn.1 set. Returns a
+       value less than 0 if lhs<rhs, 0 if lsh==rhs, a value greater than zero if
+       lhs>rhs
 
         @note asn.1 lexagraphically compares how the values would be encoded.
               asn.1 encodes in big endian order.
@@ -2027,8 +2029,22 @@ struct SetOfWrapper
     using value_type = typename T::value_type;
 
     T& col_;
-    SetOfWrapper(T& col) : col_(col)
+    boost::container::small_vector<size_t, 8> sortOrder_;
+
+    SetOfWrapper(T& col)
+        : col_(col), sortOrder_(col.size())
     {
+        // contains the indexes into subChoices_ so if the elements will be
+        // sorted if accessed in the order specified by sortIndex_
+        std::iota(sortOrder_.begin(), sortOrder_.end(), 0);
+        std::sort(
+            sortOrder_.begin(),
+            sortOrder_.end(),
+            [&col](std::size_t lhs, std::size_t rhs) {
+                using Traits = cryptoconditions::der::DerCoderTraits<
+                    std::decay_t<decltype(col[0])>>;
+                return Traits::compare(col[lhs], col[rhs]) < 0;
+            });
     }
 };
 
@@ -2120,30 +2136,7 @@ struct DerCoderTraits<SetOfWrapper<T>>
     static void
     encode(Encoder& encoder, SetOfWrapper<T> const& v)
     {
-        // Collection must be encoded in sorted order
-
-        auto const numElements = v.col_.size();
-        // idx contains the indexes into v.col_ so if the elements will be
-        // sorted if accessed in the order specified by idx
-        boost::container::small_vector<std::size_t, 32> idx(numElements);
-        {
-            std::iota(idx.begin(), idx.end(), 0);
-            std::sort(
-                idx.begin(),
-                idx.end(),
-                [& col = v.col_](std::size_t lhs, std::size_t rhs) {
-                    using Traits = cryptoconditions::der::DerCoderTraits<
-                        std::decay_t<decltype(col[0])>>;
-                    return Traits::compare(col[lhs], col[rhs]) == -1;
-                });
-        }
-
-        std::cerr << "Order(e): ";
-        for (auto i : idx)
-            std::cerr << i << " ";
-        std::cerr << '\n';
-
-        for(auto const i : idx)
+        for(auto const i : v.sortOrder_)
             encoder << v.col_[i];
     }
 
@@ -2183,14 +2176,17 @@ struct DerCoderTraits<SetOfWrapper<T>>
     int
     compare(SetOfWrapper<T> const& lhs, SetOfWrapper<T> const& rhs)
     {
-        // assume sets are already sorted
         auto const lhsSize = lhs.col_.size();
         auto const rhsSize = rhs.col_.size();
+        auto const& lhsSortOrder = lhs.sortOrder_;
+        auto const& rhsSortOrder = rhs.sortOrder_;
+
         auto const l = std::min(lhsSize, rhsSize);
         using elementType = std::decay_t<decltype(lhs.col_[0])>;
         for (size_t i = 0; i < l; ++i)
         {
-            auto const r = DerCoderTraits<elementType>::compare(lhs.col_[i], rhs.col_[i]);
+            auto const r = DerCoderTraits<elementType>::compare(
+                lhs.col_[lhsSortOrder[i]], rhs.col_[rhsSortOrder[i]]);
             if (r != 0)
                 return r;
         }

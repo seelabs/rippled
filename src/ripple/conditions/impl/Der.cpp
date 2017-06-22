@@ -519,10 +519,7 @@ Group::write(std::vector<char> const& src, std::vector<char>& dst) const
                 return std::lexicographical_compare(
                     ulhs, ulhs + col[lhs]->size(), urhs, urhs + col[rhs]->size());
                 });
-            std::cerr << "Order(w): ";
-            for(auto i : idx)
-                std::cerr << i << " ";
-            std::cerr << '\n';
+            assert(std::is_sorted(idx.begin(), idx.end()));
         }
 
         std::sort(
