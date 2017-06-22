@@ -65,6 +65,12 @@ DerChoiceDerived1::decode(cryptoconditions::der::Decoder& decoder)
     cryptoconditions::der::withTupleDecodeHelper(*this, decoder);
 }
 
+int
+DerChoiceDerived1::compare(DerChoiceBaseClass const& rhs) const
+{
+    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
+}
+
 void
 DerChoiceDerived1::print(std::ostream& ostr) const
 {
@@ -140,6 +146,12 @@ DerChoiceDerived2::decode(cryptoconditions::der::Decoder& decoder)
     cryptoconditions::der::withTupleDecodeHelper(*this, decoder);
 }
 
+int
+DerChoiceDerived2::compare(DerChoiceBaseClass const& rhs) const
+{
+    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
+}
+
 void
 DerChoiceDerived2::print(std::ostream& ostr) const
 {
@@ -195,6 +207,12 @@ void
 DerChoiceDerived3::decode(cryptoconditions::der::Decoder& decoder)
 {
     cryptoconditions::der::withTupleDecodeHelper(*this, decoder);
+}
+
+int
+DerChoiceDerived3::compare(DerChoiceBaseClass const& rhs) const
+{
+    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
 }
 
 void
@@ -277,6 +295,12 @@ DerChoiceDerived4::decode(cryptoconditions::der::Decoder& decoder)
     cryptoconditions::der::withTupleDecodeHelper(*this, decoder);
 }
 
+int
+DerChoiceDerived4::compare(DerChoiceBaseClass const& rhs) const
+{
+    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
+}
+
 void
 DerChoiceDerived4::print(std::ostream& ostr) const
 {
@@ -344,6 +368,12 @@ void
 DerChoiceDerived5::decode(cryptoconditions::der::Decoder& decoder)
 {
     cryptoconditions::der::withTupleDecodeHelper(*this, decoder);
+}
+
+int
+DerChoiceDerived5::compare(DerChoiceBaseClass const& rhs) const
+{
+    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
 }
 
 void

@@ -27,10 +27,12 @@
 #include <algorithm>
 #include <bitset>
 #include <limits>
+#include <numeric>
 #include <stack>
 #include <system_error>
 #include <vector>
 
+#include <boost/container/small_vector.hpp>
 #include <boost/optional.hpp>
 
 namespace ripple {
@@ -2118,8 +2120,31 @@ struct DerCoderTraits<SetOfWrapper<T>>
     static void
     encode(Encoder& encoder, SetOfWrapper<T> const& v)
     {
-        for (auto const& e : v.col_)
-            encoder << e;
+        // Collection must be encoded in sorted order
+
+        auto const numElements = v.col_.size();
+        // idx contains the indexes into v.col_ so if the elements will be
+        // sorted if accessed in the order specified by idx
+        boost::container::small_vector<std::size_t, 32> idx(numElements);
+        {
+            std::iota(idx.begin(), idx.end(), 0);
+            std::sort(
+                idx.begin(),
+                idx.end(),
+                [& col = v.col_](std::size_t lhs, std::size_t rhs) {
+                    using Traits = cryptoconditions::der::DerCoderTraits<
+                        std::decay_t<decltype(col[0])>>;
+                    return Traits::compare(col[lhs], col[rhs]) == -1;
+                });
+        }
+
+        std::cerr << "Order(e): ";
+        for (auto i : idx)
+            std::cerr << i << " ";
+        std::cerr << '\n';
+
+        for(auto const i : idx)
+            encoder << v.col_[i];
     }
 
     static void
@@ -2152,6 +2177,25 @@ struct DerCoderTraits<SetOfWrapper<T>>
         for (auto const& e : v.col_)
             l += totalLength<ValueTraits>(e, thisGroupType, encoderTagMode);
         return l;
+    }
+
+    static
+    int
+    compare(SetOfWrapper<T> const& lhs, SetOfWrapper<T> const& rhs)
+    {
+        // assume sets are already sorted
+        auto const lhsSize = lhs.col_.size();
+        auto const rhsSize = rhs.col_.size();
+        auto const l = std::min(lhsSize, rhsSize);
+        using elementType = std::decay_t<decltype(lhs.col_[0])>;
+        for (size_t i = 0; i < l; ++i)
+        {
+            auto const r = DerCoderTraits<elementType>::compare(lhs.col_[i], rhs.col_[i]);
+            if (r != 0)
+                return r;
+        }
+
+        return (lhsSize > rhsSize) - (lhsSize < rhsSize);
     }
 };
 
@@ -2236,6 +2280,24 @@ struct DerCoderTraits<SequenceOfWrapper<T>>
         for (auto const& e : v.col_)
             l += totalLength<ValueTraits>(e, thisGroupType, encoderTagMode);
         return l;
+    }
+
+    static
+    int
+    compare(SequenceOfWrapper<T> const& lhs, SequenceOfWrapper<T> const& rhs)
+    {
+        auto const lhsSize = lhs.col_.size();
+        auto const rhsSize = rhs.col_.size();
+        auto const l = std::min(lhsSize, rhsSize);
+        using elementType = std::decay_t<decltype(lhs.col_[0])>;
+        for (size_t i = 0; i < l; ++i)
+        {
+            auto const r = DerCoderTraits<elementType>::compare(lhs.col_[i], rhs.col_[i]);
+            if (r != 0)
+                return r;
+        }
+
+        return (lhsSize > rhsSize) - (lhsSize < rhsSize);
     }
 };
 
@@ -2432,6 +2494,41 @@ withTupleEncodedLengthHelper(TChoice const& c,
         using T = std::decay_t<decltype(tup)>;
         using Traits = cryptoconditions::der::DerCoderTraits<T>;
         result = Traits::length(tup, thisGroupType, encoderTagMode);
+    });
+    return result;
+}
+
+/** For types that define `withTuple`, compare the type.
+
+    @see note on {@link #withTupleEncodeHelper}
+ */
+template<class TChoiceDerived, class TChoiceBase>
+static
+int
+withTupleCompareHelper(TChoiceDerived const& lhs, TChoiceBase const& rhs)
+{
+    auto const lhsType = lhs.type();
+    auto const rhsType = rhs.type();
+    if (lhsType != rhsType)
+    {
+        if (lhsType < rhsType)
+            return -1;
+        return 1;
+    }
+
+    auto const pRhs = dynamic_cast<TChoiceDerived const*>(&rhs);
+    if (!pRhs)
+    {
+        assert(0);
+        return -1;
+    }
+
+    int result = 0;
+    lhs.withTuple([&](auto const& lhsTup) {
+        pRhs->withTuple([&](auto const& rhsTup) {
+            using traits = DerCoderTraits<std::decay_t<decltype(lhsTup)>>;
+            result = traits::compare(lhsTup, rhsTup);
+        });
     });
     return result;
 }

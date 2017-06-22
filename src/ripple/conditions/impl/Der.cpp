@@ -500,6 +500,31 @@ Group::write(std::vector<char> const& src, std::vector<char>& dst) const
         for (auto const& c : children_)
             cachedChildren.push_back(&c.cache(src));
 
+        {
+            // swd debug - check that sort works
+            auto const numElements = children_.size();
+            // idx contains the indexes into v.col_ so if the elements will be
+            // sorted if accessed in the order specified by idx
+            boost::container::small_vector<std::size_t, 32> idx(numElements);
+
+            std::iota(idx.begin(), idx.end(), 0);
+            std::sort(
+                idx.begin(),
+                idx.end(),
+                [&col = cachedChildren](std::size_t lhs, std::size_t rhs) {
+                std::uint8_t const* ulhs =
+                    reinterpret_cast<std::uint8_t const*>(&(*col[lhs])[0]);
+                std::uint8_t const* urhs =
+                    reinterpret_cast<std::uint8_t const*>(&(*col[rhs])[0]);
+                return std::lexicographical_compare(
+                    ulhs, ulhs + col[lhs]->size(), urhs, urhs + col[rhs]->size());
+                });
+            std::cerr << "Order(w): ";
+            for(auto i : idx)
+                std::cerr << i << " ";
+            std::cerr << '\n';
+        }
+
         std::sort(
             cachedChildren.begin(),
             cachedChildren.end(),
@@ -738,6 +763,10 @@ Encoder::write(std::vector<char>& dst) const
 
     if (!roots_.empty())
     {
+        // swd debug - use old write to write some log info
+        roots_.front().write(buf_, dst);
+        dst.clear();
+
         assert(roots_.size() == 1);
         // use slices
         auto const slice = rootSlice_;

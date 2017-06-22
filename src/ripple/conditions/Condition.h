@@ -186,6 +186,14 @@ struct DerCoderTraits<Condition>
         Condition const& v,
         boost::optional<GroupType> const& parentGroupType,
         TagMode encoderTagMode);
+
+    static 
+    int
+    compare(Condition const& lhs, Condition const& rhs)
+    {
+        // swd TBD
+        return 0;
+    }
 };
 } // der
 } // cryptoconditions

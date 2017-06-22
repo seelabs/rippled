@@ -283,6 +283,14 @@ struct DerCoderTraits<std::unique_ptr<Fulfillment>>
         std::unique_ptr<Fulfillment> const& v,
         boost::optional<GroupType> const& parentGroupType,
         TagMode encoderTagMode);
+
+    static 
+    int
+    compare(std::unique_ptr<Fulfillment> const& lhs, std::unique_ptr<Fulfillment> const& rhs)
+    {
+        // swd TBD
+        return 0;
+    }
 };
 
 } // der

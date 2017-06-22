@@ -46,6 +46,10 @@ struct DerChoiceBaseClass
     decode(cryptoconditions::der::Decoder& s) = 0;
 
     virtual
+    int
+    compare(DerChoiceBaseClass const& rhs) const = 0;
+
+    virtual
     std::uint64_t
     derEncodedLength(
         boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
@@ -123,6 +127,9 @@ struct DerChoiceDerived1 : DerChoiceBaseClass
     void
     decode(cryptoconditions::der::Decoder& decoder) override;
 
+    int
+    compare(DerChoiceBaseClass const& rhs) const override;
+
     void
     print(std::ostream& ostr) const override;
 
@@ -166,6 +173,9 @@ struct DerChoiceDerived2 : DerChoiceBaseClass
 
     void
     decode(cryptoconditions::der::Decoder& decoder) override;
+
+    int
+    compare(DerChoiceBaseClass const& rhs) const override;
 
     void
     print(std::ostream& ostr) const override;
@@ -211,6 +221,9 @@ struct DerChoiceDerived3 : DerChoiceBaseClass
     void
     decode(cryptoconditions::der::Decoder& decoder) override;
 
+    int
+    compare(DerChoiceBaseClass const& rhs) const override;
+
     void
     print(std::ostream& ostr) const override;
 
@@ -254,6 +267,9 @@ struct DerChoiceDerived4 : DerChoiceBaseClass
 
     void
     decode(cryptoconditions::der::Decoder& decoder) override;
+
+    int
+    compare(DerChoiceBaseClass const& rhs) const override;
 
     void
     print(std::ostream& ostr) const override;
@@ -302,6 +318,9 @@ struct DerChoiceDerived5 : DerChoiceBaseClass
 
     void
     decode(cryptoconditions::der::Decoder& decoder) override;
+
+    int
+    compare(DerChoiceBaseClass const& rhs) const override;
 
     void
     print(std::ostream& ostr) const override;
@@ -413,6 +432,13 @@ struct DerCoderTraits<std::unique_ptr<test::DerChoiceBaseClass>>
 
         auto const cll = contentLengthLength(l); 
         return 1 + cll + l;
+    }
+
+    static 
+    int
+    compare(std::unique_ptr<test::DerChoiceBaseClass> const& lhs, std::unique_ptr<test::DerChoiceBaseClass> const& rhs)
+    {
+        return lhs->compare(*rhs);
     }
 };
 }  // der
