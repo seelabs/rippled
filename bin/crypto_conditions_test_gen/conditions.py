@@ -1,5 +1,11 @@
 #!/usr/bin/env python
 
+# This script was run using python 3.6
+# When using anaconda python, the following additional packages were installed (using conda install XXX):
+# pyasn1 (conda install pyasn1)
+# cryptography (conda install cryptography)
+# nacl (conda install -c conda-forge pynacl)
+
 import base64
 import binascii
 import codecs
