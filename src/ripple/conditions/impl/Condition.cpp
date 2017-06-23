@@ -119,6 +119,63 @@ length(
     return 1 + l + contentLengthLength(l);
 }
 
+int
+DerCoderTraits<Condition>::
+compare(Condition const& lhs, Condition const& rhs)
+{
+    // compare types
+    if (lhs.type != rhs.type)
+    {
+        if (lhs.type < rhs.type)
+            return -1;
+        return 1;
+    }
+
+    {
+        // compare lengths
+        auto const lhsL = cryptoconditions::der::withTupleEncodedLengthHelper(
+            lhs, boost::none, TagMode::automatic);
+        auto const rhsL = cryptoconditions::der::withTupleEncodedLengthHelper(
+            rhs, boost::none, TagMode::automatic);
+        if (lhsL != rhsL)
+        {
+            if (lhsL < rhsL)
+                return -1;
+            return 1;
+        }
+    }
+
+    {
+        // compare finger prints
+        using traits = DerCoderTraits<std::decay_t<decltype(lhs.fingerprint)>>;
+        if (auto const r = traits::compare(lhs.fingerprint, rhs.fingerprint))
+            return r;
+    }
+    // fingerprints were equal
+    {
+        // compare costs
+        using traits = DerCoderTraits<std::decay_t<decltype(lhs.cost)>>;
+        if (auto const r = traits::compare(lhs.cost, rhs.cost))
+            return r;
+    }
+    // costs were equal
+    auto const lhsIsCompound = Condition::isCompoundCondition(lhs.type);
+    auto const rhsIsCompound = Condition::isCompoundCondition(rhs.type);
+    if (!lhsIsCompound && !rhsIsCompound)
+        return 0;
+    if (lhsIsCompound && !rhsIsCompound)
+        return 1;
+    if (!lhsIsCompound && rhsIsCompound)
+        return -1;
+    // both are compound
+    assert(lhsIsCompound && rhsIsCompound);
+    {
+        // compare subtypes
+        using traits = DerCoderTraits<std::decay_t<decltype(lhs.subtypes)>>;
+        return traits::compare(lhs.subtypes, rhs.subtypes);
+    }
+}
+
 }  // der
 
 Condition::Condition(Type t, std::uint32_t c, Slice fp, std::bitset<5> const& s)

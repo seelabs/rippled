@@ -1996,12 +1996,13 @@ struct DerCoderTraits<std::bitset<S>>
         }
 
         // swd TBD review this
-        for (size_t curByte = 0;
-             curByte < maxBytes - std::min (leadingZeroBytes[0], leadingZeroBytes[1]);
+        for (size_t curByte = 0; curByte <
+             maxBytes - std::min(leadingZeroBytes[0], leadingZeroBytes[1]);
              ++curByte)
         {
-            uint8_t const v[2] = {(bits[0] >> curByte * 8) & 0xff,
-                                  (bits[1] >> curByte * 8) & 0xff};
+            uint8_t const v[2] = {
+                static_cast<uint8_t>((bits[0] >> curByte * 8) & 0xff),
+                static_cast<uint8_t>((bits[1] >> curByte * 8) & 0xff)};
             if (v[0] != v[1])
             {
                 if (v[0] < v[1])

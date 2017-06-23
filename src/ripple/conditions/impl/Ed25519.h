@@ -118,6 +118,9 @@ public:
     derEncodedLength(
         boost::optional<der::GroupType> const& parentGroupType,
         der::TagMode encoderTagMode) const override;
+
+    int
+    compare(Fulfillment const& rhs) const override;
 };
 }
 }

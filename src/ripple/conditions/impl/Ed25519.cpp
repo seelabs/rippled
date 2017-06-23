@@ -68,6 +68,13 @@ Ed25519::checkEqual(Fulfillment const& rhs) const
     return false;
 }
 
+int
+Ed25519::compare(Fulfillment const& rhs) const
+{
+    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
+}
+
+
 bool
 Ed25519::validationDependsOnMessage() const
 {

@@ -189,11 +189,7 @@ struct DerCoderTraits<Condition>
 
     static 
     int
-    compare(Condition const& lhs, Condition const& rhs)
-    {
-        // swd TBD
-        return 0;
-    }
+    compare(Condition const& lhs, Condition const& rhs);
 };
 } // der
 } // cryptoconditions

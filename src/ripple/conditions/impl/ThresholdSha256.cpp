@@ -174,6 +174,11 @@ ThresholdSha256::checkEqual(Fulfillment const& rhs) const
     return true;
 }
 
+int
+ThresholdSha256::compare(Fulfillment const& rhs) const
+{
+    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
+}
 
 bool
 ThresholdSha256::validationDependsOnMessage() const

@@ -169,6 +169,14 @@ public:
     derEncodedLength(
         boost::optional<der::GroupType> const& parentGroupType,
         der::TagMode encoderTagMode) const = 0;
+
+    /** compare two fulfillments for sorting in a DER set
+
+        @return <0 if less, 0 if equal, >0 if greater
+    */
+    virtual
+    int
+    compare(Fulfillment const& rhs) const = 0;
 };
 
 /// compare two fulfillments for equality
@@ -288,8 +296,7 @@ struct DerCoderTraits<std::unique_ptr<Fulfillment>>
     int
     compare(std::unique_ptr<Fulfillment> const& lhs, std::unique_ptr<Fulfillment> const& rhs)
     {
-        // swd TBD
-        return 0;
+        return lhs->compare(*rhs);
     }
 };
 

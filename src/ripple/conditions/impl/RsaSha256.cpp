@@ -208,6 +208,13 @@ RsaSha256::checkEqual(Fulfillment const& rhs) const
 
 }
 
+int
+RsaSha256::compare(Fulfillment const& rhs) const
+{
+    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
+}
+
+
 bool
 RsaSha256::validationDependsOnMessage() const
 {

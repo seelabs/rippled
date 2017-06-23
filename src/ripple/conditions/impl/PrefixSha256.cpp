@@ -144,6 +144,13 @@ PrefixSha256::checkEqual(Fulfillment const& rhs) const
     return true;
 }
 
+int
+PrefixSha256::compare(Fulfillment const& rhs) const
+{
+    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
+}
+
+
 bool
 PrefixSha256::validationDependsOnMessage() const
 {
