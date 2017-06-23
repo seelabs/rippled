@@ -2435,6 +2435,19 @@ struct DerCoderTraits<std::tuple<Ts&...>>
     int
     compare(Tuple const& lhs, Tuple const& rhs)
     {
+        {
+            // compare lenghts Even though the parent tag or tag mode are
+            // unknown, we only Hard coding no parent tag and automatic tag mode
+            // will still reveal differences in length.
+            auto const lhsL = length(lhs, boost::none, TagMode::automatic);
+            auto const rhsL = length(rhs, boost::none, TagMode::automatic);
+            if (lhsL != rhsL)
+            {
+                if (lhsL < rhsL)
+                    return -1;
+                return 1;
+            }
+        }
         return compareElementsHelper(
             lhs, rhs, std::index_sequence_for<Ts...>{});
     }
