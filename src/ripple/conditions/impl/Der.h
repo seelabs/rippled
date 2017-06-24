@@ -2032,20 +2032,29 @@ struct SetOfWrapper
     T& col_;
     boost::container::small_vector<size_t, 8> sortOrder_;
 
-    SetOfWrapper(T& col)
+    /** wrap the collection as a DER set
+
+        @param col Collection to wrap
+        @param sorted Flag that determines if the collection is already sorted
+     */
+    explicit
+    SetOfWrapper(T& col, bool sorted=false)
         : col_(col), sortOrder_(col.size())
     {
         // contains the indexes into subChoices_ so if the elements will be
         // sorted if accessed in the order specified by sortIndex_
         std::iota(sortOrder_.begin(), sortOrder_.end(), 0);
-        std::sort(
-            sortOrder_.begin(),
-            sortOrder_.end(),
-            [&col](std::size_t lhs, std::size_t rhs) {
-                using Traits = cryptoconditions::der::DerCoderTraits<
-                    std::decay_t<decltype(col[0])>>;
-                return Traits::compare(col[lhs], col[rhs]) < 0;
-            });
+        if (!sorted)
+        {
+            std::sort(
+                sortOrder_.begin(),
+                sortOrder_.end(),
+                [&col](std::size_t lhs, std::size_t rhs) {
+                    using Traits = cryptoconditions::der::DerCoderTraits<
+                        std::decay_t<decltype(col[0])>>;
+                    return Traits::compare(col[lhs], col[rhs]) < 0;
+                });
+        }
     }
 };
 
@@ -2073,12 +2082,16 @@ struct SequenceOfWrapper
     }
 };
 
-/// convenience function to wrap a c++ collection as it will be coded as an asn.1 set
+/** convenience function to wrap a c++ collection as it will be coded as an asn.1 set
+
+    @param col Collection to wrap
+    @param sorted Flag that determines if the collection is already sorted
+ */
 template <class T>
 SetOfWrapper<T>
-make_set(T& t)
+make_set(T& t, bool sorted=false)
 {
-    return SetOfWrapper<T>(t);
+    return SetOfWrapper<T>(t, sorted);
 }
 
 /// convenience function to wrap a c++ collection as it will be coded as an asn.1 sequence
