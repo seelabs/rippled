@@ -429,18 +429,6 @@ decodePreamble(Slice& slice, Preamble& p, std::error_code& ec)
 
 //------------------------------------------------------------------------------
 
-std::vector<char>&
-Group::cache(std::vector<char> const& src) const
-{
-    if (cache_.empty())
-    {
-        cache_.reserve(size());
-        write(src, cache_);
-    }
-
-    return cache_;
-}
-
 Group::Group(
     Tag t,
     std::size_t s,
@@ -454,21 +442,6 @@ Group::Group(
     , groupType_(groupType)
     , slice_(slice)
 {
-}
-
-size_t
-Group::childPreambleSize() const
-{
-    std::size_t result = 0;
-    for (auto const& c : children_)
-        result += c.totalPreambleSize();
-    return result;
-}
-
-size_t
-Group::totalPreambleSize() const
-{
-    return preamble_.size() + childPreambleSize();
 }
 
 size_t
@@ -489,12 +462,6 @@ Group::end(std::size_t e)
     end_ = e;
 }
 
-size_t
-Group::size() const
-{
-    return end_ - start_ + totalPreambleSize();
-}
-
 MutableSlice&
 Group::slice()
 {
@@ -505,89 +472,6 @@ Slice
 Group::slice() const
 {
     return slice_;
-}
-
-void
-Group::calcPreamble()
-{
-    preamble_.clear();
-    encodePreamble(
-        preamble_, Preamble{id_, childPreambleSize() + end_ - start_});
-}
-
-void
-Group::write(std::vector<char> const& src, std::vector<char>& dst) const
-{
-    dst.insert(dst.end(), preamble_.begin(), preamble_.end());
-
-    if (children_.empty())
-    {
-        dst.insert(dst.end(), src.begin() + start_, src.begin() + end_);
-        return;
-    }
-
-    if (!children_.empty() && children_.front().start_ > start_)
-    {
-        // insert from this start to start of first child
-        dst.insert(dst.end(), &src[start_], &src[children_.front().start_]);
-    }
-
-    if (groupType_ == GroupType::set)
-    {
-        // output children in ascending order
-        std::vector<std::vector<char>*> cachedChildren;
-        cachedChildren.reserve(children_.size());
-        for (auto const& c : children_)
-            cachedChildren.push_back(&c.cache(src));
-
-        {
-            // swd debug - check that sort works
-            auto const numElements = children_.size();
-            // idx contains the indexes into v.col_ so if the elements will be
-            // sorted if accessed in the order specified by idx
-            boost::container::small_vector<std::size_t, 32> idx(numElements);
-
-            std::iota(idx.begin(), idx.end(), 0);
-            std::sort(
-                idx.begin(),
-                idx.end(),
-                [&col = cachedChildren](std::size_t lhs, std::size_t rhs) {
-                std::uint8_t const* ulhs =
-                    reinterpret_cast<std::uint8_t const*>(&(*col[lhs])[0]);
-                std::uint8_t const* urhs =
-                    reinterpret_cast<std::uint8_t const*>(&(*col[rhs])[0]);
-                return std::lexicographical_compare(
-                    ulhs, ulhs + col[lhs]->size(), urhs, urhs + col[rhs]->size());
-                });
-            assert(std::is_sorted(idx.begin(), idx.end()));
-        }
-
-        std::sort(
-            cachedChildren.begin(),
-            cachedChildren.end(),
-            [](std::vector<char> const* lhs, std::vector<char> const* rhs) {
-                std::uint8_t const* ulhs =
-                    reinterpret_cast<std::uint8_t const*>(&(*lhs)[0]);
-                std::uint8_t const* urhs =
-                    reinterpret_cast<std::uint8_t const*>(&(*rhs)[0]);
-                return std::lexicographical_compare(
-                    ulhs, ulhs + lhs->size(), urhs, urhs + rhs->size());
-            });
-
-        for (auto const& c : cachedChildren)
-            dst.insert(dst.end(), c->begin(), c->end());
-    }
-    else
-    {
-        for (auto const& c : children_)
-            c.write(src, dst);
-    }
-
-    if (!children_.empty() && end_ > children_.back().end_)
-    {
-        // insert from end of the last child to the end of this
-        dst.insert(dst.end(), &src[children_.back().end_], &src[end_]);
-    }
 }
 
 bool
@@ -726,9 +610,6 @@ Encoder::endGroup()
         return;
     }
 
-    if (!(top.isChoice() && tagMode_ == TagMode::automatic))
-        top.calcPreamble();
-
     if (parentIsChoice() && tagMode_ == TagMode::automatic)
     {
         // copy the child group, but don't add it to the parent
@@ -771,10 +652,7 @@ Encoder::eos()
 size_t
 Encoder::size() const
 {
-    std::size_t result = 0;
-    for (auto const& r : roots_)
-        result += r.size();
-    return result;
+    return rootSlice_.size();
 }
 
 MutableSlice&
@@ -798,35 +676,15 @@ Encoder::write(std::vector<char>& dst) const
     if (ec_)
         return;
 
-    if (!roots_.empty())
-    {
-        // swd debug - use old write to write some log info
-        roots_.front().write(buf_, dst);
-        dst.clear();
-
-        assert(roots_.size() == 1);
-        // use slices
-        auto const slice = rootSlice_;
-        auto const curIndex = dst.size();
-        dst.resize(curIndex + slice.size());
-        memcpy(dst.data(), slice.data(), slice.size());
-        return;
-    }
-
     if (roots_.empty())
-    {
-        dst.insert(dst.end(), buf_.begin(), buf_.end());
         return;
-    }
 
-    if (roots_.front().start() > 0)
-        dst.insert(dst.end(), buf_.begin(), buf_.end());
-
-    for (auto const& r : roots_)
-        r.write(buf_, dst);
-
-    if (roots_.back().end() < buf_.size())
-        dst.insert(dst.end(), buf_.begin() + roots_.back().end(), buf_.end());
+    assert(roots_.size() == 1);
+    // use slices
+    auto const slice = rootSlice_;
+    auto const curIndex = dst.size();
+    dst.resize(curIndex + slice.size());
+    memcpy(dst.data(), slice.data(), slice.size());
 }
 
 bool

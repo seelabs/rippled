@@ -569,13 +569,6 @@ class Group
     std::size_t end_;
     /// subvalues of this value
     std::vector<Group> children_;
-    /** The type and length information of the value.
-
-        @note: the length of the preamble depends on the length of the content, so
-               it cannot be calculated until all the value have been encoded. It is
-               calculated when the group is popped off the encoders group stack.
-     */
-    std::vector<char> preamble_;
     /// asn.1 explicit (direct) or automatic tagging
     TagMode tagMode_;
     /// additional type information for the group
@@ -586,17 +579,6 @@ class Group
         @note: it _must_ be the correct size. It will not be resized.
     */
     MutableSlice slice_;
-
-    /** cache of the serialization
-
-        asn.1 sets must be output in sorted order. When serializing the children
-        of a group that represents a set, the serialization will be cached.
-        Since sets can have children that are also sets, this prevents
-        serializing the "leaf" sets multiple times.
-    */
-    mutable std::vector<char> cache_;
-    std::vector<char>&
-    cache(std::vector<char> const& src) const;
 
 public:
     Group(Group const&) = default;
@@ -612,18 +594,6 @@ public:
         TagMode tagMode,
         GroupType groupType,
         MutableSlice slice);
-
-    /// size in bytes of the preambles of all the children
-    size_t
-    childPreambleSize() const;
-
-    /** size in bytes of all the preambles
-
-        Size of this value's preamble plus the size of the preambles of all the
-        children.
-    */
-    size_t
-    totalPreambleSize() const;
 
     /** position (in bytes) of the start of the contents of the value
 
@@ -643,36 +613,12 @@ public:
     void
     end(std::size_t e);
 
-    /** total size in bytes of the group
-
-        Size of the contents plus the size of all the preambles
-     */
-    size_t
-    size() const;
-
     /// the data slice reserved for both the pramble and contents of the group
     MutableSlice&
     slice();
 
     Slice
     slice() const;
-
-    /** calculate the preamble
-
-        @note: the length of the preamble depends on the length of the content, so
-               it cannot be calculated until all the value have been encoded. It is
-               calculated when the group is pop-ed off the encoders group stack.
-     */
-    void
-    calcPreamble();
-
-    /** write the preambles and contents
-
-        @param src the serialized contents (not including the preambles)
-        @param dst the destination to write the preambles and serialized contents
-     */
-    void
-    write(std::vector<char> const& src, std::vector<char>& dst) const;
 
     /** create a group as a child of this group
 
@@ -913,25 +859,6 @@ struct Encoder
         using traits = DerCoderTraits<std::decay_t<T>>;
         auto const groupType = traits::groupType();
 
-        // swd TBD remove this - transitional code
-        auto checkExpectedSize = [&] {
-            boost::optional<GroupType> parentGroupType;
-            if (!s.subgroups_.empty())
-                parentGroupType.emplace(s.subgroups_.top().groupType());
-
-            auto const expectedSize =
-                traits::length(v, parentGroupType, s.tagMode_, s.traitsCache_);
-            auto& top = s.subgroups_.top();
-            if (!(top.isChoice() && s.tagMode_ == TagMode::automatic))
-                top.calcPreamble();
-            auto const actualSize =
-                s.buf_.size() - top.start() + top.childPreambleSize();
-            if (expectedSize != actualSize)
-            {
-                std::cerr << "Error: (expectedSize : actualSize): " << expectedSize << " : " << actualSize << '\n';
-            }
-        };
-
         auto contentSize = [&] {
             boost::optional<GroupType> parentGroupType;
             if (!s.subgroups_.empty())
@@ -957,8 +884,6 @@ struct Encoder
                 if (s.ec_)
                     return s;
                 traits::encode(s, std::forward<T>(v));
-                // swd TBD remove this - transitional code
-                checkExpectedSize();
             }
             else
             {
@@ -969,8 +894,6 @@ struct Encoder
                 if (s.ec_)
                     return s;
                 traits::encode(s, std::forward<T>(v));
-                // swd TBD remove this - transitional code
-                checkExpectedSize();
             }
         }
         else
@@ -980,8 +903,6 @@ struct Encoder
             if (s.ec_)
                 return s;
             traits::encode(s, std::forward<T>(v));
-            // swd TBD remove this - transitional code
-            checkExpectedSize();
         }
 
         return s;
