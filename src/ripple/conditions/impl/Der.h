@@ -708,12 +708,8 @@ struct Encoder
         current parent.
      */
     std::stack<Group> subgroups_;
-    /** Collection of root objects.
-
-        @note Typically there will only be one root object.
-    */
-    std::vector<Group> roots_;
-    std::vector<std::vector<char>> rootBufs_;
+    boost::optional<Group> root_;
+    std::vector<char> rootBuf_;
     Slice rootSlice_;
 
     /** the error code of the first error encountered

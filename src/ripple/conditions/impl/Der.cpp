@@ -538,9 +538,10 @@ Encoder::startGroup(Tag t, GroupType groupType, std::uint64_t contentSize)
     {
         if (!subgroups_.empty())
             return subgroups_.top().slice();
-        rootBufs_.push_back(std::vector<char>(sliceSize));
-        rootSlice_ = Slice{rootBufs_.back().data(), rootBufs_.back().size()};
-        return MutableSlice(rootBufs_.back().data(), rootBufs_.back().size());
+        assert(rootBuf_.empty() && !root_);
+        rootBuf_.resize(sliceSize);
+        rootSlice_ = Slice{rootBuf_.data(), rootBuf_.size()};
+        return MutableSlice(rootBuf_.data(), rootBuf_.size());
     }();
 
     MutableSlice thisSlice{parentSlice.data(), sliceSize};
@@ -595,20 +596,21 @@ Encoder::endGroup()
     }
 
     if (subgroups_.empty())
-        roots_.emplace_back(std::move(top));
-    else
     {
-        auto& parentSlice = subgroups_.top().slice();
-        auto const inc = std::distance(parentSlice.data(), top.slice().data());
-        if (inc < 0 || inc > parentSlice.size())
-        {
-            // incorrect length calculation
-            ec_ = make_error_code(Error::logicError);
-            return;
-        }
-        parentSlice += inc;
-        subgroups_.top().emplaceChild(std::move(top));
+        root_.emplace(std::move(top));
+        return;
     }
+
+    auto& parentSlice = subgroups_.top().slice();
+    auto const inc = std::distance(parentSlice.data(), top.slice().data());
+    if (inc < 0 || inc > parentSlice.size())
+    {
+        // incorrect length calculation
+        ec_ = make_error_code(Error::logicError);
+        return;
+    }
+    parentSlice += inc;
+    subgroups_.top().emplaceChild(std::move(top));
 };
 
 void
@@ -650,14 +652,9 @@ Encoder::ec() const
 void
 Encoder::write(std::vector<char>& dst) const
 {
-    if (ec_)
+    if (ec_ || !root_)
         return;
 
-    if (roots_.empty())
-        return;
-
-    assert(roots_.size() == 1);
-    // use slices
     auto const slice = rootSlice_;
     auto const curIndex = dst.size();
     dst.resize(curIndex + slice.size());
