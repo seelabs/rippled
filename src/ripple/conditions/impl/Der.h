@@ -559,14 +559,6 @@ class Group
 {
     /// asn.1 type information for the value being encoded
     Tag id_;
-    /** position (in bytes) of the start of the contents of the value
-
-        @note: this does not indicate the start of the preamble; the size of the
-        preamble cannot be known until the size of the contents is known.
-    */
-    std::size_t start_;
-    /// position (in bytes) of one past the end of the contents of the value
-    std::size_t end_;
     /// subvalues of this value
     std::vector<Group> children_;
     /// asn.1 explicit (direct) or automatic tagging
@@ -590,28 +582,9 @@ public:
 
     Group(
         Tag t,
-        std::size_t s,
         TagMode tagMode,
         GroupType groupType,
         MutableSlice slice);
-
-    /** position (in bytes) of the start of the contents of the value
-
-        @see {@link #start_}
-     */
-    size_t
-    start() const;
-
-    /** position (in bytes) of one past the end of the contents of the value
-
-        @see {@link #end_}
-     */
-    size_t
-    end() const;
-
-    /// set the position for one past the end of the contents of the value
-    void
-    end(std::size_t e);
 
     /// the data slice reserved for both the pramble and contents of the group
     MutableSlice&
@@ -728,8 +701,6 @@ struct Encoder
 {
     /// explicit or automatic tagging
     TagMode tagMode_ = TagMode::direct;
-    /// buffer to write value contents into
-    std::vector<char> buf_;
     /** values are coded as a hierarchy. `subgroups_` tracks the current
         position in the hierarchy.
 
@@ -825,21 +796,6 @@ struct Encoder
     /** Add values to the encoder
     @{
     */
-    friend
-    Encoder&
-    operator&(Encoder& s, Preamble const& p)
-    {
-        encodePreamble(s.buf_, p);
-        return s;
-    }
-    friend
-    Encoder&
-    operator&(Encoder& s, Preamble& p)
-    {
-        encodePreamble(s.buf_, p);
-        return s;
-    }
-
     friend
     Encoder&
     operator&(Encoder& s, Eos e)
@@ -1210,12 +1166,10 @@ struct IntegerTraits
             return;
         }
 
-        std::vector<char>& dst = s.buf_;
         auto& parentSlice = s.parentSlice();
 
         if (!v)
         {
-            dst.push_back(0);
             parentSlice.push_back(0);
             return;
         }
@@ -1227,15 +1181,9 @@ struct IntegerTraits
         while (n--)
         {
             if (n >= sizeof(T))
-            {
-                dst.push_back(static_cast<char>(0));
                 parentSlice.push_back(static_cast<char>(0));
-            }
             else
-            {
-                dst.push_back(static_cast<char>((v >> (n * 8)) & 0xFF));
                 parentSlice.push_back(static_cast<char>((v >> (n * 8)) & 0xFF));
-            }
         }
     }
 
@@ -1387,13 +1335,6 @@ protected:
     {
         if (s.empty())
             return;
-
-        std::vector<char>& dst = encoder.buf_;
-
-        auto const dstIdx = dst.size();
-        dst.resize(dst.size() + s.size());
-        memcpy(&dst[dstIdx], s.data(), s.size());
-
 
         auto& parentSlice = encoder.parentSlice();
         if (parentSlice.size() < s.size())
@@ -1849,10 +1790,7 @@ struct DerCoderTraits<std::bitset<S>>
     void
     encode(Encoder& encoder, std::bitset<S> const& s)
     {
-        std::vector<char>& dst = encoder.buf_;
         auto& parentSlice = encoder.parentSlice();
-        dst.reserve(
-            dst.size() + 1 + maxBytes);  // +1 for encoding the unusedBits
 
         static_assert(
             maxBytes > 0 && maxBytes <= sizeof(unsigned long),
@@ -1861,9 +1799,6 @@ struct DerCoderTraits<std::bitset<S>>
 
         if (bits == 0)
         {
-            dst.push_back(7);
-            dst.push_back(0);
-
             if (parentSlice.size() < 2)
             {
                 encoder.ec_ = make_error_code(Error::logicError);
@@ -1883,13 +1818,11 @@ struct DerCoderTraits<std::bitset<S>>
             return;
         }
 
-        dst.push_back(unusedBits);
         parentSlice.push_back(unusedBits);
 
         for (size_t curByte = 0; curByte < maxBytes - leadingZeroBytes; ++curByte)
         {
             uint8_t const v = (bits >> curByte * 8) & 0xff;
-            dst.push_back(reverseBits(v));
             parentSlice.push_back(reverseBits(v));
         }
     }

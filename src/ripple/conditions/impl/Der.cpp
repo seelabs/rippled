@@ -431,35 +431,14 @@ decodePreamble(Slice& slice, Preamble& p, std::error_code& ec)
 
 Group::Group(
     Tag t,
-    std::size_t s,
     TagMode tagMode,
     GroupType groupType,
     MutableSlice slice)
     : id_(t)
-    , start_(s)
-    , end_(s)
     , tagMode_(tagMode)
     , groupType_(groupType)
     , slice_(slice)
 {
-}
-
-size_t
-Group::start() const
-{
-    return start_;
-}
-
-size_t
-Group::end() const
-{
-    return end_;
-}
-
-void
-Group::end(std::size_t e)
-{
-    end_ = e;
 }
 
 MutableSlice&
@@ -515,7 +494,6 @@ GroupType Group::groupType() const
 
 Encoder::Encoder(TagMode tagMode) : tagMode_(tagMode)
 {
-    buf_.reserve(1 << 12);
 }
 
 Encoder::~Encoder()
@@ -584,7 +562,7 @@ Encoder::startGroup(Tag t, GroupType groupType, std::uint64_t contentSize)
     }
     thisSlice += preambleLength;
 
-    subgroups_.emplace(t, buf_.size(), tagMode_, groupType, thisSlice);
+    subgroups_.emplace(t, tagMode_, groupType, thisSlice);
 };
 
 void
@@ -600,7 +578,6 @@ Encoder::endGroup()
     }
 
     Group top(std::move(subgroups_.top()));
-    top.end(buf_.size());
     subgroups_.pop();
 
     if (!top.slice().empty())
