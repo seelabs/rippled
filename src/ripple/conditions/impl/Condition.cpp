@@ -110,18 +110,30 @@ DerCoderTraits<Condition>::
 length(
     Condition const& v,
     boost::optional<GroupType> const& parentGroupType,
-    TagMode encoderTagMode)
+    TagMode encoderTagMode,
+    TraitsCache& traitsCache)
 {
+    if (auto cached = traitsCache.length(&v))
+        return *cached;
+
     auto const l = cryptoconditions::der::withTupleEncodedLengthHelper(
-        v, parentGroupType, encoderTagMode);
+        v, parentGroupType, encoderTagMode, traitsCache);
     if (encoderTagMode == TagMode::automatic)
+    {
+        traitsCache.length(&v, l);
         return l;
-    return 1 + l + contentLengthLength(l);
+    }
+    auto const result = 1 + l + contentLengthLength(l);
+    traitsCache.length(&v, result);
+    return result;
 }
 
 int
 DerCoderTraits<Condition>::
-compare(Condition const& lhs, Condition const& rhs)
+compare(
+    Condition const& lhs,
+    Condition const& rhs,
+    TraitsCache& traitsCache)
 {
     // compare types
     if (lhs.type != rhs.type)
@@ -134,9 +146,9 @@ compare(Condition const& lhs, Condition const& rhs)
     {
         // compare lengths
         auto const lhsL = cryptoconditions::der::withTupleEncodedLengthHelper(
-            lhs, boost::none, TagMode::automatic);
+            lhs, boost::none, TagMode::automatic, traitsCache);
         auto const rhsL = cryptoconditions::der::withTupleEncodedLengthHelper(
-            rhs, boost::none, TagMode::automatic);
+            rhs, boost::none, TagMode::automatic, traitsCache);
         if (lhsL != rhsL)
         {
             if (lhsL < rhsL)
@@ -148,14 +160,14 @@ compare(Condition const& lhs, Condition const& rhs)
     {
         // compare finger prints
         using traits = DerCoderTraits<std::decay_t<decltype(lhs.fingerprint)>>;
-        if (auto const r = traits::compare(lhs.fingerprint, rhs.fingerprint))
+        if (auto const r = traits::compare(lhs.fingerprint, rhs.fingerprint, traitsCache))
             return r;
     }
     // fingerprints were equal
     {
         // compare costs
         using traits = DerCoderTraits<std::decay_t<decltype(lhs.cost)>>;
-        if (auto const r = traits::compare(lhs.cost, rhs.cost))
+        if (auto const r = traits::compare(lhs.cost, rhs.cost, traitsCache))
             return r;
     }
     // costs were equal
@@ -172,7 +184,7 @@ compare(Condition const& lhs, Condition const& rhs)
     {
         // compare subtypes
         using traits = DerCoderTraits<std::decay_t<decltype(lhs.subtypes)>>;
-        return traits::compare(lhs.subtypes, rhs.subtypes);
+        return traits::compare(lhs.subtypes, rhs.subtypes, traitsCache);
     }
 }
 

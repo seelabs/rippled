@@ -62,15 +62,17 @@ public:
         std::unique_ptr<Fulfillment> subfulfillment);
 
     template<class F>
-    void withTuple(F&& f)
+    void
+    withTuple(F&& f, der::TraitsCache& traitsCache)
     {
         f(std::tie(prefix_, maxMessageLength_, subfulfillment_));
     }
 
     template<class F>
-    void withTuple(F&& f) const
+    void
+    withTuple(F&& f, der::TraitsCache& traitsCache) const
     {
-        const_cast<PrefixSha256*>(this)->withTuple(std::forward<F>(f));
+        const_cast<PrefixSha256*>(this)->withTuple(std::forward<F>(f), traitsCache);
     }
 
     Type
@@ -100,10 +102,11 @@ public:
     std::uint64_t
     derEncodedLength(
         boost::optional<der::GroupType> const& parentGroupType,
-        der::TagMode encoderTagMode) const override;
+        der::TagMode encoderTagMode,
+        der::TraitsCache& traitsCache) const override;
 
     int
-    compare(Fulfillment const& rhs) const override;
+    compare(Fulfillment const& rhs, der::TraitsCache& traitsCache) const override;
 };
 }
 }

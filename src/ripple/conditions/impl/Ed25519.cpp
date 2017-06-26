@@ -43,9 +43,10 @@ Ed25519::validate(Slice data) const
 std::uint64_t
 Ed25519::derEncodedLength(
     boost::optional<der::GroupType> const& parentGroupType,
-    der::TagMode encoderTagMode) const
+    der::TagMode encoderTagMode, der::TraitsCache& traitsCache) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this, parentGroupType, encoderTagMode);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(
+        *this, parentGroupType, encoderTagMode, traitsCache);
 }
 
 void
@@ -69,9 +70,10 @@ Ed25519::checkEqual(Fulfillment const& rhs) const
 }
 
 int
-Ed25519::compare(Fulfillment const& rhs) const
+Ed25519::compare(Fulfillment const& rhs, der::TraitsCache& traitsCache) const
 {
-    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
+    return cryptoconditions::der::withTupleCompareHelper(
+        *this, rhs, traitsCache);
 }
 
 

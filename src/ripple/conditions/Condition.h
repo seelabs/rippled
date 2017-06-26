@@ -98,7 +98,8 @@ public:
     Condition(der::Constructor const&);
 
     template<class F>
-    void withTuple(F&& f)
+    void
+    withTuple(F&& f, der::TraitsCache& traitsCache)
     {
         auto constraintedFp =
             der::make_octet_string_check_equal(fingerprint, 32);
@@ -109,9 +110,11 @@ public:
     }
 
     template<class F>
-    void withTuple(F&& f) const
+    void
+    withTuple(F&& f, der::TraitsCache& traitsCache) const
     {
-        const_cast<Condition*>(this)->withTuple(std::forward<F>(f));
+        const_cast<Condition*>(this)->withTuple(
+            std::forward<F>(f), traitsCache);
     }
 
     /** Return the subtypes that this type depends on, including this type.
@@ -180,16 +183,20 @@ struct DerCoderTraits<Condition>
     void
     decode(Decoder& decoder, Condition& v);
 
-    static 
+    static
     std::uint64_t
     length(
         Condition const& v,
         boost::optional<GroupType> const& parentGroupType,
-        TagMode encoderTagMode);
+        TagMode encoderTagMode,
+        TraitsCache& traitsCache);
 
-    static 
+    static
     int
-    compare(Condition const& lhs, Condition const& rhs);
+    compare(
+        Condition const& lhs,
+        Condition const& rhs,
+        TraitsCache& traitsCache);
 };
 } // der
 } // cryptoconditions

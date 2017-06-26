@@ -55,7 +55,7 @@ ThresholdSha256::encodeFingerprint(der::Encoder& encoder) const
         if (encoder.ec_)
             return;
     }
-    auto conditionsSet = der::make_set(allConditions);
+    auto conditionsSet = der::make_set(allConditions, encoder.traitsCache_);
     encoder << std::tie(threshold, conditionsSet);
 }
 
@@ -103,10 +103,11 @@ ThresholdSha256::subtypes() const
 std::uint64_t
 ThresholdSha256::derEncodedLength(
     boost::optional<der::GroupType> const& parentGroupType,
-    der::TagMode encoderTagMode) const
+    der::TagMode encoderTagMode,
+    der::TraitsCache& traitsCache) const
 {
     return cryptoconditions::der::withTupleEncodedLengthHelper(
-        *this, parentGroupType, encoderTagMode);
+        *this, parentGroupType, encoderTagMode, traitsCache);
 }
 
 void
@@ -175,9 +176,9 @@ ThresholdSha256::checkEqual(Fulfillment const& rhs) const
 }
 
 int
-ThresholdSha256::compare(Fulfillment const& rhs) const
+ThresholdSha256::compare(Fulfillment const& rhs, der::TraitsCache& traitsCache) const
 {
-    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
+    return cryptoconditions::der::withTupleCompareHelper(*this, rhs, traitsCache);
 }
 
 bool

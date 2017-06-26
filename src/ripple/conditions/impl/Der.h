@@ -32,6 +32,7 @@
 #include <system_error>
 #include <vector>
 
+#include <boost/container/flat_map.hpp>
 #include <boost/container/small_vector.hpp>
 #include <boost/optional.hpp>
 
@@ -130,6 +131,58 @@ enum class TagMode {
 struct Encoder;
 struct Decoder;
 
+/** cache for values that need to be repeatly computed, and may be expensive to compute.
+
+    @note the cache assume address of the object will not change. This is _not_
+          true of some of the wrapper types (SetOfWrapper and
+          SequenceOfWrapper), however it should be true of the collection being
+          wrapped. In these cases, the address of the collection should be used
+          as the key. It is not necessary to cache all types. Primitive types do
+          not need to be cached, as their parents will be cached.
+ */
+class TraitsCache
+{
+    /** Collection of content lengths for the value at the given address */
+    boost::container::flat_map<void const*, std::size_t> lengthCache_;
+
+    /** Collection of sort orders (for der sets) for the value at the give address */
+    boost::container::flat_map<void const*, boost::container::small_vector<size_t, 8>>
+        sortOrderCache_;
+
+public:
+    /** Get the cached content length for the value at the given address
+
+        @result If the value is stored in the cache, an optional set to the
+        stored value, otherwise boost::none
+     */
+    boost::optional<std::size_t>
+    length(void const* addr) const;
+
+    /** Set the cached content length for the value at the given address
+     */
+    void
+    length(void const* addr, size_t l);
+
+    /** Get the cached content sort order for the value at the given address
+
+        @result If the value is stored in the cache, an optional set to the
+        stored value, otherwise boost::none
+
+        @note sort order is only used for der sets
+     */
+    boost::optional<boost::container::small_vector<size_t, 8>>
+    sortOrder(void const* addr) const;
+
+    /** Set the cached content sort order for the value at the given address
+
+        @note sort order is only used for der sets
+     */
+    void
+    sortOrder(
+        void const* addr,
+        boost::container::small_vector<size_t, 8> const& so);
+};
+
 /** Interface for serializing and deserializing types into a der coder.
 
    Types that serialized into a der coder need to specialize a `DerCoderTraits`
@@ -212,15 +265,20 @@ struct DerCoderTraits
         @param v the value to find the length of
         @param parentGroupType type of the parent group.
         @param encoderTagMode tag mode of the encoder.
+        @param traitsCache cache some values that need to be repeatly computed,
+               and may be expensive to compute. Some value types will cache lengths and
+               sort orders, other values types will not cache any values.
 
         @note Choice parents groups in automatic tag mode are treated specially.
      */
     template <class TT>
-    static std::uint64_t
+    static
+    std::uint64_t
     length(
         TT const& v,
         boost::optional<GroupType> const& parentGroupType,
-        TagMode encoderTagMode);
+        TagMode encoderTagMode,
+        TraitsCache& traitsCache);
 
     /// serialize the value into the encoder
     template <class TT>
@@ -238,12 +296,18 @@ struct DerCoderTraits
        value less than 0 if lhs<rhs, 0 if lsh==rhs, a value greater than zero if
        lhs>rhs
 
+        @param lhs first value to compare
+        @param rhs second value to compare
+        @param traitsCache cache some values that need to be repeatly computed,
+               and may be expensive to compute. Some value types will cache lengths and
+               sort orders, other values types will not cache any values.
+
         @note asn.1 lexagraphically compares how the values would be encoded.
               asn.1 encodes in big endian order.
      */
     static 
     int
-    compare(T const& lhs, T const& rhs);
+    compare(T const& lhs, T const& rhs, TraitsCache& traitsCache);
 };
 
 /// constructor tag to specify an asn.1 sequence
@@ -462,9 +526,10 @@ std::uint64_t
 totalLength(
     T const& v,
     boost::optional<GroupType> const& parentGroupType,
-    TagMode encoderTagMode)
+    TagMode encoderTagMode,
+    TraitsCache& traitsCache)
 {
-    auto const contentLength = Trait::length(v, parentGroupType, encoderTagMode);
+    auto const contentLength = Trait::length(v, parentGroupType, encoderTagMode, traitsCache);
     if (encoderTagMode == TagMode::automatic && parentGroupType && *parentGroupType == GroupType::choice)
         return contentLength;
 
@@ -747,6 +812,12 @@ struct Encoder
      */
     bool atEos_ = false;
 
+    /** traitsCache cache some values that need to be repeatly computed and may be expensive to compute.
+
+        Some value types will cache lengths and sort orders, other values types will not cache any values.
+    */
+    TraitsCache traitsCache_;
+
     explicit
     Encoder(TagMode tagMode);
     ~Encoder();
@@ -849,7 +920,7 @@ struct Encoder
                 parentGroupType.emplace(s.subgroups_.top().groupType());
 
             auto const expectedSize =
-                traits::length(v, parentGroupType, s.tagMode_);
+                traits::length(v, parentGroupType, s.tagMode_, s.traitsCache_);
             auto& top = s.subgroups_.top();
             if (!(top.isChoice() && s.tagMode_ == TagMode::automatic))
                 top.calcPreamble();
@@ -865,7 +936,7 @@ struct Encoder
             boost::optional<GroupType> parentGroupType;
             if (!s.subgroups_.empty())
                 parentGroupType.emplace(s.subgroups_.top().groupType());
-            return traits::length(v, parentGroupType, s.tagMode_);
+            return traits::length(v, parentGroupType, s.tagMode_, s.traitsCache_);
         };
 
         if (s.parentIsAutoSequence())
@@ -876,7 +947,8 @@ struct Encoder
                                s.subgroups_.top().numChildren(),
                                traits::primitive()};
                 Tag const tag2{traits{}, traits::tagNum(v)};
-                auto const contentSize = traits::length(v, GroupType::sequenceChild, s.tagMode_);
+                auto const contentSize = traits::length(
+                    v, GroupType::sequenceChild, s.tagMode_, s.traitsCache_);
                 GroupGuard<Encoder> g1(s, tag1, GroupType::sequenceChild,
                     tagLength(tag2) + contentLengthLength(contentSize) + contentSize);
                 if (s.ec_)
@@ -1172,12 +1244,13 @@ struct IntegerTraits
     }
 
     template <class T>
-    static 
+    static
     std::uint64_t
     length(
         T const& v,
         boost::optional<GroupType> const& parentGroupType,
-        TagMode encoderTagMode)
+        TagMode encoderTagMode,
+        TraitsCache& traitsCache)
     {
         const auto isSigned = std::numeric_limits<T>::is_signed;
         if (!v || (isSigned && v == -1))
@@ -1229,7 +1302,7 @@ struct IntegerTraits
         boost::optional<GroupType> parentGroupType;
         if (!s.subgroups_.empty())
             parentGroupType.emplace(s.subgroups_.top().groupType());
-        std::size_t n = length(v, parentGroupType, s.tagMode_);
+        std::size_t n = length(v, parentGroupType, s.tagMode_, s.traitsCache_);
         while (n--)
         {
             if (n >= sizeof(T))
@@ -1296,10 +1369,10 @@ struct IntegerTraits
         slice += slice.size();
     }
 
-    template<class T>
+    template <class T>
     static
     int
-    compare(T const& lhs, T const& rhs)
+    compare(T const& lhs, T const& rhs, TraitsCache& traitsCache)
     {
         // since the length is encoded, comparing the values directly will be
         // the same as comparing the encoded values
@@ -1451,19 +1524,23 @@ struct DerCoderTraits<std::string> : OctetStringTraits
             OctetStringTraits::decode(decoder, &v[0], v.size());
     }
 
-    static 
+    static
     std::uint64_t
     length(
         std::string const& v,
         boost::optional<GroupType> const& parentGroupType,
-        TagMode encoderTagMode)
+        TagMode encoderTagMode,
+        TraitsCache& traitsCache)
     {
         return v.size();
     }
 
     static
     int
-    compare(std::string const& lhs, std::string const& rhs)
+    compare(
+        std::string const& lhs,
+        std::string const& rhs,
+        TraitsCache& traitsCache)
     {
         return lhs.compare(rhs);
     }
@@ -1486,21 +1563,23 @@ struct DerCoderTraits<std::array<std::uint8_t, S>> : OctetStringTraits
         OctetStringTraits::decode(decoder, v.data(), v.size());
     }
 
-    static 
+    static
     std::uint64_t
     length(
         std::array<std::uint8_t, S> const& v,
         boost::optional<GroupType> const& parentGroupType,
-        TagMode encoderTagMode)
+        TagMode encoderTagMode,
+        TraitsCache& traitsCache)
     {
         return S;
     }
 
-
     static
     int
-    compare (std::array<std::uint8_t, S> const& lhs,
-        std::array<std::uint8_t, S> const& rhs)
+    compare(
+        std::array<std::uint8_t, S> const& lhs,
+        std::array<std::uint8_t, S> const& rhs,
+        TraitsCache& traitsCache)
     {
         for(size_t i=0; i<S; ++i)
         {
@@ -1535,19 +1614,20 @@ struct DerCoderTraits<Buffer> : OctetStringTraits
             OctetStringTraits::decode(decoder, v.data(), v.size());
     }
 
-    static 
+    static
     std::uint64_t
     length(
         Buffer const& v,
         boost::optional<GroupType> const& parentGroupType,
-        TagMode encoderTagMode)
+        TagMode encoderTagMode,
+        TraitsCache& traitsCache)
     {
         return v.size();
     }
 
     static
     int
-    compare(Buffer const& lhs, Buffer const& rhs)
+    compare(Buffer const& lhs, Buffer const& rhs, TraitsCache& traitsCache)
     {
         if (lhs.size() != rhs.size())
         {
@@ -1652,22 +1732,22 @@ struct DerCoderTraits<OctetStringCheckEqualSize<T>> : OctetStringTraits
         DerCoderTraits<T>::decode(decoder, v.col_);
     }
 
-    static 
+    static
     std::uint64_t
     length(
         OctetStringCheckEqualSize<T> const& v,
         boost::optional<GroupType> const& parentGroupType,
-        TagMode encoderTagMode)
+        TagMode encoderTagMode,
+        TraitsCache& traitsCache)
     {
-        return DerCoderTraits<T>::length(v.col_, parentGroupType, encoderTagMode);
+        return DerCoderTraits<T>::length(v.col_, parentGroupType, encoderTagMode, traitsCache);
     }
 
-    static 
+    static
     int
-    compare (T const& lhs,
-             T const& rhs)
+    compare(T const& lhs, T const& rhs, TraitsCache& traitsCache)
     {
-        return DerCoderTraits<T>::compare(lhs, rhs);
+        return DerCoderTraits<T>::compare(lhs, rhs, traitsCache);
     }
 };
 
@@ -1702,22 +1782,23 @@ struct DerCoderTraits<OctetStringCheckLessSize<T>> : OctetStringTraits
         DerCoderTraits<T>::decode(decoder, v.col_);
     }
 
-    static 
+    static
     std::uint64_t
     length(
         OctetStringCheckLessSize<T> const& v,
         boost::optional<GroupType> const& parentGroupType,
-        TagMode encoderTagMode)
+        TagMode encoderTagMode,
+        TraitsCache& traitsCache)
     {
-        return DerCoderTraits<T>::length(v.col_, parentGroupType, encoderTagMode);
+        return DerCoderTraits<T>::length(
+            v.col_, parentGroupType, encoderTagMode, traitsCache);
     }
 
     static
     int
-    compare (T const& lhs,
-             T const& rhs)
+    compare(T const& lhs, T const& rhs, TraitsCache& traitsCache)
     {
-        return DerCoderTraits<T>::compare(lhs, rhs);
+        return DerCoderTraits<T>::compare(lhs, rhs, traitsCache);
     }
 };
 
@@ -1947,12 +2028,13 @@ struct DerCoderTraits<std::bitset<S>>
         v = bits;
     }
 
-    static 
+    static
     std::uint64_t
     length(
         std::bitset<S> const& s,
         boost::optional<GroupType> const& parentGroupType,
-        TagMode encoderTagMode)
+        TagMode encoderTagMode,
+        TraitsCache& traitsCache)
     {
         static_assert(
             maxBytes > 0 && maxBytes <= sizeof(unsigned long),
@@ -1971,8 +2053,10 @@ struct DerCoderTraits<std::bitset<S>>
 
     static
     int
-    compare (std::bitset<S> const& lhs,
-             std::bitset<S> const& rhs)
+    compare(
+        std::bitset<S> const& lhs,
+        std::bitset<S> const& rhs,
+        TraitsCache& traitsCache)
     {
         static_assert(
             maxBytes > 0 && maxBytes <= sizeof(unsigned long),
@@ -2037,10 +2121,15 @@ struct SetOfWrapper
         @param col Collection to wrap
         @param sorted Flag that determines if the collection is already sorted
      */
-    explicit
-    SetOfWrapper(T& col, bool sorted=false)
+    explicit SetOfWrapper(T& col, TraitsCache& traitsCache, bool sorted = false)
         : col_(col), sortOrder_(col.size())
     {
+        if (auto const cached = traitsCache.sortOrder(&col))
+        {
+            sortOrder_ = *cached;
+            return;
+        }
+
         // contains the indexes into subChoices_ so if the elements will be
         // sorted if accessed in the order specified by sortIndex_
         std::iota(sortOrder_.begin(), sortOrder_.end(), 0);
@@ -2049,11 +2138,12 @@ struct SetOfWrapper
             std::sort(
                 sortOrder_.begin(),
                 sortOrder_.end(),
-                [&col](std::size_t lhs, std::size_t rhs) {
+                [&col, &traitsCache](std::size_t lhs, std::size_t rhs) {
                     using Traits = cryptoconditions::der::DerCoderTraits<
                         std::decay_t<decltype(col[0])>>;
-                    return Traits::compare(col[lhs], col[rhs]) < 0;
+                    return Traits::compare(col[lhs], col[rhs], traitsCache) < 0;
                 });
+            traitsCache.sortOrder(&col, sortOrder_);
         }
     }
 };
@@ -2086,13 +2176,29 @@ struct SequenceOfWrapper
 
     @param col Collection to wrap
     @param sorted Flag that determines if the collection is already sorted
+
+    @{
  */
 template <class T>
 SetOfWrapper<T>
-make_set(T& t, bool sorted=false)
+make_set(T& t, TraitsCache& traitsCache, bool sorted = false)
 {
-    return SetOfWrapper<T>(t, sorted);
+    return SetOfWrapper<T>(t, traitsCache, sorted);
 }
+template <class T>
+SetOfWrapper<T>
+make_set(T& t, Encoder& encoder, bool sorted = false)
+{
+    return SetOfWrapper<T>(t, encoder.traitsCache_, sorted);
+}
+template <class T>
+SetOfWrapper<T>
+make_set(T& t, Decoder& decoder, bool sorted = false)
+{
+    TraitsCache dummy; // cache traits are not used in decoding
+    return SetOfWrapper<T>(t, dummy, sorted);
+}
+/** @} */
 
 /// convenience function to wrap a c++ collection as it will be coded as an asn.1 sequence
 template <class T>
@@ -2136,7 +2242,8 @@ struct DerCoderTraits<SetOfWrapper<T>>
         static boost::optional<std::uint8_t> tn{17};
         return tn;
     }
-    static std::uint8_t
+    static
+    std::uint8_t
     tagNum(SetOfWrapper<T> const&)
     {
         return 17;
@@ -2171,24 +2278,29 @@ struct DerCoderTraits<SetOfWrapper<T>>
         }
     }
 
-    static 
+    static
     std::uint64_t
     length(
         SetOfWrapper<T> const& v,
         boost::optional<GroupType> const& parentGroupType,
-        TagMode encoderTagMode)
+        TagMode encoderTagMode,
+        TraitsCache& traitsCache)
     {
         using ValueTraits = DerCoderTraits<typename T::value_type>;
         std::uint64_t l = 0;
         boost::optional<GroupType> thisGroupType(groupType());
         for (auto const& e : v.col_)
-            l += totalLength<ValueTraits>(e, thisGroupType, encoderTagMode);
+            l += totalLength<ValueTraits>(
+                e, thisGroupType, encoderTagMode, traitsCache);
         return l;
     }
 
     static
     int
-    compare(SetOfWrapper<T> const& lhs, SetOfWrapper<T> const& rhs)
+    compare(
+        SetOfWrapper<T> const& lhs,
+        SetOfWrapper<T> const& rhs,
+        TraitsCache& traitsCache)
     {
         auto const lhsSize = lhs.col_.size();
         auto const rhsSize = rhs.col_.size();
@@ -2200,7 +2312,9 @@ struct DerCoderTraits<SetOfWrapper<T>>
         for (size_t i = 0; i < l; ++i)
         {
             auto const r = DerCoderTraits<elementType>::compare(
-                lhs.col_[lhsSortOrder[i]], rhs.col_[rhsSortOrder[i]]);
+                lhs.col_[lhsSortOrder[i]],
+                rhs.col_[rhsSortOrder[i]],
+                traitsCache);
             if (r != 0)
                 return r;
         }
@@ -2277,24 +2391,29 @@ struct DerCoderTraits<SequenceOfWrapper<T>>
         }
     }
 
-    static 
+    static
     std::uint64_t
     length(
         SequenceOfWrapper<T> const& v,
         boost::optional<GroupType> const& parentGroupType,
-        TagMode encoderTagMode)
+        TagMode encoderTagMode,
+        TraitsCache& traitsCache)
     {
         using ValueTraits = DerCoderTraits<typename T::value_type>;
         std::uint64_t l = 0;
         boost::optional<GroupType> thisGroupType(groupType());
         for (auto const& e : v.col_)
-            l += totalLength<ValueTraits>(e, thisGroupType, encoderTagMode);
+            l += totalLength<ValueTraits>(
+                e, thisGroupType, encoderTagMode, traitsCache);
         return l;
     }
 
     static
     int
-    compare(SequenceOfWrapper<T> const& lhs, SequenceOfWrapper<T> const& rhs)
+    compare(
+        SequenceOfWrapper<T> const& lhs,
+        SequenceOfWrapper<T> const& rhs,
+        TraitsCache& traitsCache)
     {
         auto const lhsSize = lhs.col_.size();
         auto const rhsSize = rhs.col_.size();
@@ -2302,7 +2421,8 @@ struct DerCoderTraits<SequenceOfWrapper<T>>
         using elementType = std::decay_t<decltype(lhs.col_[0])>;
         for (size_t i = 0; i < l; ++i)
         {
-            auto const r = DerCoderTraits<elementType>::compare(lhs.col_[i], rhs.col_[i]);
+            auto const r = DerCoderTraits<elementType>::compare(
+                lhs.col_[i], rhs.col_[i], traitsCache);
             if (r != 0)
                 return r;
         }
@@ -2340,7 +2460,8 @@ struct DerCoderTraits<std::tuple<Ts&...>>
         return tn;
     }
 
-    static std::uint8_t
+    static
+    std::uint8_t
     tagNum(Tuple const&)
     {
         return 16;
@@ -2398,19 +2519,21 @@ struct DerCoderTraits<std::tuple<Ts&...>>
             [&decoder](auto& e) {decoder >> e;});
     }
 
-    static 
+    static
     std::uint64_t
     length(
         Tuple const& elements,
         boost::optional<GroupType> const& parentGroupType,
-        TagMode encoderTagMode)
+        TagMode encoderTagMode,
+        TraitsCache& traitsCache)
     {
         std::uint64_t l = 0;
         boost::optional<GroupType> thisGroupType(groupType());
         forEachElement(
             elements, std::index_sequence_for<Ts...>{}, [&](auto const& e) {
                 using ElementTraits = DerCoderTraits<std::decay_t<decltype(e)>>;
-                l += totalLength<ElementTraits>(e, thisGroupType, encoderTagMode);
+                l += totalLength<ElementTraits>(
+                    e, thisGroupType, encoderTagMode, traitsCache);
             });
         return l;
     }
@@ -2421,11 +2544,12 @@ struct DerCoderTraits<std::tuple<Ts&...>>
     compareElementsHelper(
         T const& lhs,
         T const& rhs,
+        TraitsCache& traitsCache,
         int* cmpResult)
     {
         if (*cmpResult)
             return;
-        *cmpResult = DerCoderTraits<T>::compare(lhs, rhs);
+        *cmpResult = DerCoderTraits<T>::compare(lhs, rhs, traitsCache);
     }
 
     template <std::size_t... Is>
@@ -2434,26 +2558,26 @@ struct DerCoderTraits<std::tuple<Ts&...>>
     compareElementsHelper(
         Tuple const& lhs,
         Tuple const& rhs,
+        TraitsCache& traitsCache,
         std::index_sequence<Is...>)
     {
         int result = 0;
         // Sean Parent for_each_argument trick (C++ fold expressions would be
         // nice here)
         (void)std::array<int, sizeof...(Ts)>{
-            {((compareElementsHelper(std::get<Is>(lhs), std::get<Is>(rhs), &result)), 0)...}};
+            {((compareElementsHelper(std::get<Is>(lhs), std::get<Is>(rhs), traitsCache, &result)), 0)...}};
         return result;
     }
 
-    static
-    int
-    compare(Tuple const& lhs, Tuple const& rhs)
+    static int
+    compare(Tuple const& lhs, Tuple const& rhs, TraitsCache& traitsCache)
     {
         {
             // compare lenghts Even though the parent tag or tag mode are
             // unknown, we only Hard coding no parent tag and automatic tag mode
             // will still reveal differences in length.
-            auto const lhsL = length(lhs, boost::none, TagMode::automatic);
-            auto const rhsL = length(rhs, boost::none, TagMode::automatic);
+            auto const lhsL = length(lhs, boost::none, TagMode::automatic, traitsCache);
+            auto const rhsL = length(rhs, boost::none, TagMode::automatic, traitsCache);
             if (lhsL != rhsL)
             {
                 if (lhsL < rhsL)
@@ -2462,7 +2586,7 @@ struct DerCoderTraits<std::tuple<Ts&...>>
             }
         }
         return compareElementsHelper(
-            lhs, rhs, std::index_sequence_for<Ts...>{});
+            lhs, rhs, traitsCache, std::index_sequence_for<Ts...>{});
     }
 };
 
@@ -2481,9 +2605,9 @@ static
 void
 withTupleEncodeHelper(TChoice const& c, cryptoconditions::der::Encoder& encoder)
 {
-    c.withTuple([&encoder](auto const& tup){
-        encoder << tup;
-    });
+    c.withTuple(
+        [&encoder](auto const& tup) { encoder << tup; },
+        encoder.traitsCache_);
 }
 
 /** For types that define `withTuple`, decode the type.
@@ -2495,9 +2619,9 @@ static
 void
 withTupleDecodeHelper(TChoice& c, cryptoconditions::der::Decoder& decoder)
 {
-    c.withTuple([&decoder](auto&& tup){
-        decoder >> tup;
-    });
+    TraitsCache dummy; // traits cache is not used in decoding
+    c.withTuple([&decoder](auto&& tup) { decoder >> tup; },
+                dummy);
 }
 
 /** For types that define `withTuple`, find the length, in bytes, of the encoded content.
@@ -2507,17 +2631,22 @@ withTupleDecodeHelper(TChoice& c, cryptoconditions::der::Decoder& decoder)
 template <class TChoice>
 static
 std::uint64_t
-withTupleEncodedLengthHelper(TChoice const& c,
+withTupleEncodedLengthHelper(
+    TChoice const& c,
     boost::optional<GroupType> const& parentGroupType,
-    TagMode encoderTagMode)
+    TagMode encoderTagMode,
+    TraitsCache& traitsCache)
 {
     std::uint64_t result = 0;
     boost::optional<GroupType> thisGroupType(GroupType::sequence);
-    c.withTuple([&](auto const& tup) {
-        using T = std::decay_t<decltype(tup)>;
-        using Traits = cryptoconditions::der::DerCoderTraits<T>;
-        result = Traits::length(tup, thisGroupType, encoderTagMode);
-    });
+    c.withTuple(
+        [&](auto const& tup) {
+            using T = std::decay_t<decltype(tup)>;
+            using Traits = cryptoconditions::der::DerCoderTraits<T>;
+            result =
+                Traits::length(tup, thisGroupType, encoderTagMode, traitsCache);
+        },
+        traitsCache);
     return result;
 }
 
@@ -2525,10 +2654,13 @@ withTupleEncodedLengthHelper(TChoice const& c,
 
     @see note on {@link #withTupleEncodeHelper}
  */
-template<class TChoiceDerived, class TChoiceBase>
+template <class TChoiceDerived, class TChoiceBase>
 static
 int
-withTupleCompareHelper(TChoiceDerived const& lhs, TChoiceBase const& rhs)
+withTupleCompareHelper(
+    TChoiceDerived const& lhs,
+    TChoiceBase const& rhs,
+    TraitsCache& traitsCache)
 {
     auto const lhsType = lhs.type();
     auto const rhsType = rhs.type();
@@ -2547,12 +2679,17 @@ withTupleCompareHelper(TChoiceDerived const& lhs, TChoiceBase const& rhs)
     }
 
     int result = 0;
-    lhs.withTuple([&](auto const& lhsTup) {
-        pRhs->withTuple([&](auto const& rhsTup) {
-            using traits = DerCoderTraits<std::decay_t<decltype(lhsTup)>>;
-            result = traits::compare(lhsTup, rhsTup);
-        });
-    });
+    lhs.withTuple(
+        [&](auto const& lhsTup) {
+            pRhs->withTuple(
+                [&](auto const& rhsTup) {
+                    using traits =
+                        DerCoderTraits<std::decay_t<decltype(lhsTup)>>;
+                    result = traits::compare(lhsTup, rhsTup, traitsCache);
+                },
+                traitsCache);
+        },
+        traitsCache);
     return result;
 }
 

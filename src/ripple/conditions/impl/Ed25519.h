@@ -69,16 +69,16 @@ public:
 
     template <class F>
     void
-    withTuple(F&& f)
+    withTuple(F&& f, der::TraitsCache& traitsCache)
     {
         f(std::tie(publicKey_, signature_));
     }
 
     template<class F>
     void
-    withTuple(F&& f) const
+    withTuple(F&& f, der::TraitsCache& traitsCache) const
     {
-        const_cast<Ed25519*>(this)->withTuple(std::forward<F>(f));
+        const_cast<Ed25519*>(this)->withTuple(std::forward<F>(f), traitsCache);
     }
 
     Type
@@ -117,10 +117,11 @@ public:
     std::uint64_t
     derEncodedLength(
         boost::optional<der::GroupType> const& parentGroupType,
-        der::TagMode encoderTagMode) const override;
+        der::TagMode encoderTagMode,
+        der::TraitsCache& traitsCache) const override;
 
     int
-    compare(Fulfillment const& rhs) const override;
+    compare(Fulfillment const& rhs, der::TraitsCache& traitsCache) const override;
 };
 }
 }

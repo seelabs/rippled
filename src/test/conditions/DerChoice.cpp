@@ -39,7 +39,7 @@ DerChoiceDerived1::type() const
 
 template<class F>
 void
-DerChoiceDerived1::withTuple(F&& f)
+DerChoiceDerived1::withTuple(F&& f, cryptoconditions::der::TraitsCache& traitsCache)
 {
     auto subAsSeq = cryptoconditions::der::make_sequence(subChoices_);
     f(std::tie(buf_, subAsSeq, signedInt_));
@@ -48,9 +48,11 @@ DerChoiceDerived1::withTuple(F&& f)
 std::uint64_t
 DerChoiceDerived1::derEncodedLength(
     boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
-    cryptoconditions::der::TagMode encoderTagMode) const
+    cryptoconditions::der::TagMode encoderTagMode,
+    cryptoconditions::der::TraitsCache& traitsCache) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this, parentGroupType, encoderTagMode);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(
+        *this, parentGroupType, encoderTagMode, traitsCache);
 }
 
 void
@@ -66,9 +68,12 @@ DerChoiceDerived1::decode(cryptoconditions::der::Decoder& decoder)
 }
 
 int
-DerChoiceDerived1::compare(DerChoiceBaseClass const& rhs) const
+DerChoiceDerived1::compare(
+    DerChoiceBaseClass const& rhs,
+    cryptoconditions::der::TraitsCache& traitsCache) const
 {
-    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
+    return cryptoconditions::der::withTupleCompareHelper(
+        *this, rhs, traitsCache);
 }
 
 void
@@ -119,9 +124,11 @@ DerChoiceDerived2::type() const
     return 2;
 }
 
-template<class F>
+template <class F>
 void
-DerChoiceDerived2::withTuple(F&& f)
+DerChoiceDerived2::withTuple(
+    F&& f,
+    cryptoconditions::der::TraitsCache& traitsCache)
 {
     f(std::tie(name_, id_));
 }
@@ -129,9 +136,11 @@ DerChoiceDerived2::withTuple(F&& f)
 std::uint64_t
 DerChoiceDerived2::derEncodedLength(
     boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
-    cryptoconditions::der::TagMode encoderTagMode) const
+    cryptoconditions::der::TagMode encoderTagMode,
+    cryptoconditions::der::TraitsCache& traitsCache) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this, parentGroupType, encoderTagMode);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(
+        *this, parentGroupType, encoderTagMode, traitsCache);
 }
 
 void
@@ -147,9 +156,9 @@ DerChoiceDerived2::decode(cryptoconditions::der::Decoder& decoder)
 }
 
 int
-DerChoiceDerived2::compare(DerChoiceBaseClass const& rhs) const
+DerChoiceDerived2::compare(DerChoiceBaseClass const& rhs, cryptoconditions::der::TraitsCache& traitsCache) const
 {
-    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
+    return cryptoconditions::der::withTupleCompareHelper(*this, rhs, traitsCache);
 }
 
 void
@@ -177,20 +186,24 @@ DerChoiceDerived3::DerChoiceDerived3(std::vector<std::unique_ptr<DerChoiceBaseCl
 
 std::uint8_t DerChoiceDerived3::type() const { return 3; }
 
-template<class F>
+template <class F>
 void
-DerChoiceDerived3::withTuple(F&& f)
+DerChoiceDerived3::withTuple(
+    F&& f,
+    cryptoconditions::der::TraitsCache& traitsCache)
 {
-    auto subAsSet = cryptoconditions::der::make_set(subChoices_);
+    auto subAsSet = cryptoconditions::der::make_set(subChoices_, traitsCache);
     f(std::tie(subAsSet));
 }
 
 std::uint64_t
 DerChoiceDerived3::derEncodedLength(
     boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
-    cryptoconditions::der::TagMode encoderTagMode) const
+    cryptoconditions::der::TagMode encoderTagMode,
+    cryptoconditions::der::TraitsCache& traitsCache) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this, parentGroupType, encoderTagMode);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(
+        *this, parentGroupType, encoderTagMode, traitsCache);
 }
 
 void
@@ -206,9 +219,11 @@ DerChoiceDerived3::decode(cryptoconditions::der::Decoder& decoder)
 }
 
 int
-DerChoiceDerived3::compare(DerChoiceBaseClass const& rhs) const
+DerChoiceDerived3::compare(
+    DerChoiceBaseClass const& rhs,
+    cryptoconditions::der::TraitsCache& traitsCache) const
 {
-    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
+    return cryptoconditions::der::withTupleCompareHelper(*this, rhs, traitsCache);
 }
 
 void
@@ -223,7 +238,8 @@ DerChoiceDerived3::print(std::ostream& ostr, bool ordered) const
     }
     else
     {
-        auto const wrapped = cryptoconditions::der::make_set(subChoices_);
+        cryptoconditions::der::TraitsCache dummy;
+        auto const wrapped = cryptoconditions::der::make_set(subChoices_, dummy);
         for(auto i : wrapped.sortOrder_)
             subChoices_[i]->print(ostr, ordered);
     }
@@ -272,9 +288,11 @@ DerChoiceDerived4::type() const
     return 4;
 }
 
-template<class F>
+template <class F>
 void
-DerChoiceDerived4::withTuple(F&& f)
+DerChoiceDerived4::withTuple(
+    F&& f,
+    cryptoconditions::der::TraitsCache& traitsCache)
 {
     auto subAsSeq = cryptoconditions::der::make_sequence(subChoices_);
     f(std::tie(subAsSeq));
@@ -283,9 +301,11 @@ DerChoiceDerived4::withTuple(F&& f)
 std::uint64_t
 DerChoiceDerived4::derEncodedLength(
     boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
-    cryptoconditions::der::TagMode encoderTagMode) const
+    cryptoconditions::der::TagMode encoderTagMode,
+    cryptoconditions::der::TraitsCache& traitsCache) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this, parentGroupType, encoderTagMode);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(
+        *this, parentGroupType, encoderTagMode, traitsCache);
 }
 
 void
@@ -301,9 +321,12 @@ DerChoiceDerived4::decode(cryptoconditions::der::Decoder& decoder)
 }
 
 int
-DerChoiceDerived4::compare(DerChoiceBaseClass const& rhs) const
+DerChoiceDerived4::compare(
+    DerChoiceBaseClass const& rhs,
+    cryptoconditions::der::TraitsCache& traitsCache) const
 {
-    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
+    return cryptoconditions::der::withTupleCompareHelper(
+        *this, rhs, traitsCache);
 }
 
 void
@@ -348,9 +371,11 @@ DerChoiceDerived5::type() const
     return 5;
 }
 
-template<class F>
+template <class F>
 void
-DerChoiceDerived5::withTuple(F&& f)
+DerChoiceDerived5::withTuple(
+    F&& f,
+    cryptoconditions::der::TraitsCache& traitsCache)
 {
     f(std::tie(subChoice_, name_, id_));
 }
@@ -358,9 +383,11 @@ DerChoiceDerived5::withTuple(F&& f)
 std::uint64_t
 DerChoiceDerived5::derEncodedLength(
     boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
-    cryptoconditions::der::TagMode encoderTagMode) const
+    cryptoconditions::der::TagMode encoderTagMode,
+    cryptoconditions::der::TraitsCache& traitsCache) const
 {
-    return cryptoconditions::der::withTupleEncodedLengthHelper(*this, parentGroupType, encoderTagMode);
+    return cryptoconditions::der::withTupleEncodedLengthHelper(
+        *this, parentGroupType, encoderTagMode, traitsCache);
 }
 
 void
@@ -376,9 +403,12 @@ DerChoiceDerived5::decode(cryptoconditions::der::Decoder& decoder)
 }
 
 int
-DerChoiceDerived5::compare(DerChoiceBaseClass const& rhs) const
+DerChoiceDerived5::compare(
+    DerChoiceBaseClass const& rhs,
+    cryptoconditions::der::TraitsCache& traitsCache) const
 {
-    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
+    return cryptoconditions::der::withTupleCompareHelper(
+        *this, rhs, traitsCache);
 }
 
 void

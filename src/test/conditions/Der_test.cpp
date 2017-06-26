@@ -356,14 +356,14 @@ class Der_test : public beast::unit_test::suite
             std::vector<char> encoded;
 
             Encoder encoder{TagMode::direct};
-            encoder << make_set(v) << eos;
+            encoder << make_set(v, encoder) << eos;
             encoder.write(encoded);
             BEAST_EXPECT(expected == encoded);
             BEAST_EXPECT(!encoder.ec());
 
             Decoder decoder(makeSlice(encoded), TagMode::direct);
             v.clear();
-            decoder >> make_set(v) >> eos;
+            decoder >> make_set(v, decoder) >> eos;
             BEAST_EXPECT(
                 v.size() == 3 && v[0] == 1 && v[1] == 10 && v[2] == 100);
             BEAST_EXPECT(!decoder.ec());

@@ -168,7 +168,8 @@ public:
     std::uint64_t
     derEncodedLength(
         boost::optional<der::GroupType> const& parentGroupType,
-        der::TagMode encoderTagMode) const = 0;
+        der::TagMode encoderTagMode,
+        der::TraitsCache& traitsCache) const = 0;
 
     /** compare two fulfillments for sorting in a DER set
 
@@ -176,7 +177,7 @@ public:
     */
     virtual
     int
-    compare(Fulfillment const& rhs) const = 0;
+    compare(Fulfillment const& rhs, der::TraitsCache& traitsCache) const = 0;
 };
 
 /// compare two fulfillments for equality
@@ -290,13 +291,16 @@ struct DerCoderTraits<std::unique_ptr<Fulfillment>>
     length(
         std::unique_ptr<Fulfillment> const& v,
         boost::optional<GroupType> const& parentGroupType,
-        TagMode encoderTagMode);
+        TagMode encoderTagMode, TraitsCache& traitsCache);
 
-    static 
+    static
     int
-    compare(std::unique_ptr<Fulfillment> const& lhs, std::unique_ptr<Fulfillment> const& rhs)
+    compare(
+        std::unique_ptr<Fulfillment> const& lhs,
+        std::unique_ptr<Fulfillment> const& rhs,
+        TraitsCache& traitsCache)
     {
-        return lhs->compare(*rhs);
+        return lhs->compare(*rhs, traitsCache);
     }
 };
 

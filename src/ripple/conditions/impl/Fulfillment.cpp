@@ -112,12 +112,22 @@ DerCoderTraits<std::unique_ptr<Fulfillment>>::
 length(
     std::unique_ptr<Fulfillment> const& v,
     boost::optional<GroupType> const& parentGroupType,
-    TagMode encoderTagMode)
+    TagMode encoderTagMode,
+    TraitsCache& traitsCache)
 {
-    auto const l = v->derEncodedLength(parentGroupType, encoderTagMode);
+    if (auto cached = traitsCache.length(v.get()))
+        return *cached;
+
+    auto const l = v->derEncodedLength(parentGroupType, encoderTagMode, traitsCache);
     if (encoderTagMode == TagMode::automatic)
+    {
+        traitsCache.length(v.get(), l);
         return l;
-    return 1 + l + contentLengthLength(l);
+    }
+
+    auto const result = 1 + l + contentLengthLength(l);
+    traitsCache.length(v.get(), result);
+    return result;
 }
 
 }  // der

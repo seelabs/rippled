@@ -45,15 +45,17 @@ struct DerChoiceBaseClass
     void
     decode(cryptoconditions::der::Decoder& s) = 0;
 
-    virtual
-    int
-    compare(DerChoiceBaseClass const& rhs) const = 0;
+    virtual int
+    compare(
+        DerChoiceBaseClass const& rhs,
+        cryptoconditions::der::TraitsCache& traitsCache) const = 0;
 
     virtual
     std::uint64_t
     derEncodedLength(
         boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
-        cryptoconditions::der::TagMode encoderTagMode) const = 0;
+        cryptoconditions::der::TagMode encoderTagMode,
+        cryptoconditions::der::TraitsCache& traitsCache) const = 0;
 
     // for debugging
     virtual
@@ -105,12 +107,12 @@ struct DerChoiceDerived1 : DerChoiceBaseClass
         std::int32_t si);
 
     template<class F>
-    void withTuple(F&& f);
+    void withTuple(F&& f, cryptoconditions::der::TraitsCache& traitsCache);
 
     template<class F>
-    void withTuple(F&& f) const
+    void withTuple(F&& f, cryptoconditions::der::TraitsCache& traitsCache) const
     {
-        const_cast<DerChoiceDerived1*>(this)->withTuple(std::forward<F>(f));
+        const_cast<DerChoiceDerived1*>(this)->withTuple(std::forward<F>(f), traitsCache);
     }
 
     std::uint8_t
@@ -119,7 +121,8 @@ struct DerChoiceDerived1 : DerChoiceBaseClass
     std::uint64_t
     derEncodedLength(
         boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
-        cryptoconditions::der::TagMode encoderTagMode) const override;
+        cryptoconditions::der::TagMode encoderTagMode,
+        cryptoconditions::der::TraitsCache& traitsCache) const override;
 
     void
     encode(cryptoconditions::der::Encoder& encoder) const override;
@@ -128,7 +131,9 @@ struct DerChoiceDerived1 : DerChoiceBaseClass
     decode(cryptoconditions::der::Decoder& decoder) override;
 
     int
-    compare(DerChoiceBaseClass const& rhs) const override;
+    compare(
+        DerChoiceBaseClass const& rhs,
+        cryptoconditions::der::TraitsCache& traitsCache) const override;
 
     void
     print(std::ostream& ostr, bool ordered=false) const override;
@@ -151,13 +156,15 @@ struct DerChoiceDerived2 : DerChoiceBaseClass
 
     DerChoiceDerived2(std::string const& n, std::uint64_t i);
 
-    template<class F>
-    void withTuple(F&& f);
+    template <class F>
+    void
+    withTuple(F&& f, cryptoconditions::der::TraitsCache& traitsCache);
 
-    template<class F>
-    void withTuple(F&& f) const
+    template <class F>
+    void
+    withTuple(F&& f, cryptoconditions::der::TraitsCache& traitsCache) const
     {
-        const_cast<DerChoiceDerived2*>(this)->withTuple(std::forward<F>(f));
+        const_cast<DerChoiceDerived2*>(this)->withTuple(std::forward<F>(f), traitsCache);
     }
 
     std::uint8_t
@@ -166,7 +173,8 @@ struct DerChoiceDerived2 : DerChoiceBaseClass
     std::uint64_t
     derEncodedLength(
         boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
-        cryptoconditions::der::TagMode encoderTagMode) const override;
+        cryptoconditions::der::TagMode encoderTagMode,
+        cryptoconditions::der::TraitsCache& traitsCache) const override;
 
     void
     encode(cryptoconditions::der::Encoder& encoder) const override;
@@ -175,7 +183,9 @@ struct DerChoiceDerived2 : DerChoiceBaseClass
     decode(cryptoconditions::der::Decoder& decoder) override;
 
     int
-    compare(DerChoiceBaseClass const& rhs) const override;
+    compare(
+        DerChoiceBaseClass const& rhs,
+        cryptoconditions::der::TraitsCache& traitsCache) const override;
 
     void
     print(std::ostream& ostr, bool ordered=false) const override;
@@ -199,12 +209,13 @@ struct DerChoiceDerived3 : DerChoiceBaseClass
     DerChoiceDerived3(std::vector<std::unique_ptr<DerChoiceBaseClass>> sub);
 
     template<class F>
-    void withTuple(F&& f);
+    void withTuple(F&& f, cryptoconditions::der::TraitsCache& traitsCache);
 
     template<class F>
-    void withTuple(F&& f) const
+    void withTuple(F&& f, cryptoconditions::der::TraitsCache& traitsCache) const
     {
-        const_cast<DerChoiceDerived3*>(this)->withTuple(std::forward<F>(f));
+        const_cast<DerChoiceDerived3*>(this)->withTuple(
+            std::forward<F>(f), traitsCache);
     }
 
     std::uint8_t
@@ -213,7 +224,8 @@ struct DerChoiceDerived3 : DerChoiceBaseClass
     std::uint64_t
     derEncodedLength(
         boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
-        cryptoconditions::der::TagMode encoderTagMode) const override;
+        cryptoconditions::der::TagMode encoderTagMode,
+        cryptoconditions::der::TraitsCache& traitsCache) const override;
 
     void
     encode(cryptoconditions::der::Encoder& encoder) const override;
@@ -222,7 +234,9 @@ struct DerChoiceDerived3 : DerChoiceBaseClass
     decode(cryptoconditions::der::Decoder& decoder) override;
 
     int
-    compare(DerChoiceBaseClass const& rhs) const override;
+    compare(
+        DerChoiceBaseClass const& rhs,
+        cryptoconditions::der::TraitsCache& traitsCache) const override;
 
     void
     print(std::ostream& ostr, bool ordered=false) const override;
@@ -245,13 +259,16 @@ struct DerChoiceDerived4 : DerChoiceBaseClass
 
     DerChoiceDerived4(std::vector<std::unique_ptr<DerChoiceBaseClass>> sub);
 
-    template<class F>
-    void withTuple(F&& f);
+    template <class F>
+    void
+    withTuple(F&& f, cryptoconditions::der::TraitsCache& traitsCache);
 
-    template<class F>
-    void withTuple(F&& f) const
+    template <class F>
+    void
+    withTuple(F&& f, cryptoconditions::der::TraitsCache& traitsCache) const
     {
-        const_cast<DerChoiceDerived4*>(this)->withTuple(std::forward<F>(f));
+        const_cast<DerChoiceDerived4*>(this)->withTuple(
+            std::forward<F>(f), traitsCache);
     }
 
     std::uint8_t
@@ -260,7 +277,8 @@ struct DerChoiceDerived4 : DerChoiceBaseClass
     std::uint64_t
     derEncodedLength(
         boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
-        cryptoconditions::der::TagMode encoderTagMode) const override;
+        cryptoconditions::der::TagMode encoderTagMode,
+        cryptoconditions::der::TraitsCache& traitsCache) const override;
 
     void
     encode(cryptoconditions::der::Encoder& encoder) const override;
@@ -269,7 +287,9 @@ struct DerChoiceDerived4 : DerChoiceBaseClass
     decode(cryptoconditions::der::Decoder& decoder) override;
 
     int
-    compare(DerChoiceBaseClass const& rhs) const override;
+    compare(
+        DerChoiceBaseClass const& rhs,
+        cryptoconditions::der::TraitsCache& traitsCache) const override;
 
     void
     print(std::ostream& ostr, bool ordered=false) const override;
@@ -296,13 +316,16 @@ struct DerChoiceDerived5 : DerChoiceBaseClass
         std::string const& n,
         std::uint64_t i);
 
-    template<class F>
-    void withTuple(F&& f);
+    template <class F>
+    void
+    withTuple(F&& f, cryptoconditions::der::TraitsCache& traitsCache);
 
-    template<class F>
-    void withTuple(F&& f) const
+    template <class F>
+    void
+    withTuple(F&& f, cryptoconditions::der::TraitsCache& traitsCache) const
     {
-        const_cast<DerChoiceDerived5*>(this)->withTuple(std::forward<F>(f));
+        const_cast<DerChoiceDerived5*>(this)->withTuple(
+            std::forward<F>(f), traitsCache);
     }
 
     std::uint8_t
@@ -311,7 +334,8 @@ struct DerChoiceDerived5 : DerChoiceBaseClass
     std::uint64_t
     derEncodedLength(
         boost::optional<cryptoconditions::der::GroupType> const& parentGroupType,
-        cryptoconditions::der::TagMode encoderTagMode) const override;
+        cryptoconditions::der::TagMode encoderTagMode,
+        cryptoconditions::der::TraitsCache& traitsCache) const override;
 
     void
     encode(cryptoconditions::der::Encoder& encoder) const override;
@@ -320,7 +344,9 @@ struct DerChoiceDerived5 : DerChoiceBaseClass
     decode(cryptoconditions::der::Decoder& decoder) override;
 
     int
-    compare(DerChoiceBaseClass const& rhs) const override;
+    compare(
+        DerChoiceBaseClass const& rhs,
+        cryptoconditions::der::TraitsCache& traitsCache) const override;
 
     void
     print(std::ostream& ostr, bool ordered=false) const override;
@@ -419,14 +445,14 @@ struct DerCoderTraits<std::unique_ptr<test::DerChoiceBaseClass>>
             v.reset();
     }
 
-    static 
-    std::uint64_t
+    static std::uint64_t
     length(
         std::unique_ptr<test::DerChoiceBaseClass> const& v,
         boost::optional<GroupType> const& parentGroupType,
-        TagMode encoderTagMode)
+        TagMode encoderTagMode,
+        TraitsCache& traitsCache)
     {
-        auto const l = v->derEncodedLength(groupType(), encoderTagMode);
+        auto const l = v->derEncodedLength(groupType(), encoderTagMode, traitsCache);
         if (encoderTagMode == TagMode::automatic)
             return l;
 
@@ -434,11 +460,13 @@ struct DerCoderTraits<std::unique_ptr<test::DerChoiceBaseClass>>
         return 1 + cll + l;
     }
 
-    static 
-    int
-    compare(std::unique_ptr<test::DerChoiceBaseClass> const& lhs, std::unique_ptr<test::DerChoiceBaseClass> const& rhs)
+    static int
+    compare(
+        std::unique_ptr<test::DerChoiceBaseClass> const& lhs,
+        std::unique_ptr<test::DerChoiceBaseClass> const& rhs,
+        TraitsCache& traitsCache)
     {
-        return lhs->compare(*rhs);
+        return lhs->compare(*rhs, traitsCache);
     }
 };
 }  // der

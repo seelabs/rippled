@@ -181,10 +181,11 @@ RsaSha256::subtypes() const
 std::uint64_t
 RsaSha256::derEncodedLength(
     boost::optional<der::GroupType> const& parentGroupType,
-    der::TagMode encoderTagMode) const
+    der::TagMode encoderTagMode,
+    der::TraitsCache& traitsCache) const
 {
     return cryptoconditions::der::withTupleEncodedLengthHelper(
-        *this, parentGroupType, encoderTagMode);
+        *this, parentGroupType, encoderTagMode, traitsCache);
 }
 
 void
@@ -209,9 +210,9 @@ RsaSha256::checkEqual(Fulfillment const& rhs) const
 }
 
 int
-RsaSha256::compare(Fulfillment const& rhs) const
+RsaSha256::compare(Fulfillment const& rhs, der::TraitsCache& traitsCache) const
 {
-    return cryptoconditions::der::withTupleCompareHelper(*this, rhs);
+    return cryptoconditions::der::withTupleCompareHelper(*this, rhs, traitsCache);
 }
 
 
