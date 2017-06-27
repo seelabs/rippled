@@ -17,6 +17,9 @@
 */
 //==============================================================================
 
+#ifndef RIPPLE_TEST_CONDITIONS_CONDITIONSTESTBASE_H_INCLUDED
+#define RIPPLE_TEST_CONDITIONS_CONDITIONSTESTBASE_H_INCLUDED
+
 #include <ripple/basics/Slice.h>
 #include <ripple/beast/unit_test.h>
 #include <ripple/conditions/Condition.h>
@@ -90,8 +93,7 @@ protected:
     }
 };
 
-#include <test/conditions/Conditions_generated_test.ipp>
+}
+}
 
-BEAST_DEFINE_TESTSUITE(Conditions, conditions, ripple);
-}
-}
+#endif
