@@ -43,6 +43,46 @@ from IPython.core.debugger import Tracer
 logging.basicConfig(filename='conditions.log', level=logging.DEBUG)
 condition_logger = logging.getLogger('condition')
 
+condition_test_template_prefix = \
+'''
+//------------------------------------------------------------------------------
+/*
+    This file is part of rippled: https://github.com/ripple/rippled
+    Copyright (c) 2016 Ripple Labs Inc.
+
+    Permission to use, copy, modify, and/or distribute this software for any
+    purpose  with  or without fee is hereby granted, provided that the above
+    copyright notice and this permission notice appear in all copies.
+
+    THE  SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+    WITH  REGARD  TO  THIS  SOFTWARE  INCLUDING  ALL  IMPLIED  WARRANTIES  OF
+    MERCHANTABILITY  AND  FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+    ANY  SPECIAL ,  DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+    WHATSOEVER  RESULTING  FROM  LOSS  OF USE, DATA OR PROFITS, WHETHER IN AN
+    ACTION  OF  CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+*/
+//==============================================================================
+
+#include <test/conditions/ConditionsTestBase.h>
+
+namespace ripple {{
+namespace cryptoconditions {{
+
+class Conditions_{RootTestName}_test : public ConditionsTestBase
+{{
+'''
+
+
+condition_test_template_suffix = \
+'''
+}};
+
+BEAST_DEFINE_TESTSUITE(Conditions_{RootTestName}, conditions, ripple);
+}} // cryptoconditions
+}} // ripple
+'''
+
 
 def to_bytes(v):
     if type(v) == bytes:
@@ -1119,37 +1159,63 @@ def save_json_test_cases(test_writer):
         test_type = tc['json']['type']
 
 
-def save_all_test_cases(file_name, inc_json=True):
-    with open(file_name, 'w') as f:
-        f.write('''
-class Conditions_test : public ConditionsTestBase
-{
-        ''')
-        tw = TestWriter(f)
-        for tc in ['preim', 'rsa', 'ed']:
-            tw.save_pylist_test_case(tc)
-            pre0 = ['prefix', tc]
-            tw.save_pylist_test_case(pre0)
-            thresh0 = ['thresh', [tc], []]
-            thresh1 = ['thresh', [tc], ['preim', 'rsa', 'ed']]
-            thresh2 = ['thresh', [tc, thresh1], ['preim', 'rsa', 'ed']]
-            thresh3 = ['thresh', [tc, thresh1], ['preim', 'rsa', 'ed', thresh1]]
-            all_thresh = [thresh0, thresh1, thresh2, thresh3]
-            for i in all_thresh:
-                tw.save_pylist_test_case(i)
-            prepre0 = ['prefix', 'prefix', tc]
-            prepre1 = ['prefix', 'prefix', pre0]
-            prepre2 = ['prefix', 'prefix', thresh0]
-            prepre3 = ['prefix', 'prefix', thresh1]
-            prepre4 = ['prefix', 'prefix', thresh2]
-            prepre5 = ['prefix', 'prefix', thresh3]
-            all_prepre = [prepre0, prepre1, prepre2, prepre3, prepre4, prepre5]
-            for i in all_prepre:
-                tw.save_pylist_test_case(i)
-            for a,b,c in zip(all_prepre + all_thresh, itertools.cycle(all_prepre), itertools.cycle(all_thresh)):
-                tw.save_pylist_test_case(['thresh', [a, b, c], ['preim', 'rsa', 'ed']])
-                tw.save_pylist_test_case(['thresh', [a, 'preim', 'rsa', 'ed'], ['preim', 'rsa', 'ed', b, c]])
-        if inc_json:
+def partitioned_test_cases():
+    '''return a dictionary of list of test cases. The key will be the top level
+    cryptocondition type. The modivation for partitioning the tests is otherwise
+    the single file is very large and hard for editors to deal with.
+    '''
+    result = defaultdict(list)
+    keys = ['thresh', 'prefix', 'preim', 'rsa', 'ed']
+    def add_to_result(l):
+        k = l[0] if isinstance(l, list) else l
+        if k not in keys:
+            raise ValueError('Unknown test type: {}'.format(k))
+        result[k].append(l)
+    for tc in ['preim', 'rsa', 'ed']:
+        add_to_result(tc)
+        pre0 = ['prefix', tc]
+        add_to_result(pre0)
+        thresh0 = ['thresh', [tc], []]
+        thresh1 = ['thresh', [tc], ['preim', 'rsa', 'ed']]
+        thresh2 = ['thresh', [tc, thresh1], ['preim', 'rsa', 'ed']]
+        thresh3 = ['thresh', [tc, thresh1], ['preim', 'rsa', 'ed', thresh1]]
+        all_thresh = [thresh0, thresh1, thresh2, thresh3]
+        for i in all_thresh:
+            add_to_result(i)
+        prepre0 = ['prefix', 'prefix', tc]
+        prepre1 = ['prefix', 'prefix', pre0]
+        prepre2 = ['prefix', 'prefix', thresh0]
+        prepre3 = ['prefix', 'prefix', thresh1]
+        prepre4 = ['prefix', 'prefix', thresh2]
+        prepre5 = ['prefix', 'prefix', thresh3]
+        all_prepre = [prepre0, prepre1, prepre2, prepre3, prepre4, prepre5]
+        for i in all_prepre:
+            add_to_result(i)
+        for a,b,c in zip(all_prepre + all_thresh, itertools.cycle(all_prepre), itertools.cycle(all_thresh)):
+            add_to_result(['thresh', [a, b, c], ['preim', 'rsa', 'ed']])
+            add_to_result(['thresh', [a, 'preim', 'rsa', 'ed'], ['preim', 'rsa', 'ed', b, c]])
+    return result
+
+
+def save_all_test_cases(file_name_prefix, inc_json=True):
+    test_cases = partitioned_test_cases()
+    for root_condition_name, test_list in test_cases.items():
+        file_name = file_name_prefix+root_condition_name+'.cpp'
+        with open(file_name, 'w') as f:
+            f.write(condition_test_template_prefix.format(RootTestName=root_condition_name))
+            tw = TestWriter(f)
+            for tc in test_list:
+                tw.save_pylist_test_case(tc)
+            tw.write_run()
+            f.write(condition_test_template_suffix.format(RootTestName=root_condition_name))
+
+    if inc_json:
+        root_condition_name = 'json'
+        file_name = file_name_prefix+root_condition_name+'.cpp'
+        with open(file_name, 'w') as f:
+            f.write(condition_test_template_prefix.format(RootTestName=root_condition_name))
+            tw = TestWriter(f)
             save_json_test_cases(tw)
-        tw.write_run()
-        f.write('\n};')
+            tw.write_run()
+            f.write(condition_test_template_suffix.format(RootTestName=root_condition_name))
+
