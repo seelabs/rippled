@@ -17,6 +17,8 @@
 */
 //==============================================================================
 
+#ifdef CONDITIONS_FUZZ_CORPUS
+
 #include <ripple/conditions/impl/Der.h>
 #include <test/conditions/DerChoice.h>
 
@@ -181,3 +183,5 @@ int main(int argc, char const* argv[])
     createCorpus(argv[1]);
     return 0;
 }
+
+#endif
