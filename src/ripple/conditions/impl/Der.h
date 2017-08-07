@@ -486,7 +486,7 @@ public:
     this by calling `eos`. This guard calls `eos` in the destructor so leaving
     a scope may be used to signal `eos`.
 
-    @note: This class is mostly used for testing. The usual way to signal `eos`
+    @note This class is mostly used for testing. The usual way to signal `eos`
     is by adding `der::eos` at the end of a stream. For example: `coder << value
     << der::eos;`
  */
@@ -607,7 +607,7 @@ totalLength(
     is being encoded, what bytes in the stream represent content for this value,
     and child values.
 
-    @note: decoders use a different class to represent the hierarchy of values.
+    @note decoders use a different class to represent the hierarchy of values.
  */
 class Group
 {
@@ -622,7 +622,7 @@ class Group
 
     /** data slice reserved for both the preamble and contents of the group
 
-        @note: it _must_ be the correct size. It will not be resized.
+        @note it _must_ be the correct size. It will not be resized.
     */
     MutableSlice slice_;
 
@@ -762,7 +762,7 @@ struct Encoder
 
     /** root of the tree of groups that were encoded
 
-        @note: This is not populated until after encoding is complete
+        @note This is not populated until after encoding is complete
     */
     boost::optional<Group> root_;
 
@@ -771,7 +771,7 @@ struct Encoder
 
     /** Slice to encode into
 
-        @note: rootBuf_ should contain the same information as rootSlice_, and
+        @note rootBuf_ should contain the same information as rootSlice_, and
         `rootSlice_` may be removed in the future. It is kept as a debugging
         tool to make sure rootBuf_ is not resized after it is resized for the
         root group.
@@ -2507,6 +2507,8 @@ struct DerCoderTraits<SequenceOfWrapper<T>>
     }
 };
 
+
+#if ! GENERATING_DOCS // quickbook uses `..` as a parameter separator and cannot parse this decl
 /** DerCoderTraits for std::tuples
 
     @note tuples will be decoded as ans.1 sequences
@@ -2683,6 +2685,7 @@ struct DerCoderTraits<std::tuple<Ts&...>>
             lhs, rhs, traitsCache, std::index_sequence_for<Ts...>{});
     }
 };
+#endif // ! GENERATING_DOCS
 
 /** For types that define `withTuple`, encode the type.
 
