@@ -899,6 +899,9 @@ def get_soci_sources(style):
     append_sources(result,
                    'src/ripple/unity/soci.cpp',
                    CPPPATH=cpp_path)
+    append_sources(result,
+                   'src/ripple/unity/socipostgres.cpp',
+                   CPPPATH=cpp_path)
     if style == 'unity':
         append_sources(result,
                        'src/ripple/unity/soci_ripple.cpp',

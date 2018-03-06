@@ -62,7 +62,8 @@ public:
         , m_store (journal)
         , checker_ (io_service_)
         , m_logic (clock, m_store, checker_, journal)
-        , m_sociConfig (config, "peerfinder")
+        , m_sociConfig (config, "peerfinder",
+                        SociConfig::ForceSqliteBackendTag{})
     {
     }
 

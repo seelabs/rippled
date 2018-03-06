@@ -1,7 +1,7 @@
 //------------------------------------------------------------------------------
 /*
     This file is part of rippled: https://github.com/ripple/rippled
-    Copyright (c) 2012, 2013 Ripple Labs Inc.
+    Copyright (c) 2012-2015 Ripple Labs Inc.
 
     Permission to use, copy, modify, and/or distribute this software for any
     purpose  with  or without fee is hereby granted, provided that the above
@@ -17,20 +17,36 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_APP_DATA_DBINIT_H_INCLUDED
-#define RIPPLE_APP_DATA_DBINIT_H_INCLUDED
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated"
+#endif
 
-#include <ripple/core/DatabaseCon.h>
+#include <BeastConfig.h>
 
-#include <string>
-#include <vector>
+#if ENABLE_SOCI_POSTGRESQL
 
-namespace ripple {
+#if BEAST_MSVC
+#define SOCI_LIB_PREFIX ""
+#define SOCI_LIB_SUFFIX ".dll"
+#else
+#define SOCI_LIB_PREFIX "lib"
+#define SOCI_LIB_SUFFIX ".so"
+#endif
 
-std::vector<std::string> TxnDBInit(DatabaseCon::Backend backend);
-std::vector<std::string> LedgerDBInit(DatabaseCon::Backend backend);
-std::vector<std::string> WalletDBInit(DatabaseCon::Backend backend);
+#include<backends/postgresql/blob.cpp>
+#include<backends/postgresql/error.cpp>
+#include<backends/postgresql/factory.cpp>
+#include<backends/postgresql/row-id.cpp>
+#include<backends/postgresql/session.cpp>
+#include<backends/postgresql/standard-into-type.cpp>
+#include<backends/postgresql/standard-use-type.cpp>
+#include<backends/postgresql/statement.cpp>
+#include<backends/postgresql/vector-into-type.cpp>
+#include<backends/postgresql/vector-use-type.cpp>
 
-} // ripple
+#endif // ENABLE_SOCI_POSTGRESQL
 
+#if defined(__clang__)
+#pragma clang diagnostic pop
 #endif

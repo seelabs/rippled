@@ -1901,6 +1901,9 @@ NetworkOPs::AccountTxs NetworkOPsImp::getAccountTxs (
     {
         auto db = app_.getTxnDB ().checkoutDb ();
 
+        // postgres blob operations must happen in a transaction
+        soci::transaction tr(*db);
+
         boost::optional<std::uint64_t> ledgerSeq;
         boost::optional<std::string> status;
         soci::blob sociTxnBlob (*db), sociTxnMetaBlob (*db);
@@ -1968,6 +1971,9 @@ std::vector<NetworkOPsImp::txnMetaLedgerType> NetworkOPsImp::getAccountTxsB (
 
     {
         auto db = app_.getTxnDB ().checkoutDb ();
+
+        // postgres blob operations must happen in a transaction
+        soci::transaction tr(*db);
 
         boost::optional<std::uint64_t> ledgerSeq;
         boost::optional<std::string> status;

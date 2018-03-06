@@ -19,141 +19,190 @@
 
 #include <BeastConfig.h>
 #include <ripple/app/main/DBInit.h>
+#include <boost/format.hpp>
 #include <type_traits>
 
 namespace ripple {
 
 // Transaction database holds transactions and public keys
-const char* TxnDBInit[] =
+std::vector<std::string>
+TxnDBInit(DatabaseCon::Backend backend)
 {
-    "PRAGMA synchronous=NORMAL;",
-    "PRAGMA journal_mode=WAL;",
-    "PRAGMA journal_size_limit=1582080;",
-    "PRAGMA max_page_count=2147483646;",
+    using namespace std::string_literals;
+    std::string const blobType =
+        backend == DatabaseCon::Backend::postgresql ? "OID" : "BLOB";
 
-#if (ULONG_MAX > UINT_MAX) && !defined (NO_SQLITE_MMAP)
-    "PRAGMA mmap_size=17179869184;",
+    std::vector<std::string> const commonSql{
+        {"BEGIN TRANSACTION;"s,
+
+         str(boost::format(
+                 R"sql(CREATE TABLE IF NOT EXISTS Transactions (
+                      TransID     CHARACTER(64) PRIMARY KEY,
+                      TransType   CHARACTER(24),
+                      FromAcct    CHARACTER(35),
+                      FromSeq     NUMERIC(20, 0),
+                      LedgerSeq   NUMERIC(20, 0),
+                      Status      CHARACTER(1),
+                      RawTxn      %1%,
+                      TxnMeta     %1%
+                      );
+                      )sql"s) %
+             blobType),
+
+         R"sql(CREATE INDEX IF NOT EXISTS TxLgrIndex ON
+              Transactions(LedgerSeq);
+         )sql"s,
+
+         R"sql(CREATE TABLE IF NOT EXISTS AccountTransactions (
+               TransID     CHARACTER(64),
+               Account     CHARACTER(64),
+               LedgerSeq   NUMERIC(20, 0),
+               TxnSeq      INTEGER
+               );
+         )sql"s,
+
+         R"sql(CREATE INDEX IF NOT EXISTS AcctTxIDIndex ON
+               AccountTransactions(TransID);
+         )sql"s,
+
+         R"sql(CREATE INDEX IF NOT EXISTS AcctTxIndex ON
+               AccountTransactions(Account, LedgerSeq, TxnSeq, TransID);
+         )sql"s,
+
+         R"sql(CREATE INDEX IF NOT EXISTS AcctLgrIndex ON
+               AccountTransactions(LedgerSeq, Account, TransID);
+         )sql"s,
+
+         "END TRANSACTION;"s}};  // namespace ripple
+
+    if (backend != DatabaseCon::Backend::sqlite)
+        return commonSql;
+
+    std::vector<std::string> sqliteSql{{
+        "PRAGMA synchronous=NORMAL;"s,
+        "PRAGMA journal_mode=WAL;"s,
+        "PRAGMA journal_size_limit=1582080;"s,
+        "PRAGMA max_page_count=2147483646;"s
+
+#if (ULONG_MAX > UINT_MAX) && !defined(NO_SQLITE_MMAP)
+        "PRAGMA mmap_size=17179869184;"s,
 #endif
+    }};
 
-    "BEGIN TRANSACTION;",
-
-    "CREATE TABLE IF NOT EXISTS Transactions (                \
-        TransID     CHARACTER(64) PRIMARY KEY,  \
-        TransType   CHARACTER(24),              \
-        FromAcct    CHARACTER(35),              \
-        FromSeq     BIGINT UNSIGNED,            \
-        LedgerSeq   BIGINT UNSIGNED,            \
-        Status      CHARACTER(1),               \
-        RawTxn      BLOB,                       \
-        TxnMeta     BLOB                        \
-    );",
-    "CREATE INDEX IF NOT EXISTS TxLgrIndex ON                 \
-        Transactions(LedgerSeq);",
-
-    "CREATE TABLE IF NOT EXISTS AccountTransactions (         \
-        TransID     CHARACTER(64),              \
-        Account     CHARACTER(64),              \
-        LedgerSeq   BIGINT UNSIGNED,            \
-        TxnSeq      INTEGER                     \
-    );",
-    "CREATE INDEX IF NOT EXISTS AcctTxIDIndex ON              \
-        AccountTransactions(TransID);",
-    "CREATE INDEX IF NOT EXISTS AcctTxIndex ON                \
-        AccountTransactions(Account, LedgerSeq, TxnSeq, TransID);",
-    "CREATE INDEX IF NOT EXISTS AcctLgrIndex ON               \
-        AccountTransactions(LedgerSeq, Account, TransID);",
-
-    "END TRANSACTION;"
-};
-
-int TxnDBCount = std::extent<decltype(TxnDBInit)>::value;
+    sqliteSql.insert(sqliteSql.end(), commonSql.begin(), commonSql.end());
+    return sqliteSql;
+}
 
 // Ledger database holds ledgers and ledger confirmations
-const char* LedgerDBInit[] =
+std::vector<std::string>
+LedgerDBInit(DatabaseCon::Backend backend)
 {
-    "PRAGMA synchronous=NORMAL;",
-    "PRAGMA journal_mode=WAL;",
-    "PRAGMA journal_size_limit=1582080;",
+    using namespace std::string_literals;
 
-    "BEGIN TRANSACTION;",
+    std::string const blobType =
+        backend == DatabaseCon::Backend::postgresql ? "OID" : "BLOB";
 
-    "CREATE TABLE IF NOT EXISTS Ledgers (                         \
-        LedgerHash      CHARACTER(64) PRIMARY KEY,  \
-        LedgerSeq       BIGINT UNSIGNED,            \
-        PrevHash        CHARACTER(64),              \
-        TotalCoins      BIGINT UNSIGNED,            \
-        ClosingTime     BIGINT UNSIGNED,            \
-        PrevClosingTime BIGINT UNSIGNED,            \
-        CloseTimeRes    BIGINT UNSIGNED,            \
-        CloseFlags      BIGINT UNSIGNED,            \
-        AccountSetHash  CHARACTER(64),              \
-        TransSetHash    CHARACTER(64)               \
-    );",
-    "CREATE INDEX IF NOT EXISTS SeqLedger ON Ledgers(LedgerSeq);",
+    std::vector<std::string> const commonSql{
+        {"BEGIN TRANSACTION;"s,
 
-    // InitialSeq field is the current ledger seq when the row
-    // is inserted. Only relevant during online delete
-    "CREATE TABLE IF NOT EXISTS Validations   (                   \
-        LedgerSeq   BIGINT UNSIGNED,                \
-        InitialSeq  BIGINT UNSIGNED,                \
-        LedgerHash  CHARACTER(64),                  \
-        NodePubKey  CHARACTER(56),                  \
-        SignTime    BIGINT UNSIGNED,                \
-        RawData     BLOB                            \
-    );",
-    "CREATE INDEX IF NOT EXISTS ValidationsByHash ON              \
-        Validations(LedgerHash);",
-    "CREATE INDEX IF NOT EXISTS ValidationsBySeq ON              \
-        Validations(LedgerSeq);",
-    "CREATE INDEX IF NOT EXISTS ValidationsByInitialSeq ON              \
-        Validations(InitialSeq, LedgerSeq);",
-    "CREATE INDEX IF NOT EXISTS ValidationsByTime ON              \
-        Validations(SignTime);",
+         R"sql(CREATE TABLE IF NOT EXISTS Ledgers (
+               LedgerHash      CHARACTER(64) PRIMARY KEY,
+               LedgerSeq       NUMERIC(20, 0),
+               PrevHash        CHARACTER(64),
+               TotalCoins      NUMERIC(20, 0),
+               ClosingTime     NUMERIC(20, 0),
+               PrevClosingTime NUMERIC(20, 0),
+               CloseTimeRes    NUMERIC(20, 0),
+               CloseFlags      NUMERIC(20, 0),
+               AccountSetHash  CHARACTER(64),
+               TransSetHash    CHARACTER(64)
+               );
+        )sql"s,
 
-    "END TRANSACTION;"
-};
+         "CREATE INDEX IF NOT EXISTS SeqLedger ON Ledgers(LedgerSeq);"s,
 
-int LedgerDBCount = std::extent<decltype(LedgerDBInit)>::value;
+         // InitialSeq field is the current ledger seq when the row
+         // is inserted. Only relevant during online delete
+         str(boost::format(
+                 R"sql(CREATE TABLE IF NOT EXISTS Validations   (
+                       LedgerSeq   NUMERIC(20, 0),
+                       InitialSeq  NUMERIC(20, 0),
+                       LedgerHash  CHARACTER(64),
+                       NodePubKey  CHARACTER(56),
+                       SignTime    NUMERIC(20, 0),
+                       RawData     %1%
+                       );
+                 )sql"s) %
+             blobType),
 
-const char* WalletDBInit[] =
+         R"sql(CREATE INDEX IF NOT EXISTS ValidationsByHash ON
+               Validations(LedgerHash);
+        )sql"s,
+
+         R"sql(CREATE INDEX IF NOT EXISTS ValidationsBySeq ON
+               Validations(LedgerSeq);
+        )sql"s,
+
+         R"sql(CREATE INDEX IF NOT EXISTS ValidationsByInitialSeq ON
+               Validations(InitialSeq, LedgerSeq);
+        )sql"s,
+
+         R"sql(CREATE INDEX IF NOT EXISTS ValidationsByTime ON
+               Validations(SignTime);
+        )sql"s,
+
+         "END TRANSACTION;"s}};
+
+    if (backend != DatabaseCon::Backend::sqlite)
+        return commonSql;
+
+    std::vector<std::string> sqliteSql{{"PRAGMA synchronous=NORMAL;"s,
+                                        "PRAGMA journal_mode=WAL;"s,
+                                        "PRAGMA journal_size_limit=1582080;"s}};
+
+    sqliteSql.insert(sqliteSql.end(), commonSql.begin(), commonSql.end());
+    return sqliteSql;
+}
+
+std::vector<std::string>
+WalletDBInit(DatabaseCon::Backend backend)
 {
-    "BEGIN TRANSACTION;",
+    using namespace std::string_literals;
+    std::string const blobType =
+        backend == DatabaseCon::Backend::postgresql ? "OID" : "BLOB";
 
-    // A node's identity must be persisted, including
-    // for clustering purposes. This table holds one
-    // entry: the server's unique identity, but the
-    // value can be overriden by specifying a node
-    // identity in the config file using a [node_seed]
-    // entry.
-    "CREATE TABLE IF NOT EXISTS NodeIdentity (      \
-        PublicKey       CHARACTER(53),              \
-        PrivateKey      CHARACTER(52)               \
-    );",
+    std::vector<std::string> const result{
+        {"BEGIN TRANSACTION;"s,
 
-    // Validator Manifests
-    "CREATE TABLE IF NOT EXISTS ValidatorManifests ( \
-        RawData          BLOB NOT NULL               \
-    );",
+         // A node's identity must be persisted, including
+         // for clustering purposes. This table holds one
+         // entry: the server's unique identity, but the
+         // value can be overriden by specifying a node
+         // identity in the config file using a [node_seed]
+         // entry.
+         R"sql(CREATE TABLE IF NOT EXISTS NodeIdentity (
+               PublicKey       CHARACTER(53),
+               PrivateKey      CHARACTER(52)
+               );
+        )sql"s,
 
-    "CREATE TABLE IF NOT EXISTS PublisherManifests ( \
-        RawData          BLOB NOT NULL               \
-    );",
+         // Validator Manifests
+         str(boost::format(
+                 R"sql(CREATE TABLE IF NOT EXISTS ValidatorManifests (
+                       RawData          %1% NOT NULL
+                       );
+                 )sql"s) %
+             blobType),
 
-    // Old tables that were present in wallet.db and we
-    // no longer need or use.
-    "DROP INDEX IF EXISTS SeedNodeNext;",
-    "DROP INDEX IF EXISTS SeedDomainNext;",
-    "DROP TABLE IF EXISTS Features;",
-    "DROP TABLE IF EXISTS TrustedNodes;",
-    "DROP TABLE IF EXISTS ValidatorReferrals;",
-    "DROP TABLE IF EXISTS IpReferrals;",
-    "DROP TABLE IF EXISTS SeedNodes;",
-    "DROP TABLE IF EXISTS SeedDomains;",
-    "DROP TABLE IF EXISTS Misc;",
+         str(boost::format(
+                 R"sql(CREATE TABLE IF NOT EXISTS PublisherManifests (
+                       RawData          %1% NOT NULL
+                       );
+                 )sql"s) %
+             blobType),
 
-    "END TRANSACTION;"
-};
-
-int WalletDBCount = std::extent<decltype(WalletDBInit)>::value;
+         "END TRANSACTION;"s}};
+    return result;
+}
 
 } // ripple

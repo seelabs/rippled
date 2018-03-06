@@ -129,6 +129,9 @@ Transaction::pointer Transaction::load(uint256 const& id, Application& app)
     Blob rawTxn;
     {
         auto db = app.getTxnDB ().checkoutDb ();
+        // postgres blob operations must happen in a transaction
+        soci::transaction tr(*db);
+
         soci::blob sociRawTxnBlob (*db);
         soci::indicator rti;
 

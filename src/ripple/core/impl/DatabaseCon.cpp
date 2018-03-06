@@ -26,28 +26,95 @@
 
 namespace ripple {
 
-DatabaseCon::DatabaseCon (
+boost::optional<soci::connection_pool> DatabaseCon::staticPool_;
+
+// Use temporary files or regular DB files?
+bool
+DatabaseCon::useTempFiles(Setup const& setup)
+{
+    return setup.standAlone && setup.startUp != Config::LOAD &&
+        setup.startUp != Config::LOAD_FILE && setup.startUp != Config::REPLAY;
+}
+
+bool
+DatabaseCon::useSqlite(Setup const& setup)
+{
+    return (setup.backend == Backend::sqlite || useTempFiles(setup));
+}
+
+void
+DatabaseCon::initPool(
+    soci::connection_pool& pool,
+    Setup const& setup,
+    std::size_t poolSize,
+    std::string const& strName)
+{
+    if (useSqlite(setup))
+    {
+        assert(!strName.empty());
+        boost::filesystem::path pPath =
+            useTempFiles(setup) ? "" : (setup.dataDir / strName);
+
+        for (size_t i = 0; i < poolSize; ++i)
+        {
+            auto& poolSession = pool.at(i);
+            open(poolSession, "sqlite", pPath.string());
+        }
+    }
+
+    if (setup.backend == Backend::postgresql)
+    {
+        if (setup.postgresql)
+        {
+            auto& pg = *setup.postgresql;
+            std::stringstream s;
+            s << "host=" << pg.host << " port=" << pg.port
+              << " dbname=" << pg.dbName << " user=" << pg.user;
+
+            for (size_t i = 0; i < poolSize; ++i)
+            {
+                auto& poolSession = pool.at(i);
+                open(poolSession, "postgresql", s.str());
+            }
+        }
+    }
+}
+
+void
+DatabaseCon::initStaticPool(Setup const& setup)
+{
+    assert(!staticPool_);
+    std::size_t const poolSize =
+        setup.postgresql ? setup.postgresql->staticPoolSize : 0;
+
+    if (useSqlite(setup) || poolSize <= 0)
+    {
+        // sqlite uses different connection parameters so cannot use a static
+        // pool
+        return;
+    }
+    staticPool_.emplace(poolSize);
+    initPool(*staticPool_, setup, poolSize, std::string{});
+}
+
+DatabaseCon::DatabaseCon(
     Setup const& setup,
     std::string const& strName,
-    const char* initStrings[],
-    int initCount)
+    std::vector<std::string> const& initStrings)
+    : pool_{setup.poolSize}
 {
-    auto const useTempFiles  // Use temporary files or regular DB files?
-        = setup.standAlone &&
-          setup.startUp != Config::LOAD &&
-          setup.startUp != Config::LOAD_FILE &&
-          setup.startUp != Config::REPLAY;
-    boost::filesystem::path pPath = useTempFiles
-        ? "" : (setup.dataDir / strName);
+    using namespace std::string_literals;
 
-    open (session_, "sqlite", pPath.string());
+    assert(setup.poolSize > 0);
 
-    for (int i = 0; i < initCount; ++i)
+    initPool(pool_, setup, setup.poolSize, strName);
+
+    soci::session session{pool_};
+    for (auto const sqlStmt : initStrings)
     {
         try
         {
-            soci::statement st = session_.prepare <<
-                initStrings[i];
+            soci::statement st = session.prepare << sqlStmt;
             st.execute(true);
         }
         catch (soci::soci_error&)
@@ -57,8 +124,24 @@ DatabaseCon::DatabaseCon (
     }
 }
 
+LockedSociSession
+DatabaseCon::checkoutDb()
+{
+    if (staticPool_)
+    {
+        size_t poolPosition{};
+        if (staticPool_->try_lease(poolPosition, /*timeout*/0))
+            return LockedSociSession(*staticPool_, poolPosition);
+    }
+
+    auto const poolPosition = pool_.lease();
+    return LockedSociSession(pool_, poolPosition);
+}
+
 DatabaseCon::Setup setup_DatabaseCon (Config const& c)
 {
+    using namespace std::string_literals;
+
     DatabaseCon::Setup setup;
 
     setup.startUp = c.START_UP;
@@ -70,14 +153,39 @@ DatabaseCon::Setup setup_DatabaseCon (Config const& c)
             "database_path must be set.");
     }
 
-    return setup;
+    auto const& section = c.section("sqdb");
+    auto const backendName = get<std::string>(section, "backend", "sqlite");
+    setup.poolSize =
+        std::max<std::size_t>(1, get<std::size_t>(section, "pool_size", 1));
+
+    if (backendName == "postgresql"s)
+    {
+        setup.backend = DatabaseCon::Backend::postgresql;
+        setup.postgresql.emplace();
+        auto& pg = *setup.postgresql;
+        pg.user = get<std::string>(section, "user", "");
+        pg.host = get<std::string>(section, "host", "");
+        pg.port = get<std::string>(section, "port", "");
+        pg.dbName = get<std::string>(section, "database_name", "rippled");
+        pg.staticPoolSize = get<std::size_t>(section, "pool_size", 0);
+        return setup;
+    }
+
+    if (backendName == "sqlite"s)
+    {
+        setup.backend = DatabaseCon::Backend::sqlite;
+        return setup;
+    }
+
+    Throw<std::runtime_error> ("Unsupported soci backend: " + backendName);
 }
 
 void DatabaseCon::setupCheckpointing (JobQueue* q, Logs& l)
 {
     if (! q)
         Throw<std::logic_error> ("No JobQueue");
-    checkpointer_ = makeCheckpointer (session_, *q, l);
+    auto db = checkoutDb();
+    checkpointer_ = makeCheckpointer (*db, *q, l);
 }
 
 } // ripple

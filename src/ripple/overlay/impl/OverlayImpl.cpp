@@ -629,6 +629,8 @@ OverlayImpl::onManifests (
     std::shared_ptr<protocol::TMManifests> const& m,
         std::shared_ptr<PeerImp> const& from)
 {
+    using namespace std::string_literals;
+
     auto& hashRouter = app_.getHashRouter();
     auto const n = m->list_size();
     auto const& journal = from->pjournal();
@@ -671,6 +673,10 @@ OverlayImpl::onManifests (
                 static const char* const sql =
                         "INSERT INTO ValidatorManifests (RawData) VALUES (:rawData);";
                 soci::blob rawData(*db);
+
+                if (db->get_backend_name() == "postgresql"s)
+                    *db << "SELECT lo_creat(-1);", soci::into(rawData);
+
                 convert (serialized, rawData);
                 *db << sql, soci::use (rawData);
                 tr.commit ();

@@ -79,8 +79,12 @@ class SociConfig
     SociConfig(std::pair<std::string, soci::backend_factory const&> init);
 
 public:
+    struct ForceSqliteBackendTag {};
     SociConfig(BasicConfig const& config,
                std::string const& dbName);
+    SociConfig(BasicConfig const& config,
+               std::string const& dbName,
+               ForceSqliteBackendTag);
     std::string connectionString () const;
     void open (soci::session& s) const;
 };

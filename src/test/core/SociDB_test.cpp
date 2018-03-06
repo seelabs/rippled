@@ -28,93 +28,19 @@
 #include <boost/algorithm/string.hpp>
 
 namespace ripple {
-class SociDB_test final : public TestSuite
+
+class SociDBTestBase : public TestSuite
 {
 private:
-    static void setupSQLiteConfig (BasicConfig& config,
-                                   boost::filesystem::path const& dbPath)
-    {
-        config.overwrite ("sqdb", "backend", "sqlite");
-        auto value = dbPath.string ();
-        if (!value.empty ())
-            config.legacy ("database_path", value);
-    }
-
-    static void cleanupDatabaseDir (boost::filesystem::path const& dbPath)
-    {
-        using namespace boost::filesystem;
-        if (!exists (dbPath) || !is_directory (dbPath) || !is_empty (dbPath))
-            return;
-        remove (dbPath);
-    }
-
-    static void setupDatabaseDir (boost::filesystem::path const& dbPath)
-    {
-        using namespace boost::filesystem;
-        if (!exists (dbPath))
-        {
-            create_directory (dbPath);
-            return;
-        }
-
-        if (!is_directory (dbPath))
-        {
-            // someone created a file where we want to put out directory
-            Throw<std::runtime_error> (
-                "Cannot create directory: " + dbPath.string ());
-        }
-    }
-    static boost::filesystem::path getDatabasePath ()
-    {
-        return boost::filesystem::current_path () / "socidb_test_databases";
-    }
-
+    virtual BasicConfig config () = 0;
+    virtual void removeDB(SociConfig const& sc) = 0;
 public:
-    SociDB_test ()
-    {
-        try
-        {
-            setupDatabaseDir (getDatabasePath ());
-        }
-        catch (std::exception const&)
-        {
-        }
-    }
-    ~SociDB_test ()
-    {
-        try
-        {
-            cleanupDatabaseDir (getDatabasePath ());
-        }
-        catch (std::exception const&)
-        {
-        }
-    }
-    void testSQLiteFileNames ()
-    {
-        // confirm that files are given the correct exensions
-        testcase ("sqliteFileNames");
-        BasicConfig c;
-        setupSQLiteConfig (c, getDatabasePath ());
-        std::vector<std::pair<std::string, std::string>> const d (
-            {{"peerfinder", ".sqlite"},
-             {"state", ".db"},
-             {"random", ".db"},
-             {"validators", ".sqlite"}});
-
-        for (auto const& i : d)
-        {
-            SociConfig sc (c, i.first);
-            BEAST_EXPECT(boost::ends_with (sc.connectionString (),
-                                      i.first + i.second));
-        }
-    }
-    void testSQLiteSession ()
+    void testSession ()
     {
         testcase ("open");
-        BasicConfig c;
-        setupSQLiteConfig (c, getDatabasePath ());
-        SociConfig sc (c, "SociTestDB");
+        BasicConfig const c = config();
+        SociConfig sc (c, "socitestdb");
+        std::vector<int> const keys{0,1,2};
         std::vector<std::string> const stringData (
             {"String1", "String2", "String3"});
         std::vector<int> const intData ({1, 2, 3});
@@ -143,15 +69,18 @@ public:
         {
             soci::session s;
             sc.open (s);
-            s << "CREATE TABLE IF NOT EXISTS SociTestTable ("
+
+            s << "DROP TABLE IF EXISTS SociTestTable;";
+
+            s << "CREATE TABLE SociTestTable ("
                  "  Key                    INTEGER PRIMARY KEY,"
                  "  StringData             TEXT,"
                  "  IntData                INTEGER"
                  ");";
 
-            s << "INSERT INTO SociTestTable (StringData, IntData) VALUES "
-                 "(:stringData, :intData);",
-                soci::use (stringData), soci::use (intData);
+            s << "INSERT INTO SociTestTable (Key, StringData, IntData) VALUES "
+                 "(:keys, :stringData, :intData);",
+                soci::use(keys), soci::use(stringData), soci::use(intData);
             checkValues (s);
         }
         {
@@ -160,40 +89,50 @@ public:
             sc.open (s);
             checkValues (s);
         }
-        {
-            namespace bfs = boost::filesystem;
-            // Remove the database
-            bfs::path dbPath (sc.connectionString ());
-            if (bfs::is_regular_file (dbPath))
-                bfs::remove (dbPath);
-        }
+        removeDB(sc);
     }
 
-    void testSQLiteSelect ()
+    void testSelect ()
     {
         testcase ("select");
-        BasicConfig c;
-        setupSQLiteConfig (c, getDatabasePath ());
-        SociConfig sc (c, "SociTestDB");
+        BasicConfig const c = config();
+        SociConfig sc (c, "socitestdb");
         std::vector<std::uint64_t> const ubid (
-            {(std::uint64_t)std::numeric_limits<std::int64_t>::max (), 20, 30});
+            {std::numeric_limits<std::uint64_t>::max (), 20, 30});
         std::vector<std::int64_t> const bid ({-10, -20, -30});
         std::vector<std::uint32_t> const uid (
             {std::numeric_limits<std::uint32_t>::max (), 2, 3});
         std::vector<std::int32_t> const id ({-1, -2, -3});
 
         {
+            using namespace std::string_literals;
+
             soci::session s;
             sc.open (s);
 
             s << "DROP TABLE IF EXISTS STT;";
 
-            s << "CREATE TABLE STT ("
-                 "  I              INTEGER,"
-                 "  UI             INTEGER UNSIGNED,"
-                 "  BI             BIGINT,"
-                 "  UBI            BIGINT UNSIGNED"
-                 ");";
+            if (s.get_backend_name() == "postgresql"s)
+            {
+                // postgres doesn't support unsigned types.
+                // Use BIGINT (signed 64-bit int) for unsigned 32-bit int
+                // USE NUMERIC(20,0) (20 digits of percision, scale of zero) for unsigned 64-bit int
+                s << "CREATE TABLE STT ("
+                     "  I              INTEGER,"
+                     "  UI             BIGINT,"
+                     "  BI             BIGINT,"
+                     "  UBI            NUMERIC(20, 0)"
+                     ");";
+            }
+            else
+            {
+                s << "CREATE TABLE STT ("
+                     "  I              INTEGER,"
+                     "  UI             INTEGER UNSIGNED,"
+                     "  BI             BIGINT,"
+                     "  UBI            BIGINT UNSIGNED"
+                     ");";
+            }
 
             s << "INSERT INTO STT (I, UI, BI, UBI) VALUES "
                  "(:id, :idu, :bid, :bidu);",
@@ -288,42 +227,53 @@ public:
             }
 #endif
         }
-        {
-            namespace bfs = boost::filesystem;
-            // Remove the database
-            bfs::path dbPath (sc.connectionString ());
-            if (bfs::is_regular_file (dbPath))
-                bfs::remove (dbPath);
-        }
+        removeDB(sc);
     }
-    void testSQLiteDeleteWithSubselect()
+
+    void testDeleteWithSubselect()
     {
         testcase ("deleteWithSubselect");
-        BasicConfig c;
-        setupSQLiteConfig (c, getDatabasePath ());
-        SociConfig sc (c, "SociTestDB");
+        BasicConfig const c = config();
+        SociConfig sc (c, "socitestdb");
         {
+            using namespace std::string_literals;
             soci::session s;
             sc.open (s);
-            const char* dbInit[] = {
-                "BEGIN TRANSACTION;",
-                "CREATE TABLE Ledgers (                     \
+
+            s << "DROP TABLE IF EXISTS Ledgers;";
+            s << "DROP TABLE IF EXISTS Validations;";
+            s << "DROP TABLE IF EXISTS ValidationsByHash;";
+
+            std::vector<std::string> dbInit;
+            dbInit.push_back("BEGIN TRANSACTION;"s);
+            if (s.get_backend_name() == "postgresql"s)
+            {
+                dbInit.push_back(
+                    "CREATE TABLE Ledgers (                 \
+                LedgerHash      CHARACTER(64) PRIMARY KEY,  \
+                LedgerSeq       NUMERIC(20,0)               \
+                );"s);
+            }
+            else
+            {
+                dbInit.push_back(
+                    "CREATE TABLE Ledgers (                 \
                 LedgerHash      CHARACTER(64) PRIMARY KEY,  \
                 LedgerSeq       BIGINT UNSIGNED             \
-            );",
-                "CREATE INDEX SeqLedger ON Ledgers(LedgerSeq);",
-
+                );"s);
+            }
+            dbInit.push_back("CREATE INDEX SeqLedger ON Ledgers(LedgerSeq);");
+            dbInit.push_back(
                 "CREATE TABLE Validations   (  \
                 LedgerHash  CHARACTER(64)      \
-            );",
+                );"s);
+            dbInit.push_back(
                 "CREATE INDEX ValidationsByHash ON \
-                Validations(LedgerHash);",
-                "END TRANSACTION;"};
-            int dbInitCount = std::extent<decltype(dbInit)>::value;
-            for (int i = 0; i < dbInitCount; ++i)
-            {
-                s << dbInit[i];
-            }
+                Validations(LedgerHash);"s);
+            dbInit.push_back("END TRANSACTION;"s);
+            for (auto const& sqlStmt : dbInit)
+                s << sqlStmt;
+
             char lh[65];
             memset (lh, 'a', 64);
             lh[64] = '\0';
@@ -355,25 +305,239 @@ public:
             BEAST_EXPECT(ledgersLS.size () == numRows &&
                     validationsLH.size () == numRows);
         }
-        namespace bfs = boost::filesystem;
-        // Remove the database
-        bfs::path dbPath (sc.connectionString ());
-        if (bfs::is_regular_file (dbPath))
-            bfs::remove (dbPath);
+        removeDB(sc);
     }
-    void testSQLite ()
+
+    void testBlob()
     {
-        testSQLiteFileNames ();
-        testSQLiteSession ();
-        testSQLiteSelect ();
-        testSQLiteDeleteWithSubselect();
+        testcase("blob");
+        BasicConfig const c = config();
+        SociConfig sc(c, "socitestdb");
+        {
+            using namespace std::string_literals;
+            soci::session s;
+            sc.open(s);
+
+            s << "DROP TABLE IF EXISTS Blobs;";
+            int const toWrite = 42;
+            {
+                // postgres blob operations must happen in a transaction
+                soci::transaction tr(s);
+                soci::blob rawData(s);
+                if (s.get_backend_name() == "postgresql"s)
+                {
+                    s << "CREATE TABLE Blobs (rawData oid);"s;
+                    s << "SELECT lo_creat(-1);", soci::into(rawData);
+                }
+                else
+                {
+                    s << "CREATE TABLE Blobs (rawData BLOB);"s;
+                }
+                rawData.append(
+                    reinterpret_cast<const char*>(&toWrite), sizeof(toWrite));
+                s << "insert into Blobs(rawData) values(:rawData)",
+                    soci::use(rawData);
+                tr.commit();
+            }
+            {
+                // postgres blob operations must happen in a transaction
+                soci::transaction tr(s);
+                soci::blob rawData(s);
+                s << "SELECT RawData FROM Blobs;", soci::into(rawData);
+
+                int toRead = -1;
+                if (rawData.get_len() == sizeof(toRead))
+                {
+                    rawData.read(
+                        0, reinterpret_cast<char*>(&toRead), rawData.get_len());
+                    BEAST_EXPECT(toRead == toWrite);
+                }
+                else
+                    fail();
+                tr.commit();
+            }
+            pass();
+        }
+        removeDB(sc);
     }
-    void run ()
+
+    virtual void
+    run()
     {
-        testSQLite ();
+        testSession();
+        testSelect();
+        testDeleteWithSubselect();
+        testBlob();
     }
 };
 
-BEAST_DEFINE_TESTSUITE(SociDB,core,ripple);
+class SQLiteSociDB_test final : public SociDBTestBase
+{
+private:
+    BasicConfig config () override
+    {
+        BasicConfig config;
+        boost::filesystem::path const& dbPath = getDatabasePath();
+        config.overwrite ("sqdb", "backend", "sqlite");
+        auto value = dbPath.string ();
+        if (!value.empty ())
+            config.legacy ("database_path", value);
+        return config;
+    }
+
+    void removeDB(SociConfig const& sc) override
+    {
+        namespace bfs = boost::filesystem;
+        // Remove the database
+        bfs::path dbPath(sc.connectionString());
+        if (bfs::is_regular_file(dbPath))
+            bfs::remove(dbPath);
+    }
+
+    static void cleanupDatabaseDir (boost::filesystem::path const& dbPath)
+    {
+        using namespace boost::filesystem;
+        if (!exists (dbPath) || !is_directory (dbPath) || !is_empty (dbPath))
+            return;
+        remove (dbPath);
+    }
+
+    static void setupDatabaseDir (boost::filesystem::path const& dbPath)
+    {
+        using namespace boost::filesystem;
+        if (!exists (dbPath))
+        {
+            create_directory (dbPath);
+            return;
+        }
+
+        if (!is_directory (dbPath))
+        {
+            // someone created a file where we want to put out directory
+            Throw<std::runtime_error> (
+                "Cannot create directory: " + dbPath.string ());
+        }
+    }
+    static boost::filesystem::path getDatabasePath ()
+    {
+        return boost::filesystem::current_path () / "socidb_test_databases";
+    }
+
+public:
+    SQLiteSociDB_test ()
+    {
+        try
+        {
+            setupDatabaseDir (getDatabasePath ());
+        }
+        catch (std::exception const&)
+        {
+        }
+    }
+    ~SQLiteSociDB_test ()
+    {
+        try
+        {
+            cleanupDatabaseDir (getDatabasePath ());
+        }
+        catch (std::exception const&)
+        {
+        }
+    }
+    void testFileNames ()
+    {
+        // confirm that files are given the correct exensions
+        testcase ("sqliteFileNames");
+        BasicConfig const c = config();
+        std::vector<std::pair<std::string, std::string>> const d (
+            {{"peerfinder", ".sqlite"},
+             {"state", ".db"},
+             {"random", ".db"},
+             {"validators", ".sqlite"}});
+
+        for (auto const& i : d)
+        {
+            SociConfig sc (c, i.first);
+            BEAST_EXPECT(boost::ends_with (sc.connectionString (),
+                                      i.first + i.second));
+        }
+    }
+    void run () override
+    {
+        testFileNames ();
+        SociDBTestBase::run();
+    }
+};
+
+// Note: socitestdb must already exist (TBD - create/drop db in test)
+class PostgresqlSociDB_test final : public SociDBTestBase
+{
+private:
+    BasicConfig
+    config() override
+    {
+        BasicConfig config;
+        std::string const host = "10.0.3.147";  // TBD - this is my local setup
+        std::string const user = "postgres";    // TBD- this is my local setup
+        std::string const port = "5432";        // Default port
+        config.overwrite("sqdb", "backend", "postgresql");
+        if (!host.empty())
+            config.overwrite("sqdb", "host", host);
+        if (!user.empty())
+            config.overwrite("sqdb", "user", user);
+        if (!port.empty())
+            config.overwrite("sqdb", "port", port);
+        return config;
+    }
+
+    static void
+    cleanupDatabase(std::string const& dbname)
+    {
+        std::string const cmd = "drop database " + dbname + ';';
+        (void)cmd;
+        // TBD - remove the database;
+    }
+
+    static void
+    setupDatabase(std::string const& dbname)
+    {
+        std::string const cmd = "create database " + dbname + ';';
+        (void)cmd;
+        // TBD - create the database;
+        // For now the database must already exist
+    }
+
+    void
+    removeDB(SociConfig const& sc) override
+    {
+        // TBD - remove the database;
+    }
+
+public:
+    PostgresqlSociDB_test()
+    {
+        try
+        {
+            setupDatabase("socitestdb");
+        }
+        catch (std::exception const&)
+        {
+        }
+    }
+
+    ~PostgresqlSociDB_test()
+    {
+        try
+        {
+            cleanupDatabase("socitestdb");
+        }
+        catch (std::exception const&)
+        {
+        }
+    }
+};
+
+BEAST_DEFINE_TESTSUITE(SQLiteSociDB,core,ripple);
+BEAST_DEFINE_TESTSUITE(PostgresqlSociDB,core,ripple);
 
 }  // ripple

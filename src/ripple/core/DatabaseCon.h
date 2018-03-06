@@ -22,95 +22,144 @@
 
 #include <ripple/core/Config.h>
 #include <ripple/core/SociDB.h>
+
 #include <boost/filesystem/path.hpp>
+#include <boost/optional.hpp>
+
 #include <mutex>
 #include <string>
 
-
 namespace soci {
-    class session;
+class session;
 }
 
 namespace ripple {
 
-template<class T, class TMutex>
-class LockedPointer
+class LockedSociSession
 {
-public:
-    using mutex = TMutex;
 private:
-    T* it_;
-    std::unique_lock<mutex> lock_;
+    soci::connection_pool* pool_{nullptr};
+    std::size_t poolPosition_;
 
 public:
-    LockedPointer (T* it, mutex& m) : it_ (it), lock_ (m)
+    explicit LockedSociSession(
+        soci::connection_pool& pool,
+        std::size_t poolPosition)
+        : pool_{&pool}, poolPosition_{poolPosition}
     {
     }
-    LockedPointer (LockedPointer&& rhs) noexcept
-        : it_ (rhs.it_), lock_ (std::move (rhs.lock_))
+    LockedSociSession(LockedSociSession&& rhs)
+        : pool_{rhs.pool_}, poolPosition_{rhs.poolPosition_}
     {
+        rhs.pool_ = nullptr;
     }
-    LockedPointer () = delete;
-    LockedPointer (LockedPointer const& rhs) = delete;
-    LockedPointer& operator=(LockedPointer const& rhs) = delete;
+    LockedSociSession() = delete;
+    LockedSociSession(LockedSociSession const& rhs) = delete;
+    LockedSociSession&
+    operator=(LockedSociSession const& rhs) = delete;
 
-    T* get ()
+    ~LockedSociSession()
     {
-        return it_;
+        if (!pool_)
+            return;
+
+        pool_->give_back(poolPosition_);
     }
-    T& operator*()
+
+    soci::session*
+    get()
     {
-        return *it_;
+        assert(pool_);
+        return &pool_->at(poolPosition_);
     }
-    T* operator->()
+    soci::session& operator*()
     {
-        return it_;
+        assert(pool_);
+        return pool_->at(poolPosition_);
     }
-    explicit operator bool() const
+    soci::session* operator->()
     {
-        return bool (it_);
+        return get();
     }
 };
-
-using LockedSociSession = LockedPointer<soci::session, std::recursive_mutex>;
 
 class DatabaseCon
 {
 public:
+    enum class Backend { sqlite, postgresql };
+    struct PostgresqlSetup
+    {
+        std::string host;
+        std::string user;
+        std::string port;
+        std::string dbName;
+        std::size_t staticPoolSize{0};
+    };
+
     struct Setup
     {
         Config::StartUpType startUp = Config::NORMAL;
         bool standAlone = false;
         boost::filesystem::path dataDir;
+        Backend backend{Backend::sqlite};
+        std::size_t poolSize{2};
+        boost::optional<PostgresqlSetup> postgresql;
     };
 
-    DatabaseCon (Setup const& setup,
-                 std::string const& name,
-                 const char* initString[],
-                 int countInit);
+    DatabaseCon(
+        Setup const& setup,
+        std::string const& name,
+        std::vector<std::string> const& initStrings);
 
-    soci::session& getSession()
-    {
-        return session_;
-    }
+    LockedSociSession
+    checkoutDb();
 
-    LockedSociSession checkoutDb ()
-    {
-        return LockedSociSession (&session_, lock_);
-    }
+    void
+    setupCheckpointing(JobQueue*, Logs&);
 
-    void setupCheckpointing (JobQueue*, Logs&);
+    static void
+    initStaticPool(Setup const& setup);
 
+    static bool
+    useSqlite(Setup const& setup);
 private:
-    LockedSociSession::mutex lock_;
+    static bool
+    useTempFiles(Setup const& setup);
 
-    soci::session session_;
+    static void
+    initPool(
+        soci::connection_pool& pool,
+        Setup const& setup,
+        std::size_t poolSize,
+        std::string const& strName);
+
+    /** Connection pool for the exclusive use of this instance
+
+        @note The exclusive pool serves two purposes: 1) If not all instances
+        have the same connection parameters (when using the sqlite db, they do
+        not), then the static pool can not be used. 2) If all connections were
+        part of the static pool, then some databases could starve other
+        databases of connections. Reserving some connections for the exclusive
+        use of this instance prevents this.
+
+        There must always be at least one connection in the pool.
+     */
+    soci::connection_pool pool_;
+
+    /** Connection pool shared by all database connections
+
+        @note This is useful for backends where all the instances have the
+        same connection parameters (like rippled does with postgresql, but does
+        not with sqlite). Backends that do not have the same connection
+        parameters should not initialize the static pool.
+     */
+    static boost::optional<soci::connection_pool> staticPool_;
     std::unique_ptr<Checkpointer> checkpointer_;
 };
 
 DatabaseCon::Setup
-setup_DatabaseCon (Config const& c);
+setup_DatabaseCon(Config const& c);
 
-} // ripple
+}  // namespace ripple
 
 #endif

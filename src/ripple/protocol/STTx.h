@@ -136,10 +136,17 @@ public:
     // SQL Functions with metadata.
     static
     std::string const&
-    getMetaSQLInsertReplaceHeader ();
+    getMetaSQLUpsertHeader (std::string const& backendName);
+
+    static
+    std::string const&
+    getMetaSQLUpsertTail (std::string const& backendName);
 
     std::string getMetaSQL (
         std::uint32_t inLedger, std::string const& escapedMetaData) const;
+
+    std::string
+    getMetaSQLPostgres(std::uint32_t inLedger) const;
 
     std::string getMetaSQL (
         Serializer rawTxn,

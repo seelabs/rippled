@@ -113,6 +113,11 @@ public:
         return mJson;
     }
 
+    // TBD review this
+    Blob const& getRawMeta() const{
+        return mRawMeta;
+    }
+
 private:
     std::shared_ptr<ReadView const> mLedger;
     std::shared_ptr<STTx const> mTxn;

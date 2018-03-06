@@ -61,6 +61,9 @@ Json::Value doTxHistory (RPC::Context& context)
     {
         auto db = context.app.getTxnDB ().checkoutDb ();
 
+        // postgres blob operations must happen in a transaction
+        soci::transaction tr(*db);
+
         boost::optional<std::uint64_t> ledgerSeq;
         boost::optional<std::string> status;
         soci::blob sociRawTxnBlob (*db);

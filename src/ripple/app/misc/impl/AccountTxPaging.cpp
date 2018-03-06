@@ -217,6 +217,9 @@ accountTxPage (
     {
         auto db (connection.checkoutDb());
 
+        // postgres blob operations must happen in a transaction
+        soci::transaction tr(*db);
+
         Blob rawData;
         Blob rawMeta;
 

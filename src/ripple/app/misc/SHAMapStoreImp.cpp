@@ -31,11 +31,15 @@ namespace ripple {
 void SHAMapStoreImp::SavedStateDB::init (BasicConfig const& config,
                                          std::string const& dbName)
 {
+    using namespace std::string_literals;
+
     std::lock_guard<std::mutex> lock (mutex_);
 
     open(session_, config, dbName);
 
-    session_ << "PRAGMA synchronous=FULL;";
+    auto const& section = config.section ("sqdb");
+    if (get<std::string>(section, "backend", "sqlite") == "sqlite"s)
+        session_ << "PRAGMA synchronous=FULL;";
 
     session_ <<
         "CREATE TABLE IF NOT EXISTS DbState ("
@@ -161,6 +165,23 @@ SHAMapStoreImp::SavedStateDB::setLastRotated (LedgerIndex seq)
 
 //------------------------------------------------------------------------------
 
+static
+std::string
+stateDBName(BasicConfig const& config)
+{
+    using namespace std::string_literals;
+
+    auto const& section = config.section("sqdb");
+    auto const backendName = get<std::string>(section, "backend", "sqlite");
+    if (backendName == "postgresql"s)
+    {
+        return get<std::string>(section, "database_name", "rippled");
+    }
+    return "state"s;
+}
+
+//------------------------------------------------------------------------------
+
 SHAMapStoreImp::SHAMapStoreImp (
         Application& app,
         Setup const& setup,
@@ -172,6 +193,7 @@ SHAMapStoreImp::SHAMapStoreImp (
         BasicConfig const& config)
     : SHAMapStore (parent)
     , app_ (app)
+    , dbName_ (stateDBName(config))
     , setup_ (setup)
     , scheduler_ (scheduler)
     , journal_ (journal)

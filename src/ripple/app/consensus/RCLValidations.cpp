@@ -210,6 +210,8 @@ RCLValidationsAdaptor::flush(hash_map<PublicKey, RCLValidation>&& remaining)
 void
 RCLValidationsAdaptor::doStaleWrite(ScopedLockType&)
 {
+    using namespace std::string_literals;
+
     static const std::string insVal(
         "INSERT INTO Validations "
         "(InitialSeq, LedgerSeq, LedgerHash,NodePubKey,SignTime,RawData) "
@@ -256,6 +258,10 @@ RCLValidationsAdaptor::doStaleWrite(ScopedLockType&)
                         val->getSignTime().time_since_epoch().count();
 
                     soci::blob rawData(*db);
+                    if (db->get_backend_name() == "postgresql"s)
+                    {
+                        *db << "SELECT lo_creat(-1);", soci::into(rawData);
+                    }
                     rawData.append(
                         reinterpret_cast<const char*>(s.peekData().data()),
                         s.peekData().size());

@@ -805,19 +805,25 @@ public:
     beast::Journal journal (std::string const& name) override;
 
     //--------------------------------------------------------------------------
-    bool initSqliteDbs ()
+    bool initSqlDbs ()
     {
         assert (mTxnDB.get () == nullptr);
         assert (mLedgerDB.get () == nullptr);
         assert (mWalletDB.get () == nullptr);
 
-        DatabaseCon::Setup setup = setup_DatabaseCon (*config_);
-        mTxnDB = std::make_unique <DatabaseCon> (setup, "transaction.db",
-                TxnDBInit, TxnDBCount);
-        mLedgerDB = std::make_unique <DatabaseCon> (setup, "ledger.db",
-                LedgerDBInit, LedgerDBCount);
-        mWalletDB = std::make_unique <DatabaseCon> (setup, "wallet.db",
-                WalletDBInit, WalletDBCount);
+        DatabaseCon::Setup setup = setup_DatabaseCon(*config_);
+
+        if (!DatabaseCon::useSqlite(setup))
+        {
+            DatabaseCon::initStaticPool(setup);
+        }
+
+        mTxnDB = std::make_unique<DatabaseCon>(
+            setup, "transaction.db", TxnDBInit(setup.backend));
+        mLedgerDB = std::make_unique<DatabaseCon>(
+            setup, "ledger.db", LedgerDBInit(setup.backend));
+        mWalletDB = std::make_unique<DatabaseCon>(
+            setup, "wallet.db", WalletDBInit(setup.backend));
 
         return
             mTxnDB.get () != nullptr &&
@@ -1078,6 +1084,8 @@ private:
         bool isFilename);
 
     void setMaxDisallowedLedger();
+
+    bool isSqliteBackend() const;
 };
 
 //------------------------------------------------------------------------------
@@ -1119,7 +1127,7 @@ bool ApplicationImp::setup()
     if (!config_->standalone())
         timeKeeper_->run(config_->SNTP_SERVERS);
 
-    if (!initSqliteDbs ())
+    if (!initSqlDbs ())
     {
         JLOG(m_journal.fatal()) << "Cannot create database connections!";
         return false;
@@ -1128,16 +1136,19 @@ bool ApplicationImp::setup()
     if (validatorKeys_.publicKey.size())
         setMaxDisallowedLedger();
 
-    getLedgerDB ().getSession ()
-        << boost::str (boost::format ("PRAGMA cache_size=-%d;") %
-                        (config_->getSize (siLgrDBCache) * 1024));
+    if (isSqliteBackend())
+    {
+        *getLedgerDB().checkoutDb() << boost::str(
+            boost::format("PRAGMA cache_size=-%d;") %
+            (config_->getSize(siLgrDBCache) * 1024));
 
-    getTxnDB ().getSession ()
-            << boost::str (boost::format ("PRAGMA cache_size=-%d;") %
-                            (config_->getSize (siTxnDBCache) * 1024));
+        *getTxnDB().checkoutDb() << boost::str(
+            boost::format("PRAGMA cache_size=-%d;") %
+            (config_->getSize(siTxnDBCache) * 1024));
 
-    mTxnDB->setupCheckpointing (m_jobQueue.get(), logs());
-    mLedgerDB->setupCheckpointing (m_jobQueue.get(), logs());
+        mTxnDB->setupCheckpointing (m_jobQueue.get(), logs());
+        mLedgerDB->setupCheckpointing (m_jobQueue.get(), logs());
+    }
 
     if (!updateTables ())
         return false;
@@ -1882,7 +1893,8 @@ getSchema (DatabaseCon& dbc, std::string const& dbName)
     sql += "';";
 
     std::string r;
-    soci::statement st = (dbc.getSession ().prepare << sql,
+    auto db = dbc.checkoutDb();
+    soci::statement st = (db->prepare << sql,
                           soci::into(r));
     st.execute ();
     while (st.fetch ())
@@ -1915,7 +1927,11 @@ void ApplicationImp::addTxnSeqField ()
 
     JLOG (m_journal.warn()) << "Transaction sequence field is missing";
 
-    auto& session = getTxnDB ().getSession ();
+    auto db = getTxnDB().checkoutDb();
+    auto& session = *db;
+
+    // postgres blob operations must happen in a transaction
+    soci::transaction tr(session);
 
     std::vector< std::pair<uint256, int> > txIDs;
     txIDs.reserve (300000);
@@ -1965,8 +1981,6 @@ void ApplicationImp::addTxnSeqField ()
 
     JLOG (m_journal.info()) << "All " << i << " transactions read";
 
-    soci::transaction tr(session);
-
     JLOG (m_journal.info()) << "Dropping old index";
     session << "DROP INDEX AcctTxIndex;";
 
@@ -2002,7 +2016,8 @@ void ApplicationImp::addValidationSeqFields ()
     JLOG(m_journal.warn()) << "Validation sequence fields are missing";
     assert(!schemaHas(getLedgerDB(), "Validations", 0, "InitialSeq", m_journal));
 
-    auto& session = getLedgerDB().getSession();
+    auto db = getLedgerDB().checkoutDb();
+    auto& session = *db;
 
     soci::transaction tr(session);
 
@@ -2032,18 +2047,25 @@ bool ApplicationImp::updateTables ()
         return false;
     }
 
-    // perform any needed table updates
-    assert (schemaHas (getTxnDB (), "AccountTransactions", 0, "TransID", m_journal));
-    assert (!schemaHas (getTxnDB (), "AccountTransactions", 0, "foobar", m_journal));
-    addTxnSeqField ();
-
-    if (schemaHas (getTxnDB (), "AccountTransactions", 0, "PRIMARY", m_journal))
+    if (isSqliteBackend())
     {
-        JLOG (m_journal.fatal()) << "AccountTransactions database should not have a primary key";
-        return false;
-    }
+        // perform any needed table updates
+        assert(schemaHas(
+            getTxnDB(), "AccountTransactions", 0, "TransID", m_journal));
+        assert(!schemaHas(
+            getTxnDB(), "AccountTransactions", 0, "foobar", m_journal));
+        addTxnSeqField();
 
-    addValidationSeqFields ();
+        if (schemaHas(
+                getTxnDB(), "AccountTransactions", 0, "PRIMARY", m_journal))
+        {
+            JLOG(m_journal.fatal())
+                << "AccountTransactions database should not have a primary key";
+            return false;
+        }
+
+        addValidationSeqFields();
+    }
 
     if (config_->doImport)
     {
@@ -2102,6 +2124,13 @@ void ApplicationImp::setMaxDisallowedLedger()
 
     JLOG (m_journal.trace()) << "Max persisted ledger is "
                              << maxDisallowedLedger_;
+}
+
+bool ApplicationImp::isSqliteBackend() const
+{
+    using namespace std::string_literals;
+    auto const& section = config_->section ("sqdb");
+    return get<std::string>(section, "backend", "sqlite") == "sqlite"s;
 }
 
 

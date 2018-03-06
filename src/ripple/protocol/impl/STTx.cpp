@@ -227,17 +227,52 @@ Json::Value STTx::getJson (int options, bool binary) const
 }
 
 std::string const&
-STTx::getMetaSQLInsertReplaceHeader ()
+STTx::getMetaSQLUpsertHeader(std::string const& backendName)
 {
-    static std::string const sql = "INSERT OR REPLACE INTO Transactions "
+    using namespace std::string_literals;
+
+    static std::string const sqlite = "INSERT OR REPLACE INTO Transactions "
         "(TransID, TransType, FromAcct, FromSeq, LedgerSeq, Status, RawTxn, TxnMeta)"
         " VALUES ";
 
-    return sql;
+    static std::string const postgresql = "INSERT INTO Transactions "
+        "(TransID, TransType, FromAcct, FromSeq, LedgerSeq, Status, RawTxn, TxnMeta)"
+        " VALUES ";
+
+    if (backendName == "postgresql"s)
+        return postgresql;
+
+    return sqlite;
 }
 
-std::string STTx::getMetaSQL (std::uint32_t inLedger,
-                                               std::string const& escapedMetaData) const
+std::string const&
+STTx::getMetaSQLUpsertTail(std::string const& backendName)
+{
+    using namespace std::string_literals;
+
+    static std::string const sqlite = ""s;
+
+    static std::string const postgresql =
+            R"sql( ON CONFLICT (TransID) DO UPDATE SET
+                  TransID=EXCLUDED.TransID,
+                  TransType=EXCLUDED.TransType,
+                  FromAcct=EXCLUDED.FromAcct,
+                  FromSeq=EXCLUDED.FromSeq,
+                  LedgerSeq=EXCLUDED.LedgerSeq,
+                  Status=EXCLUDED.Status,
+                  RawTxn=EXCLUDED.RawTxn,
+                  TxnMeta=EXCLUDED.TxnMeta
+            )sql"s;
+
+    if (backendName == "postgresql"s)
+        return postgresql;
+
+    return sqlite;
+}
+
+std::string
+STTx::getMetaSQL(std::uint32_t inLedger, std::string const& escapedMetaData)
+    const
 {
     Serializer s;
     add (s);
@@ -259,6 +294,21 @@ STTx::getMetaSQL (Serializer rawTxn,
                 % to_string (getTransactionID ()) % format->getName ()
                 % toBase58(getAccountID(sfAccount))
                 % getSequence () % inLedger % status % rTxn % escapedMetaData);
+}
+
+std::string
+STTx::getMetaSQLPostgres(std::uint32_t inLedger) const
+{
+    static boost::format bfTrans(
+        "('%s', '%s', '%s', '%d', '%d', '%c', :rawTxn, :rawMeta)");
+
+    auto format = TxFormats::getInstance().findByType (tx_type_);
+    assert (format != nullptr);
+
+    return str (boost::format (bfTrans)
+                % to_string (getTransactionID ()) % format->getName ()
+                % toBase58(getAccountID(sfAccount))
+                % getSequence () % inLedger % TXN_SQL_VALIDATED);
 }
 
 std::pair<bool, std::string> STTx::checkSingleSign () const

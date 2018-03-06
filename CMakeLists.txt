@@ -164,6 +164,14 @@ setup_build_boilerplate()
 
 ############################################################
 
+set(with_postgres On)
+if(with_postgres)
+    find_package(PostgreSQL REQUIRED)
+    include_directories(${PostgreSQL_INCLUDE_DIRS})
+endif()
+
+############################################################
+
 if (is_clang)
   set(rocks_db_system_header --system-header-prefix=rocksdb2)
 else()
@@ -392,6 +400,9 @@ endif()
 add_with_props(rippled_src_all src/ripple/unity/soci.cpp
   ${soci_extra_includes})
 
+add_with_props(rippled_src_all src/ripple/unity/socipostgres.cpp
+  ${soci_extra_includes})
+
 if (NOT is_msvc)
   set(no_unused_w -Wno-unused-function)
 else()
@@ -480,6 +491,15 @@ list(APPEND targets ${other_target})
 # Not the same as EXCLUDE_FROM_ALL. Prevents Visual Studio from building the
 # other_target when the user builds the solution (default when pressing <F7>)
 set_property(TARGET ${other_target} PROPERTY EXCLUDE_FROM_DEFAULT_BUILD true)
+
+set(with_postgres On)
+if(with_postgres)
+    find_package(PostgreSQL)
+    target_link_libraries(rippled ${PostgreSQL_LIBRARIES})
+    add_definitions(
+    -DENABLE_SOCI_POSTGRESQL=1
+    )
+endif()
 
 find_program(
   B2_EXE

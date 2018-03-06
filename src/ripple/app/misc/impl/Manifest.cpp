@@ -347,6 +347,10 @@ ManifestCache::load (
     std::string const sql =
         "SELECT RawData FROM " + dbTable + ";";
     auto db = dbCon.checkoutDb ();
+
+    // postgres blob operations must happen in a transaction
+    soci::transaction tr(*db);
+
     soci::blob sociRawData (*db);
     soci::statement st =
         (db->prepare << sql,
@@ -438,6 +442,8 @@ void ManifestCache::save (
     DatabaseCon& dbCon, std::string const& dbTable,
     std::function <bool (PublicKey const&)> isTrusted)
 {
+    using namespace std::string_literals;
+
     std::lock_guard<std::mutex> lock{apply_mutex_};
 
     auto db = dbCon.checkoutDb ();
@@ -446,6 +452,8 @@ void ManifestCache::save (
     *db << "DELETE FROM " << dbTable;
     std::string const sql =
         "INSERT INTO " + dbTable + " (RawData) VALUES (:rawData);";
+
+    bool const isPostgres = db->get_backend_name() == "postgresql"s;
     for (auto const& v : map_)
     {
         // Save all revocation manifests,
@@ -462,6 +470,8 @@ void ManifestCache::save (
         // Do not reuse blob because manifest ecdsa signatures vary in length
         // but blob write length is expected to be >= the last write
         soci::blob rawData(*db);
+        if (isPostgres)
+            *db << "SELECT lo_creat(-1);", soci::into(rawData);
         convert (v.second.serialized, rawData);
         *db << sql,
             soci::use (rawData);

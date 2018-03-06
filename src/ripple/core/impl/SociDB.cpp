@@ -30,6 +30,9 @@
 #include <ripple/core/Config.h>
 #include <memory>
 #include <soci/sqlite3/soci-sqlite3.h>
+#if ENABLE_SOCI_POSTGRESQL
+#include <soci/postgresql/soci-postgresql.h>
+#endif
 #include <boost/filesystem.hpp>
 
 namespace ripple {
@@ -55,20 +58,87 @@ getSociSqliteInit (std::string const& name,
     return std::make_pair (file.string (), std::ref (soci::sqlite3));
 }
 
+#if ENABLE_SOCI_POSTGRESQL
+std::pair<std::string, soci::backend_factory const&>
+getSociPostgresqlInit (Section const& configSection,
+                       std::string const& name)
+{
+    if (name.empty ())
+    {
+        throw std::runtime_error (
+            "Missing required value for postgresql backend: database name");
+    }
+
+    std::string const host(get <std::string> (configSection, "host", ""));
+    if (host.empty())
+    {
+        throw std::runtime_error (
+            "Missing required value in config for postgresql backend: host");
+    }
+
+    std::string const user(get <std::string> (configSection, "user", ""));
+    if (user.empty ())
+    {
+        throw std::runtime_error (
+            "Missing required value in config for postgresql backend: user");
+    }
+
+    int const port = [&configSection]
+    {
+        std::string const portAsString (
+            get <std::string> (configSection, "port", ""));
+        if (portAsString.empty ())
+        {
+            throw std::runtime_error (
+                "Missing required value in config for postgresql backend: "
+                "user");
+        }
+        try
+        {
+            return std::stoi (portAsString);
+        }
+        catch (...)
+        {
+            throw std::runtime_error (
+                "The port value in the config for the postgresql backend must "
+                "be an integer. Got: " +
+                portAsString);
+        }
+    }();
+
+    std::stringstream s;
+    s << "host=" << host << " port=" << port << " dbname=" << name
+      << " user=" << user;
+    return std::make_pair (s.str (), std::ref(soci::postgresql));
+}
+#endif  // ENABLE_SOCI_POSTGRESQL
+
+
 std::pair<std::string, soci::backend_factory const&>
 getSociInit (BasicConfig const& config,
-             std::string const& dbName)
+             std::string const& dbName,
+             bool forceSqliteBackend=false)
 {
     auto const& section = config.section ("sqdb");
     auto const backendName = get(section, "backend", "sqlite");
 
-    if (backendName != "sqlite")
-        Throw<std::runtime_error> ("Unsupported soci backend: " + backendName);
+    if (forceSqliteBackend || backendName == "sqlite")
+    {
+        auto const path = config.legacy("database_path");
+        auto const ext = dbName == "validators" || dbName == "peerfinder"
+            ? ".sqlite"
+            : ".db";
+        return detail::getSociSqliteInit(dbName, path, ext);
+    }
 
-    auto const path = config.legacy ("database_path");
-    auto const ext = dbName == "validators" || dbName == "peerfinder"
-                ? ".sqlite" : ".db";
-    return detail::getSociSqliteInit(dbName, path, ext);
+#if ENABLE_SOCI_POSTGRESQL
+    if (backendName == "postgresql")
+    {
+        return detail::getSociPostgresqlInit(section, dbName);
+    }
+#endif
+
+    Throw<std::runtime_error> ("Unsupported soci backend: " + backendName);
 }
 
 } // detail
@@ -82,6 +152,14 @@ SociConfig::SociConfig (
 
 SociConfig::SociConfig (BasicConfig const& config, std::string const& dbName)
     : SociConfig (detail::getSociInit (config, dbName))
+{
+}
+
+SociConfig::SociConfig(
+    BasicConfig const& config,
+    std::string const& dbName,
+    ForceSqliteBackendTag)
+    : SociConfig(detail::getSociInit(config, dbName, true))
 {
 }
 
@@ -106,8 +184,11 @@ void open (soci::session& s,
            std::string const& beName,
            std::string const& connectionString)
 {
-    if (beName == "sqlite")
+    using namespace std::string_literals;
+    if (beName == "sqlite"s)
         s.open(soci::sqlite3, connectionString);
+    else if (beName == "postgresql"s)
+        s.open(soci::postgresql, connectionString);
     else
         Throw<std::runtime_error> ("Unsupported soci backend: " + beName);
 }

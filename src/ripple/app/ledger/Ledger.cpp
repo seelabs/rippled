@@ -803,6 +803,8 @@ static bool saveValidatedLedger (
     std::shared_ptr<Ledger const> const& ledger,
     bool current)
 {
+    using namespace std::string_literals;
+
     auto j = app.journal ("Ledger");
     auto seq = ledger->info().seq;
     if (! app.pendingSaves().startWork (seq))
@@ -945,28 +947,88 @@ static bool saveValidatedLedger (
                     << vt.second->getTxn()->getJson(0);
             }
 
-            *db <<
-               (STTx::getMetaSQLInsertReplaceHeader () +
-                vt.second->getTxn ()->getMetaSQL (
-                    seq, vt.second->getEscMeta ()) + ";");
+            if (db->get_backend_name() == "postgresql"s)
+            {
+                soci::blob rawTxn(*db);
+                soci::blob txnMeta(*db);
+
+                {
+                    *db << "SELECT lo_creat(-1);", soci::into(rawTxn);
+                    Serializer s;
+                    vt.second->getTxn()->add(s);
+                    rawTxn.append(
+                        reinterpret_cast<const char*>(s.data()), s.size());
+                }
+
+                {
+                    *db << "SELECT lo_creat(-1);", soci::into(txnMeta);
+                    Blob const& rawMeta = vt.second->getRawMeta();
+                    txnMeta.append(
+                        reinterpret_cast<const char*>(rawMeta.data()),
+                        rawMeta.size());
+                }
+
+                *db
+                    << (STTx::getMetaSQLUpsertHeader(db->get_backend_name()) +
+                        vt.second->getTxn()->getMetaSQLPostgres(seq) +
+                        STTx::getMetaSQLUpsertTail(db->get_backend_name()) +
+                        ";"),
+                    soci::use(rawTxn), soci::use(txnMeta);
+            }
+            else
+            {
+                *db
+                    << (STTx::getMetaSQLUpsertHeader(db->get_backend_name()) +
+                        vt.second->getTxn()->getMetaSQL(
+                            seq, vt.second->getEscMeta()) +
+                        STTx::getMetaSQLUpsertTail(db->get_backend_name()) +
+                        ";");
+            }
         }
 
         tr.commit ();
     }
 
     {
-        static std::string addLedger(
-            R"sql(INSERT OR REPLACE INTO Ledgers
+        using namespace std::string_literals;
+
+        static std::string const addLedgerHeaderPostgres = "INSERT INTO Ledgers"s;
+        static std::string const addLedgerHeaderSqlite = "INSERT OR REPLACE INTO Ledgers"s;
+
+        static std::string const addLedgerBody(
+            R"sql(
                 (LedgerHash,LedgerSeq,PrevHash,TotalCoins,ClosingTime,PrevClosingTime,
                 CloseTimeRes,CloseFlags,AccountSetHash,TransSetHash)
             VALUES
                 (:ledgerHash,:ledgerSeq,:prevHash,:totalCoins,:closingTime,:prevClosingTime,
-                :closeTimeRes,:closeFlags,:accountSetHash,:transSetHash);)sql");
+                :closeTimeRes,:closeFlags,:accountSetHash,:transSetHash))sql");
+
+        static std::string const addLedgerTailPostgres =
+            R"sql( ON CONFLICT (LedgerHash) DO UPDATE SET
+                LedgerHash=EXCLUDED.LedgerHash,
+                LedgerSeq=EXCLUDED.LedgerSeq,
+                PrevHash=EXCLUDED.PrevHash,
+                TotalCoins=EXCLUDED.TotalCoins,
+                ClosingTime=EXCLUDED.ClosingTime,
+                PrevClosingTime=EXCLUDED.PrevClosingTime,
+                CloseTimeRes=EXCLUDED.CloseTimeRes,
+                CloseFlags=EXCLUDED.CloseFlags,
+                AccountSetHash=EXCLUDED.AccountSetHash,
+                TransSetHash=EXCLUDED.TransSetHash
+                 ;)sql"s;
+        static std::string const addLedgerTailSqlite = " ;"s;
+
+        static std::string addLedgerPostgres = addLedgerHeaderPostgres + addLedgerBody + addLedgerTailPostgres;
+        static std::string addLedgerSqlite = addLedgerHeaderSqlite + addLedgerBody + addLedgerTailSqlite;
+
         static std::string updateVal(
             R"sql(UPDATE Validations SET LedgerSeq = :ledgerSeq, InitialSeq = :initialSeq
                 WHERE LedgerHash = :ledgerHash;)sql");
 
         auto db (app.getLedgerDB ().checkoutDb ());
+        auto const& addLedger =
+            (db->get_backend_name() == "postgresql"s ? addLedgerPostgres
+                                                     : addLedgerSqlite);
 
         soci::transaction tr(*db);
 
@@ -1241,16 +1303,21 @@ loadByHash (uint256 const& ledgerHash, Application& app)
 uint256
 getHashByIndex (std::uint32_t ledgerIndex, Application& app)
 {
-    uint256 ret;
+    using namespace std::string_literals;
 
-    std::string sql =
-        "SELECT LedgerHash FROM Ledgers INDEXED BY SeqLedger WHERE LedgerSeq='";
-    sql.append (beast::lexicalCastThrow <std::string> (ledgerIndex));
-    sql.append ("';");
+    uint256 ret;
 
     std::string hash;
     {
+
         auto db = app.getLedgerDB ().checkoutDb ();
+
+        std::string sql = db->get_backend_name() == "postgresql"s
+            ? "SELECT LedgerHash FROM Ledgers SeqLedger WHERE LedgerSeq='"
+            : "SELECT LedgerHash FROM Ledgers INDEXED BY SeqLedger WHERE "
+              "LedgerSeq='";
+        sql.append (beast::lexicalCastThrow <std::string> (ledgerIndex));
+        sql.append ("';");
 
         boost::optional<std::string> lh;
         *db << sql,
