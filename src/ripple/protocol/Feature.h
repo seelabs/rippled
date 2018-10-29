@@ -83,7 +83,11 @@ class FeatureCollections
         "fix1515",
         "fix1578",
         "MultiSignReserve",
-        "fixTakerDryOfferRemoval"
+        "fixTakerDryOfferRemoval",
+        "CryptoConditionEd25519",
+        "CryptoConditionPrefixSha256",
+        "CryptoConditionRsaSha256",
+        "CryptoConditionThresholdSha256"
     };
 
     std::vector<uint256> features;
@@ -373,6 +377,10 @@ extern uint256 const fix1515;
 extern uint256 const fix1578;
 extern uint256 const featureMultiSignReserve;
 extern uint256 const fixTakerDryOfferRemoval;
+extern uint256 const featureCryptoConditionEd25519;
+extern uint256 const featureCryptoConditionPrefixSha256;
+extern uint256 const featureCryptoConditionRsaSha256;
+extern uint256 const featureCryptoConditionThresholdSha256;
 
 } // ripple
 

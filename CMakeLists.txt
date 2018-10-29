@@ -140,27 +140,34 @@ option (werr "treat warnings as errors" OFF)
 set (san "" CACHE STRING "On gcc & clang, add sanitizer instrumentation")
 set_property (CACHE san PROPERTY STRINGS ";undefined;memory;address;thread")
 if (san)
-  string (TOLOWER ${san} san)
-  set (SAN_FLAG "-fsanitize=${san}")
+  string (REPLACE ";" "," comma_san "${san}")
+  set (SAN_FLAG "-fsanitize=${comma_san}")
+
   set (SAN_LIB "")
-  if (is_gcc)
-    if (san STREQUAL "address")
-      set (SAN_LIB "asan")
-    elseif (san STREQUAL "thread")
-      set (SAN_LIB "tsan")
-    elseif (san STREQUAL "memory")
-      set (SAN_LIB "msan")
-    elseif (san STREQUAL "undefined")
-      set (SAN_LIB "ubsan")
+  foreach(cur_san ${san})
+    string (TOLOWER ${cur_san} ci_san)
+    if (${ci_san} STREQUAL fuzzer)
+      set (SAN_FLAG_EXTRA "-fsanitize-coverage=trace-pc-guard")
+    endif()
+    if (is_gcc)
+      if (san STREQUAL "address")
+        set (SAN_LIB "asan")
+      elseif (san STREQUAL "thread")
+        set (SAN_LIB "tsan")
+      elseif (san STREQUAL "memory")
+        set (SAN_LIB "msan")
+      elseif (san STREQUAL "undefined")
+        set (SAN_LIB "ubsan")
+      endif ()
     endif ()
-  endif ()
+  endforeach ()
   set (_saved_CRL ${CMAKE_REQUIRED_LIBRARIES})
   set (CMAKE_REQUIRED_LIBRARIES "${SAN_FLAG};${SAN_LIB}")
   check_cxx_compiler_flag (${SAN_FLAG} COMPILER_SUPPORTS_SAN)
   set (CMAKE_REQUIRED_LIBRARIES ${_saved_CRL})
-  if (NOT COMPILER_SUPPORTS_SAN)
-    message (FATAL_ERROR "${san} sanitizer does not seem to be supported by your compiler")
-  endif ()
+  # if (NOT COMPILER_SUPPORTS_SAN)
+  #   message (FATAL_ERROR "${san} sanitizer does not seem to be supported by your compiler")
+  # endif ()
 endif ()
 
 # the remaining options are obscure and rarely used
@@ -346,7 +353,7 @@ if (use_gold AND is_gcc)
   unset (LD_VERSION)
 endif ()
 
-if (is_clang)
+if (Off AND is_clang)
   # use lld linker if available
   execute_process (
     COMMAND ${CMAKE_CXX_COMPILER} -fuse-ld=lld -Wl,--version
@@ -420,6 +427,7 @@ if (san)
   target_compile_options (opts
     INTERFACE
       ${SAN_FLAG}
+      ${SAN_FLAG_EXTRA}
       -fno-omit-frame-pointer)
   target_compile_definitions (opts
     INTERFACE
@@ -427,7 +435,7 @@ if (san)
       $<$<STREQUAL:${san},thread>:SANITIZER=TSAN>
       $<$<STREQUAL:${san},memory>:SANITIZER=MSAN>
       $<$<STREQUAL:${san},undefined>:SANITIZER=UBSAN>)
-  target_link_libraries (opts INTERFACE ${SAN_FLAG} ${SAN_LIB})
+  target_link_libraries (opts INTERFACE ${SAN_FLAG} ${SAN_FLAG_EXTRA} ${SAN_LIB})
 endif ()
 
 #[===================================================================[
@@ -2497,3 +2505,49 @@ else ()
   message (STATUS "doxygen executable not found -- skipping docs target")
 endif ()
 
+if (fuzzer_conditions)
+  set(FuzzerSrc
+    ${CMAKE_SOURCE_DIR}/src/fuzzers/fuzzer_unity.cpp)
+
+  add_executable(fulfillment_fuzzer  ${FuzzerSrc})
+  target_compile_options (fulfillment_fuzzer
+    PUBLIC
+    ${SAN_FLAG}
+    ${SAN_FLAG_EXTRA}
+    -fno-omit-frame-pointer)
+  target_link_libraries(fulfillment_fuzzer
+    ${SAN_FLAG}
+    ${SAN_FLAG_EXTRA}
+    Boost::boost
+    Boost::filesystem
+    Boost::system
+    ed25519-donna)
+  target_compile_definitions(fulfillment_fuzzer PUBLIC -DFUZZ_TEST_FULFILLMENT)
+
+  add_executable(condition_fuzzer  ${FuzzerSrc})
+  target_compile_options (condition_fuzzer
+    PUBLIC
+    ${SAN_FLAG}
+    ${SAN_FLAG_EXTRA}
+    -fno-omit-frame-pointer)
+  target_include_directories (condition_fuzzer
+    PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    $<INSTALL_INTERFACE:include>
+    PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ed25519-donna)
+  target_link_libraries(condition_fuzzer
+    PUBLIC
+    ${SAN_FLAG}
+    ${SAN_FLAG_EXTRA}
+    Boost::boost
+    Boost::filesystem
+    Boost::system
+    OpenSSL::SSL)
+  target_compile_definitions(condition_fuzzer PUBLIC -DFUZZ_TEST_CONDITION)
+endif()
+
+if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+  message(WARNING "Rippled requires a 64 bit target architecture.\n"
+    "The most likely cause of this warning is trying to build rippled with a 32-bit OS.")
+endif()

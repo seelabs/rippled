@@ -1051,7 +1051,7 @@ struct Escrow_test : public beast::unit_test::suite
 
             // FIXME: this transaction should, eventually, return temDISABLED
             //        instead of temMALFORMED.
-            env(escrow("alice", "bob", XRP(1000)), condition(cb),
+            env(escrow("alice", "bob", XRP(1000)), makeSlice(cb),
                 cancel_time(env.now() + 1s), ter(temMALFORMED));
         }
     }

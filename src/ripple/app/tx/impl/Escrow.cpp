@@ -94,6 +94,49 @@ EscrowCreate::calculateMaxSpend(STTx const& tx)
     return tx[sfAmount].xrp();
 }
 
+template <std::size_t N>
+static bool
+checkConditionsFeatureEnabled(
+    std::bitset<N> const& bitset,
+    Rules const& rules)
+{
+    static_assert(
+        N == 1 + static_cast<std::size_t>(cryptoconditions::Type::last), "");
+    // don't a static array in case the order of the enum changes
+    auto intToFeature = [](std::size_t type) -> uint256 {
+        using namespace cryptoconditions;
+        Type const typeAsEnum = static_cast<Type>(type);
+        switch (typeAsEnum)
+        {
+            case Type::preimageSha256:
+                // No feature for preimage
+                assert(0);
+                return beast::zero;
+            case Type::prefixSha256:
+                return featureCryptoConditionPrefixSha256;
+            case Type::thresholdSha256:
+                return featureCryptoConditionThresholdSha256;
+            case Type::rsaSha256:
+                return featureCryptoConditionRsaSha256;
+            case Type::ed25519Sha256:
+                return featureCryptoConditionEd25519;
+            default:
+                assert(0);
+                return beast::zero;
+        }
+    };
+
+    for (std::size_t i = 0; i < N; ++i)
+    {
+        if (static_cast<cryptoconditions::Type>(i) ==
+            cryptoconditions::Type::preimageSha256)
+            continue;
+        if (bitset.test(i) && !rules.enabled(intToFeature(i)))
+            return false;
+    }
+    return true;
+}
+
 NotTEC
 EscrowCreate::preflight (PreflightContext const& ctx)
 {
@@ -139,17 +182,22 @@ EscrowCreate::preflight (PreflightContext const& ctx)
 
         std::error_code ec;
 
-        auto condition = Condition::deserialize(*cb, ec);
-        if (!condition)
+        auto const condition = Condition::deserialize(*cb, ec);
+        if (ec)
         {
             JLOG(ctx.j.debug()) <<
                 "Malformed condition during escrow creation: " << ec.message();
             return temMALFORMED;
         }
 
+        // Check if individual amendments are enabled
+        if (!checkConditionsFeatureEnabled(
+                condition.selfAndSubtypes(), ctx.rules))
+            return temDISABLED;
+
         // Conditions other than PrefixSha256 require the
         // "CryptoConditionsSuite" amendment:
-        if (condition->type != Type::preimageSha256 &&
+        if (condition.type != Type::preimageSha256 &&
                 !ctx.rules.enabled(featureCryptoConditionsSuite))
             return temDISABLED;
     }
@@ -285,14 +333,14 @@ checkCondition (Slice f, Slice c)
     std::error_code ec;
 
     auto condition = Condition::deserialize(c, ec);
-    if (!condition)
+    if (ec)
         return false;
 
     auto fulfillment = Fulfillment::deserialize(f, ec);
     if (!fulfillment)
         return false;
 
-    return validate (*fulfillment, *condition);
+    return validate (*fulfillment, condition);
 }
 
 NotTEC
