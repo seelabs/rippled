@@ -21,6 +21,7 @@
 #include <ripple/beast/xor_shift_engine.h>
 #include <ripple/protocol/digest.h>
 #include <ripple/protocol/tokens.h>
+#include <boost/algorithm/clamp.hpp>
 #include <boost/container/small_vector.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <cassert>
@@ -869,10 +870,8 @@ public:
                     auto const ai = std::stoi(a, &sz);
                     if (a.size() == sz)
                     {
-                        numTestIterations =
-                            std::min<std::size_t>(ai, maxIterations);
-                        numTestIterations = std::max<std::size_t>(
-                            numTestIterations, minIterations);
+                        numTestIterations = boost::algorithm::clamp(
+                            ai, minIterations, maxIterations);
                     }
                 }
                 catch (...)
