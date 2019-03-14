@@ -171,6 +171,21 @@ decodeBase58Resizable(
     Slice s,
     MutableSlice result);
 
+
+/** Low-level decode routine. This is useful for testing, but otherwise should not be used.
+
+    The checksum is not tested and a result may be return even when the checksum
+    does not match. The value will be decoded into the slice specified by the
+    `result` parameter. The result may be smaller than the specified slice. In
+    that case the returned slice will be a proper subset of the result slice. If
+    the result is larger than the space allowed by `result` then `boost::none`
+    is returned.
+*/
+boost::optional<std::pair<Slice, DecodeMetadata>>
+decodeBase58ResizableNoChecksumTest(
+    Slice s,
+    MutableSlice result);
+
 } // ripple
 
 #endif

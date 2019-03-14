@@ -636,13 +636,64 @@ decodeBase58TokenBitcoin(Slice s, TokenType type, MutableSlice result)
 }
 
 boost::optional<std::pair<Slice, DecodeMetadata>>
-decodeBase58Resizable(Slice s, MutableSlice result)
+decodeBase58ResizableNoChecksumTest(Slice s, MutableSlice result)
 {
     DecodeBase58Detail::bitset flags;
     flags.set(DecodeBase58Detail::maybeSecret);
     flags.set(DecodeBase58Detail::maybeRippleLibEncoded);
     flags.set(DecodeBase58Detail::allowResize);
     return decodeBase58(s, result, rippleInverse, flags);
+}
+
+boost::optional<std::pair<Slice, DecodeMetadata>>
+decodeBase58Resizable(Slice s, MutableSlice result)
+{
+    auto r = decodeBase58ResizableNoChecksumTest(s, result);
+    if (!r)
+        return {};
+    Slice decoded;
+    DecodeMetadata metadata;
+    std::tie(decoded, metadata) = *r;
+
+    ExtraB58Encoding extraB58Encoding = ExtraB58Encoding::None;
+    if (metadata.isRippleLibEncoded())
+    {
+        // ripple lib encoded seed
+        // ripple-lib encodes seed used to generate an Ed25519 wallet in a
+        // non-standard way. While rippled never encode seeds that way, we
+        // try to detect such keys to avoid user confusion.
+        if (TokenType::None != safe_cast<TokenType>(metadata.tokenType))
+            return {};
+        extraB58Encoding = ExtraB58Encoding::RippleLib;
+    }
+    else
+    {
+        if (metadata.encodingType[0] != 0 || metadata.encodingType[1] != 0)
+            return {};
+    }
+    std::array<std::uint8_t, checksumBytes> const guard = [&] {
+        std::array<std::uint8_t, checksumBytes> g;
+        if (metadata.encodingType[0] == 0 && metadata.encodingType[1] == 0)
+        {
+            Slice prefix(&metadata.tokenType, sizeof(metadata.tokenType));
+            checksum(g.data(), prefix, decoded);
+            return g;
+        }
+        else
+        {
+            // ripple lib encoded seed
+            assert(extraB58Encoding == ExtraB58Encoding::RippleLib);
+            std::array<std::uint8_t, 3> prefix{metadata.tokenType,
+                                               metadata.encodingType[0],
+                                               metadata.encodingType[1]};
+            checksum(g.data(), Slice(prefix.data(), prefix.size()), decoded);
+            return g;
+        }
+    }();
+    if (!std::equal(guard.begin(), guard.end(), metadata.checksum.begin()))
+        return {};
+
+    return r;
 }
 
 bool DecodeMetadata::isRippleLibEncoded() const
