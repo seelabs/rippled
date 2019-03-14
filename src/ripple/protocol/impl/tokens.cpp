@@ -601,12 +601,11 @@ static InverseAlphabet rippleInverse(rippleAlphabet);
 static InverseAlphabet bitcoinInverse(bitcoinAlphabet);
 
 bool
-decodeBase58Token(
-    Slice s,
-    TokenType type,
-    MutableSlice result)
+decodeBase58Token(Slice s, TokenType type, MutableSlice result)
 {
     DecodeBase58Detail::bitset flags;
+    if (type == TokenType::FamilySeed)
+        flags.set(DecodeBase58Detail::maybeRippleLibEncoded);
     if (auto r = decodeBase58Token(s, type, result, rippleInverse, flags))
         return true;
     return false;
