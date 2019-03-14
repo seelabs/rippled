@@ -615,6 +615,9 @@ decodeBase58Token(
 boost::optional<ExtraB58Encoding>
 decodeBase58FamilySeed(Slice s, MutableSlice result)
 {
+    if (result.size() != familySeedBytes)
+        return {};
+
     DecodeBase58Detail::bitset flags;
     flags.set(DecodeBase58Detail::maybeRippleLibEncoded);
     flags.set(DecodeBase58Detail::maybeSecret);
