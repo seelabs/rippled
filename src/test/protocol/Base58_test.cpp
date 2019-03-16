@@ -321,6 +321,8 @@ decodeBase58TokenBitcoin(std::string const& s, TokenType type)
 
 class Base58_test : public beast::unit_test::suite
 {
+    beast::xor_shift_engine engine_;  // use the default seed for repeatability
+
     bool
     checkMatch(Slice expected, Slice got, DecodeMetadata const& metadata)
     {
@@ -385,86 +387,184 @@ class Base58_test : public beast::unit_test::suite
         }
         return true;
     }
+
+    /** Generate a random string of base58 characters. Do not generate a
+     * checksum */
     void
-    randomEncodedBase58(beast::xor_shift_engine& engine, MutableSlice result)
+    randomEncodedBase58(MutableSlice result)
     {
         std::uniform_int_distribution<std::uint8_t> d(0, 57);
-        for (auto i = result.data(), e = result.data() + result.size(); i != e;
-             ++i)
-            *i = Base58TestDetail::rippleAlphabet[d(engine)];
+        std::generate(result.data(), result.data() + result.size(), [&] {
+            return Base58TestDetail::rippleAlphabet[d(engine_)];
+        });
     }
 
-    void
-    randomFill(beast::xor_shift_engine& engine, MutableSlice result)
+    /** Generate test data to decode
+
+        @Note The memory of the generated result is managed by this class
+     */
+    template <std::size_t MaxResultSize>
+    class GenerateDecodeData
     {
-        std::uniform_int_distribution<std::uint8_t> d(0, 255);
-        for (auto i = result.data(), e = result.data() + result.size(); i != e;
-             ++i)
-            *i = d(engine);
-    }
+        beast::xor_shift_engine
+            engine_;  // use the default seed for repeatability
+
+        // Buffer to allocate results from
+        std::array<std::uint8_t, MaxResultSize> buf_;
+        // Size of the result
+        std::size_t resultSize_{0};
+        // Force a ripple lib prefix (0x010E14B) to the result
+        bool forceRippleLibPrefix_{false};
+        // Fill the start of the result with fillPrefixSize_ bytes of
+        // fillPrefixValue_
+        std::size_t fillPrefixSize_{0};
+        std::uint8_t fillPrefixValue_{0};
+        // Fill the start of the result with the values in this slice (may be
+        // empty)
+        Slice varPrefix_;
+
+    public:
+        std::size_t
+        maxResultSize() const
+        {
+            return buf_.size();
+        }
+
+        GenerateDecodeData&
+        resultSize(std::size_t v)
+        {
+            resultSize_ = v;
+            return *this;
+        }
+
+        GenerateDecodeData&
+        forceRippleLibPrefix(bool v)
+        {
+            forceRippleLibPrefix_ = v;
+            return *this;
+        }
+
+        GenerateDecodeData&
+        fillPrefix(std::size_t fillSize, std::uint8_t fillValue)
+        {
+            fillPrefixSize_ = fillSize;
+            fillPrefixValue_ = fillValue;
+            return *this;
+        }
+
+        GenerateDecodeData&
+        varPrefix(Slice v)
+        {
+            varPrefix_ = v;
+            return *this;
+        }
+
+        /** Generate data to decode. Generate a valid checksum for the data */
+        MutableSlice
+        generate()
+        {
+            assert(resultSize_ <= buf_.size());
+            MutableSlice result(buf_.data(), resultSize_);
+            {
+                // random fill
+                std::uniform_int_distribution<std::uint8_t> d(0, 255);
+                std::generate(
+                    result.data(), result.data() + result.size(), [&] {
+                        return d(engine_);
+                    });
+            }
+            if (fillPrefixSize_ > 0)
+                memset(
+                    result.data(),
+                    fillPrefixValue_,
+                    std::min(fillPrefixSize_, result.size()));
+
+            assert(!(forceRippleLibPrefix_ && !varPrefix_.empty()));
+            if (forceRippleLibPrefix_ && result.size() > 3)
+            {
+                result.data()[0] = 0x01;
+                result.data()[1] = 0xE1;
+                result.data()[2] = 0x4B;
+            }
+            else if (!varPrefix_.empty())
+            {
+                memcpy(result.data(), varPrefix_.data(), varPrefix_.size());
+            }
+
+            Base58TestDetail::checksum(
+                result.data() + result.size() - 4,
+                result.data(),
+                result.size() - 4);
+
+            return result;
+        }
+    };
 
     void
     testRandomEncodeDecode(std::size_t numTestIterations)
     {
         testcase("base58 random encode/decode");
-        beast::xor_shift_engine
-            engine;  // use the default seed for repeatability
         std::uniform_int_distribution<std::uint8_t> decodeSizeDist(10, 34);
         std::uniform_int_distribution<std::uint8_t> leadingZeroesDist(1, 6);
         std::uniform_real_distribution<float> zeroOneDist(0.0f, 1.0f);
-        std::array<std::uint8_t, MaxDecodedTokenBytes> decodeBuf;
+        GenerateDecodeData<MaxDecodedTokenBytes> genDecodeData;
         for (int i = 0; i < numTestIterations; i++)
         {
-            std::size_t const decodeSize = decodeSizeDist(engine);
-            // 25% chance of leading zeros;
-            std::size_t const leadingZeroes =
-                (zeroOneDist(engine) > 0.75) ? leadingZeroesDist(engine) : 0;
-            // 2% of test cases will start with 0x01e14b - the prefix used to
+            // force test case to start with 0x01e14b - the prefix used to
             // distinguish a ripple lib encoded seed
-            bool const forceRippleLibPrefix = zeroOneDist(engine) > 0.98f;
-            assert(decodeSize <= decodeBuf.size() - 4);
-            MutableSlice decodeSlice(decodeBuf.data(), decodeSize);
-            MutableSlice noChecksumDecodeSlice(
-                decodeSlice.data(), decodeSlice.size() - 4);
-            randomFill(engine, noChecksumDecodeSlice);
-            if (leadingZeroes > 0)
-                memset(
-                    noChecksumDecodeSlice.data(),
-                    0,
-                    std::min(leadingZeroes, noChecksumDecodeSlice.size()));
-            if (forceRippleLibPrefix)
-            {
-                noChecksumDecodeSlice.data()[0] = 0x01;
-                noChecksumDecodeSlice.data()[1] = 0xE1;
-                noChecksumDecodeSlice.data()[2] = 0x4B;
-            }
-            Base58TestDetail::checksum(
-                decodeSlice.data() + decodeSlice.size() - 4,
-                noChecksumDecodeSlice.data(),
-                noChecksumDecodeSlice.size());
-            DecodeMetadata const metadataRef = [&decodeSlice] {
-                DecodeMetadata result;
-                result.tokenType = decodeSlice[0];
+            bool const forceRippleLibPrefix = zeroOneDist(engine_) > 0.90f;
+            std::size_t const decodeSize = [&]() -> size_t {
+                if (forceRippleLibPrefix)
+                {
+                    // The correct size for a ripple lib encoded seed is 23
+                    // Since the probably of forcing a ripple lib prefix is
+                    // small, we usually want to give the correct size (or we
+                    // will rarely test the case that succeeds). So give a small
+                    // chance of too small, and a small chance of too large.
+                    // Usually return the correct size.
+                    auto const p = zeroOneDist(engine_);
+                    if (p < 0.05)
+                        return 22;
+                    else if (p > 0.95)
+                        return 24;
+                    return 23;
+                }
+                return decodeSizeDist(engine_);
+            }();
+            // number of forced leading zeros
+            std::size_t const leadingZeroes =
+                (zeroOneDist(engine_) > 0.75) ? leadingZeroesDist(engine_) : 0;
+            assert(decodeSize <= genDecodeData.maxResultSize() - 4);
+
+            MutableSlice decodeSlice =
+                genDecodeData.resultSize(decodeSize)
+                    .forceRippleLibPrefix(forceRippleLibPrefix)
+                    .fillPrefix(leadingZeroes, 0)
+                    .generate();
+
+            DecodeMetadata const metadataRef = [&] {
+                DecodeMetadata m;
+                m.tokenType = decodeSlice[0];
                 if (decodeSlice.size() == 23 &&
-                    result.tokenType ==
-                        static_cast<std::uint8_t>(TokenType::None) &&
+                    m.tokenType == static_cast<std::uint8_t>(TokenType::None) &&
                     decodeSlice[1] == std::uint8_t(0xE1) &&
                     decodeSlice[2] == std::uint8_t(0x4B))
                 {
-                    result.encodingType[0] = 0xE1;
-                    result.encodingType[1] = 0x4B;
+                    m.encodingType[0] = 0xE1;
+                    m.encodingType[1] = 0x4B;
                 }
                 else
                 {
-                    result.encodingType[0] = 0;
-                    result.encodingType[1] = 0;
+                    m.encodingType[0] = 0;
+                    m.encodingType[1] = 0;
                 }
                 memcpy(
-                    result.checksum.data(),
+                    m.checksum.data(),
                     decodeSlice.data() + decodeSlice.size() - 4,
                     4);
-                return result;
+                return m;
             }();
+
             auto const decodeAsToken = metadataRef.isRippleLibEncoded()
                 ? TokenType::FamilySeed
                 : static_cast<TokenType>(decodeSlice[0]);
@@ -483,78 +583,49 @@ class Base58_test : public beast::unit_test::suite
             std::array<std::uint8_t, 2 * MaxDecodedTokenBytes>
                 decodeResultBuf;  //*2 to allow oversized tests
 
-            for (auto allowResize : {true, false})
+            for (auto resultBufSizeDelta : {-5, -1, 0, 1, 5})
             {
-                for (auto resultBufSizeDelta : {-5, -1, 0, 1, 5})
-                {
-                    auto resultBuf = MutableSlice(
-                        decodeResultBuf.data(),
-                        decodeSize - 5 +
-                            resultBufSizeDelta);  // -5 for token and checksum
-                    if (allowResize)
-                    {
-                        auto const decodedRaw = decodeBase58Resizable(
-                            makeSlice(encoded), resultBuf);
-                        if (!metadataRef.isRippleLibEncoded())
-                        {
-                            bool const expectDecoded = resultBufSizeDelta >= 0;
-                            BEAST_EXPECT(expectDecoded == bool(decodedRaw));
-                            if (decodedRaw)
-                                BEAST_EXPECT(checkMatch(
-                                    decodeSlice,
-                                    decodedRaw->first,
-                                    decodedRaw->second));
-                        }
-                    }
-                    else
-                    {
-                        // TBD
-                    }
-                    if (!allowResize)
-                    {
-                        {
-                            auto const wasDecoded = decodeBase58Token(
-                                makeSlice(encoded), decodeAsToken, resultBuf);
-                            auto const decodedTokenRef =
-                                Base58TestDetail::decodeBase58Token(
-                                    encoded, decodeAsToken);
-                            if (resultBufSizeDelta == 0)
-                            {
-                                if (!metadataRef.isRippleLibEncoded())
-                                {
-                                    BEAST_EXPECT(
-                                        decodedTokenRef.empty() != wasDecoded);
-                                    if (wasDecoded)
-                                        BEAST_EXPECT(std::equal(
-                                            makeSlice(decodedTokenRef).begin(),
-                                            makeSlice(decodedTokenRef).end(),
-                                            resultBuf.begin(),
-                                            resultBuf.end()));
-                                }
-                                else
-                                {
-                                    // TBD
-                                }
-                            }
-                            else
-                            {
-                                BEAST_EXPECT(!wasDecoded);
-                            }
-                            memset(resultBuf.data(), 0, resultBuf.size());
-                        }
+                auto resultBuf = [&] {
+                    std::size_t s = decodeSize - 5 +
+                        resultBufSizeDelta;  // -5 for token and checksum
+                    if (metadataRef.isRippleLibEncoded() && s > 2)
+                        s -= 2;  // the two ripple lib prefix bytes
+                    // aren't decoded into the result
+                    return MutableSlice(decodeResultBuf.data(), s);
+                }();
 
+                {
+                    // Allow resize
+                    auto const decodedRaw =
+                        decodeBase58Resizable(makeSlice(encoded), resultBuf);
+                    if (!metadataRef.isRippleLibEncoded())
+                    {
+                        bool const expectDecoded = resultBufSizeDelta >= 0;
+                        BEAST_EXPECT(expectDecoded == bool(decodedRaw));
+                        if (decodedRaw)
+                            BEAST_EXPECT(checkMatch(
+                                decodeSlice,
+                                decodedRaw->first,
+                                decodedRaw->second));
+                    }
+                }
+                {
+                    // Don't allow resize
+                    {
+                        // Decode ripple token
+                        auto const wasDecoded = decodeBase58Token(
+                            makeSlice(encoded), decodeAsToken, resultBuf);
+                        auto const decodedTokenRef = [&] {
+                            auto tok = decodeAsToken;
+                            if (metadataRef.isRippleLibEncoded())
+                                tok = TokenType::None;
+                            return Base58TestDetail::decodeBase58Token(
+                                encoded, tok);
+                        }();
+                        if (resultBufSizeDelta == 0)
                         {
-                            auto const wasDecoded = decodeBase58TokenBitcoin(
-                                makeSlice(encodedBitcoin),
-                                decodeAsToken,
-                                resultBuf);
-                            auto const decodedTokenRef =
-                                Base58TestDetail::decodeBase58Token(
-                                    encoded, decodeAsToken);
-                            if (resultBufSizeDelta == 0)
+                            if (!metadataRef.isRippleLibEncoded())
                             {
-                                // ripple lib encoding shouldn't matter for
-                                // bitcoin encoding
                                 BEAST_EXPECT(
                                     decodedTokenRef.empty() != wasDecoded);
                                 if (wasDecoded)
@@ -566,79 +637,125 @@ class Base58_test : public beast::unit_test::suite
                             }
                             else
                             {
-                                BEAST_EXPECT(!wasDecoded);
+                                BEAST_EXPECT(
+                                    decodedTokenRef.empty() != wasDecoded);
+                                if (wasDecoded)
+                                {
+                                    BEAST_EXPECT(
+                                        decodedTokenRef.size() - 2 ==
+                                        resultBuf.size());
+                                    // the first type bytes in decodedToken
+                                    // will be the ripple lib prefix. Don't
+                                    // check them.
+                                    BEAST_EXPECT(std::equal(
+                                        makeSlice(decodedTokenRef).begin() + 2,
+                                        makeSlice(decodedTokenRef).end(),
+                                        resultBuf.begin(),
+                                        resultBuf.end()));
+                                }
                             }
-                            memset(resultBuf.data(), 0, resultBuf.size());
                         }
-
+                        else
                         {
-                            auto const decodedToken =
-                                [&]() -> boost::optional<
-                                          std::pair<Slice, ExtraB58Encoding>> {
-                                MutableSlice rb = resultBuf;
-                                if (metadataRef.isRippleLibEncoded() &&
-                                    resultBuf.size() == 18)
-                                {
-                                    rb = MutableSlice(
-                                        resultBuf.data(), resultBuf.size() - 2);
-                                }
-                                if (auto encoding = decodeBase58FamilySeed(
-                                        makeSlice(encoded), rb))
-                                {
-                                    return std::make_pair(Slice(rb), *encoding);
-                                }
-                                return {};
-                            }();
-                            auto const decodedTokenRef =
-                                Base58TestDetail::decodeBase58Token(
-                                    encoded,
-                                    metadataRef.isRippleLibEncoded()
-                                        ? TokenType::None
-                                        : TokenType::FamilySeed);
-                            size_t const validTokenRefSize =
-                                metadataRef.isRippleLibEncoded() ? 18 : 16;
-                            if (resultBufSizeDelta == 0 &&
-                                decodedTokenRef.size() == validTokenRefSize)
+                            BEAST_EXPECT(!wasDecoded);
+                        }
+                        memset(resultBuf.data(), 0, resultBuf.size());
+                    }
+
+                    {
+                        // Deocde bitcoin token
+                        auto const wasDecoded = decodeBase58TokenBitcoin(
+                            makeSlice(encodedBitcoin),
+                            decodeAsToken,
+                            resultBuf);
+                        auto const decodedTokenRef =
+                            Base58TestDetail::decodeBase58Token(
+                                encoded, decodeAsToken);
+                        if (resultBufSizeDelta == 0)
+                        {
+                            // ripple lib encoding shouldn't matter for
+                            // bitcoin encoding
+                            BEAST_EXPECT(decodedTokenRef.empty() != wasDecoded);
+                            if (wasDecoded)
+                                BEAST_EXPECT(std::equal(
+                                    makeSlice(decodedTokenRef).begin(),
+                                    makeSlice(decodedTokenRef).end(),
+                                    resultBuf.begin(),
+                                    resultBuf.end()));
+                        }
+                        else
+                        {
+                            BEAST_EXPECT(!wasDecoded);
+                        }
+                        memset(resultBuf.data(), 0, resultBuf.size());
+                    }
+
+                    {
+                        // Decode family seed token
+                        auto const decodedToken =
+                            [&]() -> boost::optional<
+                                      std::pair<Slice, ExtraB58Encoding>> {
+                            MutableSlice rb = resultBuf;
+                            if (metadataRef.isRippleLibEncoded() &&
+                                resultBuf.size() == 18)
                             {
-                                BEAST_EXPECT(
-                                    decodeAsToken == TokenType::FamilySeed ||
-                                    !decodedToken);
-                                bool const decodedAsRippleLib = decodedToken &&
-                                    decodedToken->second ==
-                                        ExtraB58Encoding::RippleLib;
-                                BEAST_EXPECT(
-                                    !decodedToken ||
-                                    decodedAsRippleLib ==
-                                        metadataRef.isRippleLibEncoded());
-                                BEAST_EXPECT(
-                                    decodedTokenRef.empty() !=
-                                    bool(decodedToken));
-                                if (!metadataRef.isRippleLibEncoded())
-                                {
-                                    if (decodedToken)
-                                        BEAST_EXPECT(std::equal(
-                                            makeSlice(decodedTokenRef).begin(),
-                                            makeSlice(decodedTokenRef).end(),
-                                            decodedToken->first.begin(),
-                                            decodedToken->first.end()));
-                                }
-                                else
-                                {
-                                    if (decodedToken)
-                                        BEAST_EXPECT(std::equal(
-                                            makeSlice(decodedTokenRef).begin() +
-                                                2,
-                                            makeSlice(decodedTokenRef).end(),
-                                            decodedToken->first.begin(),
-                                            decodedToken->first.end()));
-                                }
+                                rb = MutableSlice(
+                                    resultBuf.data(), resultBuf.size() - 2);
+                            }
+                            if (auto encoding = decodeBase58FamilySeed(
+                                    makeSlice(encoded), rb))
+                            {
+                                return std::make_pair(Slice(rb), *encoding);
+                            }
+                            return {};
+                        }();
+                        auto const decodedTokenRef =
+                            Base58TestDetail::decodeBase58Token(
+                                encoded,
+                                metadataRef.isRippleLibEncoded()
+                                    ? TokenType::None
+                                    : TokenType::FamilySeed);
+                        size_t const validTokenRefSize =
+                            metadataRef.isRippleLibEncoded() ? 18 : 16;
+                        if (resultBufSizeDelta == 0 &&
+                            decodedTokenRef.size() == validTokenRefSize)
+                        {
+                            BEAST_EXPECT(
+                                decodeAsToken == TokenType::FamilySeed ||
+                                !decodedToken);
+                            bool const decodedAsRippleLib = decodedToken &&
+                                decodedToken->second ==
+                                    ExtraB58Encoding::RippleLib;
+                            BEAST_EXPECT(
+                                !decodedToken ||
+                                decodedAsRippleLib ==
+                                    metadataRef.isRippleLibEncoded());
+                            BEAST_EXPECT(
+                                decodedTokenRef.empty() != bool(decodedToken));
+                            if (!metadataRef.isRippleLibEncoded())
+                            {
+                                if (decodedToken)
+                                    BEAST_EXPECT(std::equal(
+                                        makeSlice(decodedTokenRef).begin(),
+                                        makeSlice(decodedTokenRef).end(),
+                                        decodedToken->first.begin(),
+                                        decodedToken->first.end()));
                             }
                             else
                             {
-                                // TBD
+                                if (decodedToken)
+                                    BEAST_EXPECT(std::equal(
+                                        makeSlice(decodedTokenRef).begin() + 2,
+                                        makeSlice(decodedTokenRef).end(),
+                                        decodedToken->first.begin(),
+                                        decodedToken->first.end()));
                             }
-                            memset(resultBuf.data(), 0, resultBuf.size());
                         }
+                        else
+                        {
+                            BEAST_EXPECT(!decodedToken);
+                        }
+                        memset(resultBuf.data(), 0, resultBuf.size());
                     }
                 }
             }
@@ -649,8 +766,6 @@ class Base58_test : public beast::unit_test::suite
     testRandomDecode(std::size_t numTestIterations)
     {
         testcase("Random Decode");
-        beast::xor_shift_engine
-            engine;  // use the default seed for repeatability
         constexpr size_t maxEncodeSize = 52;  // ceil(log(2^(8*38), 58))
         std::uniform_int_distribution<std::uint8_t> encodeSizeDist(
             5, maxEncodeSize);
@@ -661,10 +776,10 @@ class Base58_test : public beast::unit_test::suite
             decodeResultBuf;  //*2 to allow oversized tests
         for (int i = 0; i < numTestIterations; i++)
         {
-            std::size_t const encodeSize = encodeSizeDist(engine);
-            std::size_t const leadingZeroes = leadingZeroesDist(engine);
+            std::size_t const encodeSize = encodeSizeDist(engine_);
+            std::size_t const leadingZeroes = leadingZeroesDist(engine_);
             encoded.resize(encodeSize);
-            randomEncodedBase58(engine, makeMutableSlice(encoded));
+            randomEncodedBase58(makeMutableSlice(encoded));
             for (int si = 0, se = std::min(encoded.size(), leadingZeroes);
                  si != se;
                  ++si)
@@ -681,8 +796,8 @@ class Base58_test : public beast::unit_test::suite
                     decodeResultBuf.data(),
                     decodeSize - 5 +
                         resultBufSizeDelta);  // -5 for token and checksum
-                auto const decoded =
-                    decodeBase58Resizable(makeSlice(encoded), resultBuf);
+                auto const decoded = decodeBase58ResizableNoChecksumTest(
+                    makeSlice(encoded), resultBuf);
                 bool const expectDecoded = !decodedRef.empty() &&
                     (decodeSize > 4) &&
                     (decodeSize - 5 + resultBufSizeDelta <=
@@ -705,28 +820,19 @@ class Base58_test : public beast::unit_test::suite
         testcase("base58 min/max encode/decode");
         // encode all zeros and all 0xff of different sizes
         constexpr std::size_t maxTestDecodeBytes = 40;
-        std::array<std::uint8_t, maxTestDecodeBytes + 4> decodeBuf;
+        GenerateDecodeData<maxTestDecodeBytes + 4> genDecodeData;
         for (std::size_t decodeSize = 5; decodeSize <= maxTestDecodeBytes;
              ++decodeSize)
         {
-            assert(decodeSize <= decodeBuf.size() - 4);
-            MutableSlice decodeSlice(decodeBuf.data(), decodeSize);
-            MutableSlice noChecksumDecodeSlice(
-                decodeSlice.data(), decodeSlice.size() - 4);
+            assert(decodeSize <= genDecodeData.maxResultSize() - 4);
+
             for (bool allZeros : {true, false})
             {
-                if (decodeSize > 0)
-                {
-                    std::uint8_t const fillVal = allZeros ? 0 : 0xff;
-                    memset(
-                        noChecksumDecodeSlice.data(),
-                        fillVal,
-                        noChecksumDecodeSlice.size());
-                }
-                Base58TestDetail::checksum(
-                    decodeSlice.data() + decodeSlice.size() - 4,
-                    noChecksumDecodeSlice.data(),
-                    noChecksumDecodeSlice.size());
+                MutableSlice decodeSlice =
+                    genDecodeData.resultSize(decodeSize)
+                        .fillPrefix(decodeSize, allZeros ? 0 : 0xff)
+                        .generate();
+
                 // encode with old impl
                 std::string encoded = Base58TestDetail::base58EncodeToken(
                     static_cast<TokenType>(decodeSlice[0]),
@@ -784,7 +890,7 @@ class Base58_test : public beast::unit_test::suite
                         decodeResultBuf.data(),
                         decodeSize - 5 + resultBufSizeDelta);  // -5 for token
                                                                // and checksum
-                    auto const decoded = decodeBase58Resizable(
+                    auto const decoded = decodeBase58ResizableNoChecksumTest(
                         makeSlice(encoded), resultBuf);
                     bool const expectDecoded = !decodedRef.empty() &&
                         (decodeSize > 4) &&
@@ -806,17 +912,307 @@ class Base58_test : public beast::unit_test::suite
     void
     testRippleLibEncoded()
     {
-        // TBD
-        pass();
+        testcase("ripplelib encoded");
+
+        constexpr std::size_t maxTestDecodeBytes = 30;
+        enum class FillValue { min, max, random };
+        // decodeSize does _not_ include the 3 byte prefix (token type and
+        // ripple lib bytes) or 4 byte suffix (checksum)
+        auto testIt = [this](
+                          std::size_t decodeSize,
+                          FillValue fillValue = FillValue::random,
+                          std::array<std::uint8_t, 3> const& prefix =
+                              std::array<std::uint8_t, 3>{0x01, 0xE1, 0x4B}) {
+            GenerateDecodeData<maxTestDecodeBytes + 7> genDecodeData;
+            bool const hasRipplelibPrefix =
+                prefix[0] == 0x01 && prefix[1] == 0xE1 && prefix[2] == 0x4B;
+            assert(decodeSize <= genDecodeData.maxResultSize() - 7);
+
+            genDecodeData.resultSize(decodeSize + 7)
+                .varPrefix(makeSlice(prefix));
+
+            if (fillValue != FillValue::random)
+            {
+                assert(
+                    fillValue == FillValue::min || fillValue == FillValue::max);
+                genDecodeData.fillPrefix(
+                    decodeSize + 7, fillValue == FillValue::min ? 0 : 0xff);
+            }
+
+            MutableSlice decodeSlice = genDecodeData.generate();
+
+            // encode with old impl
+            std::string encoded = Base58TestDetail::base58EncodeToken(
+                static_cast<TokenType>(decodeSlice[0]),
+                decodeSlice.data() + 1,
+                decodeSlice.size() - 5);  // 1 for token, 4 for checksum
+            // decode with new impl
+            for (auto resultBufSizeDelta : {-5, -1, 0, 1, 5})
+            {
+                // use a vector, not an array of max size declared outside the
+                // loop to aid sanitizers
+                std::vector<std::uint8_t> decodeResultBuf(
+                    decodeSize + resultBufSizeDelta);
+                auto resultBuf = MutableSlice(
+                    decodeResultBuf.data(), decodeResultBuf.size());
+                auto const extraB58Encoding =
+                    decodeBase58FamilySeed(makeSlice(encoded), resultBuf);
+
+                if (resultBufSizeDelta == 0 && decodeSize == 16 &&
+                    hasRipplelibPrefix)
+                {
+                    BEAST_EXPECT(
+                        extraB58Encoding == ExtraB58Encoding::RippleLib);
+                    // Don't include the prefix or checksum in the decodeSlice
+                    BEAST_EXPECT(std::equal(
+                        resultBuf.begin(),
+                        resultBuf.end(),
+                        decodeSlice.begin() + 3,
+                        decodeSlice.end() - 4));
+                }
+                else
+                {
+                    BEAST_EXPECT(!extraB58Encoding);
+                }
+            }
+        };
+
+        // encode all zeros and all 0xff of different sizes
+        for (std::size_t decodeSize = 5; decodeSize <= maxTestDecodeBytes;
+             ++decodeSize)
+        {
+            for (auto fillValue : {FillValue::min, FillValue::max})
+            {
+                testIt(decodeSize, fillValue);
+            }
+        }
+
+        for (std::size_t decodeSize = 14; decodeSize <= 18; ++decodeSize)
+        {
+            // Test random values
+            for (int i = 0; i < 10000; ++i)
+                testIt(decodeSize, FillValue::random);
+        }
+
+        {
+            // Test bad prefix. Starting at a random index, change one value of
+            // the prefix, then the adjacent value (mod 3), then the adjacent
+            // value to that.
+            std::array<std::uint8_t, 3> prefix{0x01, 0xE1, 0x4B};
+            std::uniform_int_distribution<std::uint8_t> randIndex(
+                0, prefix.size() - 1);
+            std::uniform_int_distribution<std::uint8_t> randValue(0, 255);
+            for (int i = 0; i < 10000; ++i)
+            {
+                prefix = {0x01, 0xE1, 0x4B};
+                auto const indexToChange = randIndex(engine_);
+                for (std::size_t j = 0; j < prefix.size(); ++j)
+                {
+                    prefix[(indexToChange + j) % prefix.size()] =
+                        randValue(engine_);
+                    testIt(16, FillValue::random, prefix);
+                }
+            }
+        }
     }
 
     void
-    testMalformed()
+    testMalformed(std::size_t numTestIterations)
     {
-        // TBD
-        // bad char
-        // bad checksum
-        pass();
+        constexpr std::size_t maxTestDecodeBytes = 30;
+        auto randTokenType = [this]() -> TokenType {
+            constexpr std::array<TokenType, 7> tokenTypes{
+                TokenType::NodePublic,
+                TokenType::NodePrivate,
+                TokenType::AccountID,
+                TokenType::AccountPublic,
+                TokenType::AccountSecret,
+                TokenType::FamilyGenerator,
+                TokenType::FamilySeed};
+            std::uniform_int_distribution<std::uint8_t> tokenIndexDist(
+                0, tokenTypes.size() - 1);
+            return tokenTypes[tokenIndexDist(engine_)];
+        };
+
+        auto randBase58Value = [this](
+                                   boost::optional<std::uint8_t> const& oldChar,
+                                   bool allowInvalidChars) -> std::uint8_t {
+            if (oldChar)
+            {
+                if (allowInvalidChars)
+                {
+                    // adding a random value from 1 to 254 to an uint8 value
+                    // (mod 256) will return a random value not equal to the
+                    // origional
+                    std::uniform_int_distribution<std::uint8_t> d(1, 254);
+                    return *oldChar + d(engine_);
+                }
+                else
+                {
+                    std::uniform_int_distribution<std::uint8_t> d(0, 57);
+                    while (1)
+                    {
+                        auto const r = d(engine_);
+                        if (oldChar != r)
+                            return r;
+                    }
+                }
+            }
+            else
+            {
+                if (allowInvalidChars)
+                {
+                    std::uniform_int_distribution<std::uint8_t> d(0, 255);
+                    return d(engine_);
+                }
+                else
+                {
+                    std::uniform_int_distribution<std::uint8_t> d(0, 57);
+                    return Base58TestDetail::rippleAlphabet[d(engine_)];
+                }
+            }
+        };
+
+        auto reencode = [&](Slice const& decoded, DecodeMetadata const& meta) {
+            std::array<std::uint8_t, 1024> tmpBuf;
+            std::vector<std::uint8_t> toDecode(decoded.size() + 5);
+            toDecode[0] = meta.tokenType;
+            memcpy(&toDecode[1], decoded.data(), decoded.size());
+            memcpy(
+                &toDecode[decoded.size() + 1],
+                meta.checksum.data(),
+                meta.checksum.size());
+            return Base58TestDetail::encodeBase58(
+                toDecode.data(),
+                toDecode.size(),
+                tmpBuf.data(),
+                tmpBuf.size(),
+                Base58TestDetail::rippleAlphabet);
+        };
+
+        constexpr uint8_t mutateChange = 1 << 0;
+        constexpr uint8_t mutateRemove = 1 << 1;
+        constexpr uint8_t mutateInsert = 1 << 2;
+        constexpr uint8_t numMutationTypes = 3;
+        static_assert(
+            mutateInsert == 1 << (numMutationTypes - 1),
+            "numMutationTypes must be adjusted when new mutations are added");
+
+        GenerateDecodeData<maxTestDecodeBytes + 5> genDecodeData;
+
+        auto testIt = [this,
+                       &genDecodeData,
+                       &randBase58Value,
+                       &randTokenType,
+                       &reencode](
+                          std::size_t decodeSize,
+                          std::uint8_t mutations,
+                          bool allowInvalidChars) {
+            // exactly one mutation type should be set. The `!(mutations &
+            // (mutations - 1)` bit twiddling is true when exactly one bit
+            // is set (or zero bits are set, but that is checked earlier)
+            assert(
+                mutations > 0 && mutations < (1 << numMutationTypes) &&
+                !(mutations & (mutations - 1)));
+            assert(decodeSize <= genDecodeData.maxResultSize() - 5);
+
+            auto const tokenType = randTokenType();
+
+            // decodeSize does _not_ include the one byte token prefix or 4 byte
+            // suffix (checksum)
+            MutableSlice decodeSlice = genDecodeData.resultSize(decodeSize + 5)
+                                           .varPrefix(Slice(&tokenType, 1))
+                                           .generate();
+
+            std::string encoded = Base58TestDetail::base58EncodeToken(
+                tokenType,
+                decodeSlice.data() + 1,
+                decodeSlice.size() - 5);  // 1 for token, 4 for checksum
+            std::string unmutatedEncoded = encoded;
+            if (mutations & mutateChange)
+            {
+                std::uniform_int_distribution<std::uint8_t> indexDist(
+                    0, encoded.size() - 1);
+                auto& toChange = encoded[indexDist(engine_)];
+                toChange = randBase58Value(toChange, allowInvalidChars);
+            }
+            if (mutations & mutateRemove)
+            {
+                std::uniform_int_distribution<std::uint8_t> indexDist(
+                    0, encoded.size() - 1);
+                encoded.erase(indexDist(engine_), 1);
+            }
+            if (mutations & mutateInsert)
+            {
+                std::uniform_int_distribution<std::uint8_t> indexDist(
+                    0, encoded.size() - 1);
+                auto const toInsert =
+                    randBase58Value(boost::none, allowInvalidChars);
+                encoded.insert(indexDist(engine_), 1, toInsert);
+            }
+            {
+                // use a vector, not an array of max size declared outside
+                // the loop to aid sanitizers.
+                for (auto const sizeDelta : {-1, 0, 2})
+                {
+                    // decode token (exact size)
+                    std::vector<std::uint8_t> decodeResultBuf(
+                        decodeSize + sizeDelta);
+                    auto resultBuf = MutableSlice(
+                        decodeResultBuf.data(), decodeResultBuf.size());
+                    auto const r = decodeBase58Token(
+                        makeSlice(encoded), tokenType, resultBuf);
+                    BEAST_EXPECT(!r);
+                }
+                {
+                    // decode resizable. Note the size delta of two.
+                    // Appending a new base58 digit may add two bytes to a
+                    // decoding
+                    std::vector<std::uint8_t> decodeResultBuf(decodeSize + 2);
+                    auto resultBuf = MutableSlice(
+                        decodeResultBuf.data(), decodeResultBuf.size());
+                    {
+                        auto const r = decodeBase58Resizable(
+                            makeSlice(encoded), resultBuf);
+                        // will always fail, as checksum is bad
+                        BEAST_EXPECT(!r);
+                    }
+                    {
+                        auto const r = decodeBase58ResizableNoChecksumTest(
+                            makeSlice(encoded), resultBuf);
+                        if (!allowInvalidChars)
+                        {
+                            // Checksum isn't checked, new char is valid,
+                            // buffer is large enough. So should always
+                            // succeed.
+                            expect(r);
+                            if (r)
+                            {
+                                auto const reencoded =
+                                    reencode(r->first, r->second);
+                                BEAST_EXPECT(std::equal(
+                                    reencoded.begin(),
+                                    reencoded.end(),
+                                    encoded.begin(),
+                                    encoded.end()));
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        std::uniform_int_distribution<std::uint8_t> mutateDist(
+            1, numMutationTypes - 1);
+        for (std::size_t decodeSize = 14; decodeSize <= 18; ++decodeSize)
+        {
+            for (int i = 0; i < numTestIterations / 2; ++i)
+            {
+                auto const mutation = 1 << mutateDist(engine_);
+                testIt(decodeSize, mutation, /*allowInvalidChars*/ false);
+                testIt(decodeSize, mutation, /*allowInvalidChars*/ true);
+            }
+        }
     }
 
     void
@@ -863,6 +1259,7 @@ public:
             if (!arg().empty())
             {
                 // Use `--unittest-arg` to change the number of test iterations
+                // to try
                 try
                 {
                     std::size_t sz;
@@ -880,14 +1277,14 @@ public:
             }
             testRandomEncodeDecode(numTestIterations);
             testRandomDecode(numTestIterations);
+            testMalformed(numTestIterations);
         }
         testRippleLibEncoded();
-        testMalformed();
         testMinMaxEncodeDecode();
         testMinMaxDecode();
         testExportBits();
     }
-};
+};  // namespace ripple
 
 BEAST_DEFINE_TESTSUITE(Base58, protocol, ripple);
 
