@@ -110,82 +110,186 @@ generateSeed (std::string const& passPhrase)
 
 template <>
 boost::optional<Seed>
-parseBase58 (std::string const& s)
+parseBase58(std::string const& s)
 {
-    zero_after_use_buf<std::uint8_t, 16> result;
-    auto resultSlice = makeMutableSlice(result);
-    boost::optional<KeyType> keyType;
-    if (boost::optional<ExtraB58Encoding> r =
-        decodeBase58FamilySeed(makeSlice(s), resultSlice))
+#if !(defined(V2BASE58DECODERS) || defined(V1BASE58DECODERS))
+    static_assert(false, "");
+#endif
+
+#ifdef V2BASE58DECODERS
+    auto const v2 = [&]() -> boost::optional<Seed> {
+        zero_after_use_buf<std::uint8_t, 16> result;
+        auto resultSlice = makeMutableSlice(result);
+        boost::optional<KeyType> keyType;
+        if (boost::optional<ExtraB58Encoding> r =
+                decodeBase58FamilySeed(makeSlice(s), resultSlice))
+        {
+            if (*r == ExtraB58Encoding::RippleLib)
+                keyType = KeyType::ed25519;
+            return Seed(resultSlice, keyType);
+        }
+        return {};
+    }();
+#endif
+
+#ifdef V1BASE58DECODERS
+    auto const v1 = [&]() -> boost::optional<Seed> {
+        auto const result = decodeBase58Token(s, TokenType::FamilySeed);
+        if (result.empty())
+            return boost::none;
+        if (result.size() != 16)
+            return boost::none;
+        return Seed(makeSlice(result));
+    }();
+#endif
+
+#if defined(V2BASE58DECODERS) && defined(V1BASE58DECODERS)
     {
-        if (*r == ExtraB58Encoding::RippleLib)
-            keyType = KeyType::ed25519;
-        return Seed(resultSlice, keyType);
+        if (v1 && v2)
+        {
+            assert(std::equal(v1->begin(), v1->end(), v2->begin(), v2->end()));
+        }
+        else
+        {
+            assert(bool(v1) == bool(v2));
+        }
     }
-    return {};
+#endif
+
+#if defined(V2BASE58DECODERS)
+    return v2;
+#endif
+#if defined(V1BASE58DECODERS)
+    return v1;
+#endif
 }
 
 boost::optional<Seed>
-parseGenericSeed (std::string const& str)
+parseGenericSeed(std::string const& str)
 {
-    if (str.empty())
-        return boost::none;
+#if !(defined(V2BASE58DECODERS) || defined(V1BASE58DECODERS))
+    static_assert(false, "");
+#endif
 
-    // large enough to hold either a public key, account, secret key, or seed
-    zero_after_use_buf<std::uint8_t, 33> buffer;
+#ifdef V2BASE58DECODERS
+    auto const v2 = [&]() -> boost::optional<Seed> {
+        if (str.empty())
+            return boost::none;
 
-    boost::optional<std::pair<Slice, DecodeMetadata>> rawDecode =
-        decodeBase58Resizable(makeSlice(str), makeMutableSlice(buffer));
+        // large enough to hold either a public key, account, secret key, or
+        // seed
+        zero_after_use_buf<std::uint8_t, 33> buffer;
 
-    Slice decodedSlice;
-    DecodeMetadata metadata;
-    if (rawDecode)
-    {
-        std::tie(decodedSlice, metadata) = *rawDecode;
-        switch (static_cast<TokenType>(metadata.tokenType))
+        boost::optional<std::pair<Slice, DecodeMetadata>> rawDecode =
+            decodeBase58Resizable(makeSlice(str), makeMutableSlice(buffer));
+
+        Slice decodedSlice;
+        DecodeMetadata metadata;
+        if (rawDecode)
         {
-            case TokenType::AccountID:
-            case TokenType::NodePublic:
-            case TokenType::AccountPublic:
-            case TokenType::NodePrivate:
-            case TokenType::AccountSecret:
-                return boost::none;
-            default:
-                break;
+            std::tie(decodedSlice, metadata) = *rawDecode;
+            switch (static_cast<TokenType>(metadata.tokenType))
+            {
+                case TokenType::AccountID:
+                case TokenType::NodePublic:
+                case TokenType::AccountPublic:
+                case TokenType::NodePrivate:
+                case TokenType::AccountSecret:
+                    return boost::none;
+                default:
+                    break;
+            }
         }
-    }
 
-    {
-        uint128 seed;
-
-        if (seed.SetHexExact(str))
-            return Seed{Slice{seed.data(), seed.size()}};
-    }
-
-    if (rawDecode && decodedSlice.size() == 16)
-    {
-        if (static_cast<TokenType>(metadata.tokenType) == TokenType::None &&
-            metadata.isRippleLibEncoded())
         {
-            return Seed{decodedSlice, KeyType::ed25519};
-        }
-        if (static_cast<TokenType>(metadata.tokenType) == TokenType::FamilySeed &&
-            !metadata.isRippleLibEncoded())
-        {
-            return Seed{decodedSlice};
-        }
-    }
+            uint128 seed;
 
+            if (seed.SetHexExact(str))
+                return Seed{Slice{seed.data(), seed.size()}};
+        }
+
+        if (rawDecode && decodedSlice.size() == 16)
+        {
+            if (static_cast<TokenType>(metadata.tokenType) == TokenType::None &&
+                metadata.isRippleLibEncoded())
+            {
+                return Seed{decodedSlice, KeyType::ed25519};
+            }
+            if (static_cast<TokenType>(metadata.tokenType) ==
+                    TokenType::FamilySeed &&
+                !metadata.isRippleLibEncoded())
+            {
+                return Seed{decodedSlice};
+            }
+        }
+
+        {
+            std::string key;
+            if (RFC1751::getKeyFromEnglish(key, str) == 1)
+            {
+                Blob const blob(key.rbegin(), key.rend());
+                return Seed{uint128{blob}};
+            }
+        }
+
+        return generateSeed(str);
+    }();
+#endif
+
+#ifdef V1BASE58DECODERS
+    auto const v1 = [&]() -> boost::optional<Seed> {
+        if (str.empty())
+            return boost::none;
+
+        if (parseBase58<AccountID>(str) ||
+            parseBase58<PublicKey>(TokenType::NodePublic, str) ||
+            parseBase58<PublicKey>(TokenType::AccountPublic, str) ||
+            parseBase58<SecretKey>(TokenType::NodePrivate, str) ||
+            parseBase58<SecretKey>(TokenType::AccountSecret, str))
+        {
+            return boost::none;
+        }
+
+        {
+            uint128 seed;
+
+            if (seed.SetHexExact(str))
+                return Seed{Slice(seed.data(), seed.size())};
+        }
+
+        if (auto seed = parseBase58<Seed>(str))
+            return seed;
+
+        {
+            std::string key;
+            if (RFC1751::getKeyFromEnglish(key, str) == 1)
+            {
+                Blob const blob(key.rbegin(), key.rend());
+                return Seed{uint128{blob}};
+            }
+        }
+
+        return generateSeed(str);
+    }();
+#endif
+
+#if defined(V2BASE58DECODERS) && defined(V1BASE58DECODERS)
+    if (v1 && v2)
     {
-        std::string key;
-        if (RFC1751::getKeyFromEnglish(key, str) == 1)
-        {
-            Blob const blob(key.rbegin(), key.rend());
-            return Seed{uint128{blob}};
-        }
+        assert(std::equal(v1->begin(), v1->end(), v2->begin(), v2->end()));
     }
+    else
+    {
+        assert(bool(v1) == bool(v2));
+    }
+#endif
 
-    return generateSeed(str);
+#if defined(V2BASE58DECODERS)
+    return v2;
+#endif
+#if defined(V1BASE58DECODERS)
+    return v1;
+#endif
 }
 
 std::string

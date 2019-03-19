@@ -293,10 +293,41 @@ template <>
 boost::optional<SecretKey>
 parseBase58(TokenType type, std::string const& s)
 {
-    SecretKey result;
-    if (!decodeBase58Token(makeSlice(s), type, makeMutableSlice(result.buf_)))
-        return boost::none;
-    return result;
+#if !(defined(V2BASE58DECODERS) || defined(V1BASE58DECODERS))
+    static_assert(false, "");
+#endif
+
+#ifdef V2BASE58DECODERS
+    auto const v2 = [&]() -> boost::optional<SecretKey> {
+        SecretKey result;
+        if (!decodeBase58Token(
+                makeSlice(s), type, makeMutableSlice(result.buf_)))
+            return boost::none;
+        return result;
+    }();
+#endif
+
+#ifdef V1BASE58DECODERS
+    auto const v1 = [&]() -> boost::optional<SecretKey> {
+        auto const result = decodeBase58Token(s, type);
+        if (result.empty())
+            return boost::none;
+        if (result.size() != 32)
+            return boost::none;
+        return SecretKey(makeSlice(result));
+    }();
+#endif
+
+#if defined(V2BASE58DECODERS) && defined(V1BASE58DECODERS)
+    assert(v1 == v2);
+#endif
+
+#if defined(V2BASE58DECODERS)
+    return v2;
+#endif
+#if defined(V1BASE58DECODERS)
+    return v1;
+#endif
 }
 
 } // ripple

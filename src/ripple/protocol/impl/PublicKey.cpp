@@ -35,17 +35,47 @@ operator<<(std::ostream& os, PublicKey const& pk)
     return os;
 }
 
-template<>
+template <>
 boost::optional<PublicKey>
-parseBase58 (TokenType type, std::string const& s)
+parseBase58(TokenType type, std::string const& s)
 {
-    PublicKey result;
-    result.empty_ = false;
-    if (!decodeBase58Token(makeSlice(s), type, makeMutableSlice(result.buf_)))
-        return {};
-    if (!publicKeyType(result.slice()))
-        return {};
-    return result;
+#if !(defined(V2BASE58DECODERS) || defined(V1BASE58DECODERS))
+    static_assert(false, "");
+#endif
+
+#ifdef V2BASE58DECODERS
+    auto const v2 = [&]() -> boost::optional<PublicKey> {
+        PublicKey result;
+        result.empty_ = false;
+        if (!decodeBase58Token(
+                makeSlice(s), type, makeMutableSlice(result.buf_)))
+            return {};
+        if (!publicKeyType(result.slice()))
+            return {};
+        return result;
+    }();
+#endif
+
+#ifdef V1BASE58DECODERS
+    auto const v1 = [&]() -> boost::optional<PublicKey> {
+        auto const result = decodeBase58Token(s, type);
+        auto const pks = makeSlice(result);
+        if (!publicKeyType(pks))
+            return boost::none;
+        return PublicKey(pks);
+    }();
+#endif
+
+#if defined(V2BASE58DECODERS) && defined(V1BASE58DECODERS)
+    assert(v1 == v2);
+#endif
+
+#if defined(V2BASE58DECODERS)
+    return v2;
+#endif
+#if defined(V1BASE58DECODERS)
+    return v1;
+#endif
 }
 
 //------------------------------------------------------------------------------

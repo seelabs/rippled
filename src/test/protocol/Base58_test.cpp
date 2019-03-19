@@ -33,7 +33,7 @@
 #include <vector>
 
 namespace ripple {
-
+#ifdef V2BASE58DECODERS
 namespace Base58TestDetail {
 // old implementation of decoding functions used as reference to confirm the
 // new implementation matches the old implementation
@@ -1288,4 +1288,5 @@ public:
 
 BEAST_DEFINE_TESTSUITE(Base58, protocol, ripple);
 
+#endif // V2BASE58DECODERS
 }  // namespace ripple

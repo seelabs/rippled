@@ -305,6 +305,7 @@ public:
 
 }  // namespace DecodeBase58Detail
 
+#ifdef V2BASE58DECODERS
 /**
    Decode a base58 number.
 
@@ -572,6 +573,7 @@ decodeBase58Token(
         return {};
     return std::make_pair(decoded, extraB58Encoding);
 }
+#endif
 
 //------------------------------------------------------------------------------
 

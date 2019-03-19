@@ -31,29 +31,93 @@ toBase58 (AccountID const& v)
     return base58EncodeToken(TokenType::AccountID, v.data(), v.size());
 }
 
-template<>
+template <>
 boost::optional<AccountID>
-parseBase58 (std::string const& s)
+parseBase58(std::string const& s)
 {
-    AccountID id;
-    if (!decodeBase58Token(
-            makeSlice(s),
-            TokenType::AccountID,
-            MutableSlice(id.data(), id.size())))
-        return boost::none;
-    return id;
+#if !(defined(V2BASE58DECODERS) || defined(V1BASE58DECODERS))
+    static_assert(false, "");
+#endif
+
+#ifdef V2BASE58DECODERS
+    auto const v2 = [&]() -> boost::optional<AccountID> {
+        AccountID id;
+        if (!decodeBase58Token(
+                makeSlice(s),
+                TokenType::AccountID,
+                MutableSlice(id.data(), id.size())))
+            return boost::none;
+        return id;
+    }();
+#endif
+
+#ifdef V1BASE58DECODERS
+    auto const v1 = [&]() -> boost::optional<AccountID> {
+        auto const result = decodeBase58Token(s, TokenType::AccountID);
+        if (result.empty())
+            return boost::none;
+        AccountID id;
+        if (result.size() != id.size())
+            return boost::none;
+        std::memcpy(id.data(), result.data(), result.size());
+        return id;
+    }();
+#endif
+
+#if defined(V2BASE58DECODERS) && defined(V1BASE58DECODERS)
+    assert(v1 == v2);
+#endif
+
+#if defined(V2BASE58DECODERS)
+    return v2;
+#endif
+#if defined(V1BASE58DECODERS)
+    return v1;
+#endif
 }
 
 boost::optional<AccountID>
-deprecatedParseBitcoinAccountID (std::string const& s)
+deprecatedParseBitcoinAccountID(std::string const& s)
 {
-    AccountID id;
-    if (!decodeBase58TokenBitcoin(
-            makeSlice(s),
-            TokenType::AccountID,
-            MutableSlice(id.data(), id.size())))
-        return boost::none;
-    return id;
+#if !(defined(V2BASE58DECODERS) || defined(V1BASE58DECODERS))
+    static_assert(false, "");
+#endif
+
+#ifdef V2BASE58DECODERS
+    auto const v2 = [&]() -> boost::optional<AccountID> {
+        AccountID id;
+        if (!decodeBase58TokenBitcoin(
+                makeSlice(s),
+                TokenType::AccountID,
+                MutableSlice(id.data(), id.size())))
+            return boost::none;
+        return id;
+    }();
+#endif
+
+#ifdef V1BASE58DECODERS
+    auto const v1 = [&]() -> boost::optional<AccountID> {
+        auto const result = decodeBase58TokenBitcoin(s, TokenType::AccountID);
+        if (result.empty())
+            return boost::none;
+        AccountID id;
+        if (result.size() != id.size())
+            return boost::none;
+        std::memcpy(id.data(), result.data(), result.size());
+        return id;
+    }();
+#endif
+
+#if defined(V2BASE58DECODERS) && defined(V1BASE58DECODERS)
+    assert(v1 == v2);
+#endif
+
+#if defined(V2BASE58DECODERS)
+    return v2;
+#endif
+#if defined(V1BASE58DECODERS)
+    return v1;
+#endif
 }
 
 bool
