@@ -600,6 +600,7 @@ static InverseAlphabet rippleInverse(rippleAlphabet);
 
 static InverseAlphabet bitcoinInverse(bitcoinAlphabet);
 
+#ifdef V2BASE58DECODERS
 bool
 decodeBase58Token(Slice s, TokenType type, MutableSlice result)
 {
@@ -702,5 +703,110 @@ bool DecodeMetadata::isRippleLibEncoded() const
 {
     return encodingType == rippleLibEncodedSeedPrefix;
 }
+#endif // V2BASE58DECODERS
+
+#ifdef V1BASE58DECODERS
+//------------------------------------------------------------------------------
+
+// Code from Bitcoin: https://github.com/bitcoin/bitcoin
+// Copyright (c) 2014 The Bitcoin Core developers
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+//
+// Modified from the original
+template <class InverseArray>
+static
+std::string
+decodeBase58 (std::string const& s,
+    InverseArray const& inv)
+{
+    auto psz = s.c_str();
+    auto remain = s.size();
+    // Skip and count leading zeroes
+    int zeroes = 0;
+    while (remain > 0 && inv[*psz] == 0)
+    {
+        ++zeroes;
+        ++psz;
+        --remain;
+    }
+    // Allocate enough space in big-endian base256 representation.
+    // log(58) / log(256), rounded up.
+    std::vector<unsigned char> b256(
+        remain * 733 / 1000 + 1);
+    while (remain > 0)
+    {
+        auto carry = inv[*psz];
+        if (carry == -1)
+            return {};
+        // Apply "b256 = b256 * 58 + carry".
+        for (auto iter = b256.rbegin();
+            iter != b256.rend(); ++iter)
+        {
+            carry += 58 * *iter;
+            *iter = carry % 256;
+            carry /= 256;
+        }
+        assert(carry == 0);
+        ++psz;
+        --remain;
+    }
+    // Skip leading zeroes in b256.
+    auto iter = std::find_if(
+        b256.begin(), b256.end(),[](unsigned char c)
+            { return c != 0; });
+    std::string result;
+    result.reserve (zeroes + (b256.end() - iter));
+    result.assign (zeroes, 0x00);
+    while (iter != b256.end())
+        result.push_back(*(iter++));
+    return result;
+}
+
+/*  Base58 decode a Ripple token
+
+    The type and checksum are are checked
+    and removed from the returned result.
+*/
+template <class InverseArray>
+static
+std::string
+decodeBase58Token (std::string const& s,
+                   TokenType type, InverseArray const& inv)
+{
+    std::string const ret = decodeBase58(s, inv);
+
+    // Reject zero length tokens
+    if (ret.size() < 6)
+        return {};
+
+    // The type must match.
+    if (type != safe_cast<TokenType>(static_cast<std::uint8_t>(ret[0])))
+        return {};
+
+    // And the checksum must as well.
+    std::array<char, 4> guard;
+    checksum(guard.data(), ret.data(), ret.size() - guard.size());
+    if (!std::equal (guard.rbegin(), guard.rend(), ret.rbegin()))
+        return {};
+
+    // Skip the leading type byte and the trailing checksum.
+    return ret.substr(1, ret.size() - 1 - guard.size());
+}
+
+std::string
+decodeBase58Token(
+    std::string const& s, TokenType type)
+{
+    return decodeBase58Token(s, type, rippleInverse);
+}
+
+std::string
+decodeBase58TokenBitcoin(
+    std::string const& s, TokenType type)
+{
+    return decodeBase58Token(s, type, bitcoinInverse);
+}
+#endif
 
 }  // namespace ripple

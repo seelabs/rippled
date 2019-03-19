@@ -94,6 +94,8 @@ base58EncodeToken (TokenType type, void const* token, std::size_t size);
 std::string
 base58EncodeTokenBitcoin (TokenType type, void const* token, std::size_t size);
 
+#define V2BASE58DECODERS
+#ifdef V2BASE58DECODERS
 /** Decode a Base58 token
 
     The type and checksum must match or `false` is returned. The
@@ -185,6 +187,32 @@ boost::optional<std::pair<Slice, DecodeMetadata>>
 decodeBase58ResizableNoChecksumTest(
     Slice s,
     MutableSlice result);
+#endif // V2BASE58DECODERS
+
+// Use V1BASE58DECODERS to clearly mark the old decoders
+#define V1BASE58DECODERS
+#ifdef V1BASE58DECODERS
+/** Decode a Base58 token
+
+    The type and checksum must match or an
+    empty string is returned.
+*/
+std::string
+decodeBase58Token(std::string const& s, TokenType type);
+
+/** Decode a Base58 token using Bitcoin alphabet
+
+    The type and checksum must match or an
+    empty string is returned.
+
+    This is used to detect user error. Specifically,
+    when an AccountID is specified using the wrong
+    base58 alphabet, so that a better error message
+    may be returned.
+*/
+std::string
+decodeBase58TokenBitcoin(std::string const& s, TokenType type);
+#endif // V1BASE58DECODERS
 
 } // ripple
 
