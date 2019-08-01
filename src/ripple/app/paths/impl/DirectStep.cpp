@@ -835,18 +835,26 @@ DirectStepI<TDerived>::qualityUpperBound(ReadView const& v, DebtDirection& dir)
 {
     auto const prevStepDebtDir = dir;
     dir = this->debtDirection(v, StrandDirection::forward);
-    std::uint32_t const srcQOut = [&]() -> std::uint32_t {
-        if (redeems(prevStepDebtDir) && issues(dir))
-            return transferRate(v, src_).value;
-        return QUALITY_ONE;
-    }();
-    auto dstQIn =
-        static_cast<TDerived const*>(this)->quality(v, QualityDirection::in);
 
-    if (isLast_ && dstQIn > QUALITY_ONE)
-        dstQIn = QUALITY_ONE;
+    std::uint32_t srcQOut;
+    std::uint32_t dstQIn;
+    if (dir == DebtDirection::redeems)
+    {
+        std::tie(srcQOut, dstQIn) = qualitiesSrcRedeems(v);
+    }
+    else
+    {
+        std::tie(srcQOut, dstQIn) = qualitiesSrcIssues(v, prevStepDebtDir);
+    }
+
     Issue const iss{currency_, src_};
-    return Quality(getRate(STAmount(iss, srcQOut), STAmount(iss, dstQIn)));
+    // Be careful not to switch the parameters to `getRate`. The
+    // `getRate(offerOut, offerIn)` function is usually used for offers. It
+    // returns offerIn/offerOut. For a direct step, the rate is dstQOut/srcQIn
+    // (Input*dstQIn/srcQOut = Output; So rate = srcQOut/dstQIn). Although the
+    // first parameters is called `offerOut`, it should take the `dstQIn`
+    // variable.
+    return Quality(getRate(STAmount(iss, dstQIn), STAmount(iss, srcQOut)));
 }
 
 template <class TDerived>

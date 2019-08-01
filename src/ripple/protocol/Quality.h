@@ -276,6 +276,40 @@ public:
         os << quality.m_value;
         return os;
     }
+
+    // return the relative distance (relative error) between two qualities. This is used for testing only.
+    // relative distance is abs(a-b)/min(a,b)
+    friend double
+    relativeDistance(Quality const& q1, Quality const& q2)
+    {
+        assert(q1.m_value > 0 && q2.m_value > 0);
+
+        if (q1.m_value == q2.m_value)  // make expected common case fast
+            return 0;
+
+        auto const minV = std::min(q1.m_value, q2.m_value);
+        auto const maxV = std::max(q1.m_value, q2.m_value);
+
+        auto mantissa = [](std::uint64_t rate) {
+            return rate & ~(255ull << (64 - 8));
+        };
+        auto exponent = [](std::uint64_t rate) {
+            return static_cast<int>(rate >> (64 - 8)) - 100;
+        };
+
+        auto const minVMantissa = mantissa(minV);
+        auto const maxVMantissa = mantissa(maxV);
+        auto const expDiff = exponent(maxV) - exponent(minV);
+
+        double const minVD = static_cast<double>(minVMantissa);
+        double const maxVD = expDiff ? maxVMantissa * pow(10, expDiff)
+                                     : static_cast<double>(maxVMantissa);
+
+        // maxVD and minVD are scaled so the have the same exponents. Dividing
+        // cancels out the exponents, so we only need to deal with the (scaled)
+        // mantissas
+        return (maxVD - minVD) / minVD;
+    }
 };
 
 /** Calculate the quality of a two-hop path given the two hops.

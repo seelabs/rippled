@@ -185,6 +185,9 @@ public:
        step does not redeem
        @return The upper bound of quality for the step, or boost::none if the
        step is dry.
+       @note it is an upper bound because offers on the books may be unfunded.
+       If there is always a funded offer at the tip of the book, then we could
+       rename this `theoreticalQuality` rather than `qualityUpperBound`
      */
     virtual boost::optional<Quality>
     qualityUpperBound(ReadView const& v, DebtDirection& dir) const = 0;
