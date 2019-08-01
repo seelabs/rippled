@@ -27,6 +27,7 @@
 #include <ripple/app/paths/impl/FlowDebugInfo.h>
 #include <ripple/app/paths/impl/Steps.h>
 #include <ripple/basics/Log.h>
+#include <ripple/protocol/Feature.h>
 #include <ripple/protocol/IOUAmount.h>
 #include <ripple/protocol/XRPAmount.h>
 
@@ -365,17 +366,72 @@ public:
     // Start a new iteration in the search for liquidity
     // Set the current strands to the strands in `next_`
     void
-    activateNext ()
+    activateNext(
+        ReadView const& v,
+        boost::optional<Quality> const& limitQuality)
     {
-        // Swap, don't move, so we keep the reserve in next_
-        cur_.clear ();
-        std::swap (cur_, next_);
+        // add the strands in `next_` to `cur_`, sorted by theoretical quality.
+        // Best quality first.
+        cur_.clear();
+        if (v.rules().enabled(featureFlowSortStrands) && !next_.empty())
+        {
+            std::vector<std::pair<Quality, Strand const*>> strandQuals;
+            strandQuals.reserve(next_.size());
+            if (next_.size() != 1) // no need to sort one strand
+            {
+                for (Strand const* strand : next_)
+                {
+                    if (!strand)
+                        continue;
+                    if (auto const qual = qualityUpperBound(v, *strand))
+                        strandQuals.push_back({*qual, strand});
+                }
+                std::sort(
+                    strandQuals.begin(),
+                    strandQuals.end(),
+                    [](auto const& lhs, auto const& rhs) {
+                        // higher qualities first
+                        return std::get<Quality>(lhs) > std::get<Quality>(rhs);
+                    });
+                next_.clear();
+                for (auto const& sq : strandQuals)
+                {
+                    if (limitQuality && std::get<Quality>(sq) < *limitQuality)
+                        // This assumes strand quality never increases; But that
+                        // isn't true If I do assume strand quality never
+                        // increases, there are other optimizations to make.
+                        continue;
+                    next_.push_back(std::get<Strand const*>(sq));
+                }
+            }
+        }
+        std::swap(cur_, next_);
+    }
+
+    Strand const* const& operator[](size_t i) const
+    {
+        if (i >= cur_.size())
+        {
+            assert(0);
+            static Strand const* nptr = nullptr;
+            return nptr;
+        }
+        return cur_[i];
     }
 
     void
     push (Strand const* s)
     {
         next_.push_back (s);
+    }
+
+    // Push the strands from index i to the end of cur_ to next_
+    void
+    pushRemainingCurToNext(size_t i)
+    {
+        if (i >= cur_.size())
+            return;
+        next_.insert(next_.end(), std::next(cur_.begin(), i), cur_.end());
     }
 
     auto begin ()
@@ -517,7 +573,7 @@ flow (PaymentSandbox const& baseView,
             return {telFAILED_PROCESSING, std::move(ofrsToRmOnFail)};
         }
 
-        activeStrands.activateNext();
+        activeStrands.activateNext(sb, limitQuality);
 
         boost::container::flat_set<uint256> ofrsToRm;
         boost::optional<BestStrand> best;
@@ -526,8 +582,11 @@ flow (PaymentSandbox const& baseView,
         // liquidity is used. This is used for strands that consume too many offers
         // Constructed as `false,0` to workaround a gcc warning about uninitialized variables
         boost::optional<std::size_t> markInactiveOnUse{false, 0};
-        for (auto strand : activeStrands)
+        for(size_t strandIndex = 0, sie = activeStrands.size(); strandIndex!=sie; ++strandIndex)
         {
+            auto const strand = activeStrands[strandIndex];
+            if (!strand)
+                continue;
             if (offerCrossing && limitQuality)
             {
                 auto const strandQ = qualityUpperBound(sb, *strand);
@@ -566,22 +625,40 @@ flow (PaymentSandbox const& baseView,
                 continue;
             }
 
-            activeStrands.push (strand);
-
-            if (!best || best->quality < q ||
-                (best->quality == q && best->out < f.out))
+            if (baseView.rules().enabled(featureFlowSortStrands))
             {
-                // If this strand is inactive (because it consumed too many
-                // offers) and ends up having the best quality, remove it from
-                // the activeStrands. If it doesn't end up having the best
-                // quality, keep it active.
-
-                if (f.inactive)
-                    markInactiveOnUse = activeStrands.size() - 1;
-                else
-                    markInactiveOnUse.reset();
-
+                assert(!best);
+                if (!f.inactive)
+                    activeStrands.push(strand);
                 best.emplace(f.in, f.out, std::move(*f.sandbox), *strand, q);
+                activeStrands.pushRemainingCurToNext(strandIndex + 1);
+                break;
+            }
+            else
+            {
+                activeStrands.push(strand);
+
+                if (!best || best->quality < q ||
+                    (best->quality == q && best->out < f.out))
+                {
+                    // If this strand is inactive (because it consumed too many
+                    // offers) and ends up having the best quality, remove it
+                    // from the activeStrands. If it doesn't end up having the
+                    // best quality, keep it active.
+
+                    if (f.inactive)
+                    {
+                        // This should be `nextSize`, not `size`. This issue is fixed in featureFlowSortStrands.
+                        markInactiveOnUse = activeStrands.size() - 1;
+                    }
+                    else
+                    {
+                        markInactiveOnUse.reset();
+                    }
+
+                    best.emplace(
+                        f.in, f.out, std::move(*f.sandbox), *strand, q);
+                }
             }
         }
 
