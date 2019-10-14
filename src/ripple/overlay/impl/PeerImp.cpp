@@ -32,6 +32,7 @@
 #include <ripple/basics/random.h>
 #include <ripple/basics/safe_cast.h>
 #include <ripple/basics/UptimeClock.h>
+#include <ripple/basics/USDTProbes.h>
 #include <ripple/beast/core/LexicalCast.h>
 #include <ripple/beast/core/SemanticVersion.h>
 #include <ripple/nodestore/DatabaseShard.h>
@@ -87,6 +88,7 @@ PeerImp::PeerImp (Application& app, id_t id, endpoint_type remote_endpoint,
     , request_(std::move(request))
     , headers_(request_)
 {
+    RIPD_PROBE2(peer, connect, &remote_address_, &publicKey_);
 }
 
 PeerImp::~PeerImp ()
@@ -102,6 +104,8 @@ PeerImp::~PeerImp ()
     {
         JLOG(journal_.warn()) << getName() << " left cluster";
     }
+
+    RIPD_PROBE2(peer, disconnect, &remote_address_, &publicKey_);
 }
 
 // Helper function to check for valid uint256 values in protobuf buffers
@@ -195,9 +199,16 @@ PeerImp::send (Message::pointer const& m)
     if(detaching_)
         return;
 
-    overlay_.reportTraffic (
-        safe_cast<TrafficCount::category>(m->getCategory()),
-        false, static_cast<int>(m->getBuffer().size()));
+    {
+        auto const category =
+            safe_cast<TrafficCount::category>(m->getCategory());
+        auto const bufSize = static_cast<int>(m->getBuffer().size());
+
+        RIPD_PROBE4(
+            peer, send, &remote_address_, &publicKey_, &category, &bufSize);
+
+        overlay_.reportTraffic(category, false, bufSize);
+    }
 
     auto sendq_size = send_queue_.size();
 
@@ -956,8 +967,16 @@ PeerImp::onMessageBegin (std::uint16_t type,
     load_event_ = app_.getJobQueue ().makeLoadEvent (
         jtPEER, protocolMessageName(type));
     fee_ = Resource::feeLightPeer;
-    overlay_.reportTraffic (TrafficCount::categorize (*m, type, true),
-        true, static_cast<int>(size));
+
+    {
+        auto const category = safe_cast<TrafficCount::category>(type);
+        auto const bufSize = static_cast<int>(size);
+        RIPD_PROBE4(
+            peer, receive, &remote_address_, &publicKey_, &category, &bufSize);
+
+        overlay_.reportTraffic(
+            TrafficCount::categorize(*m, category, true), true, bufSize);
+    }
     return error_code{};
 }
 

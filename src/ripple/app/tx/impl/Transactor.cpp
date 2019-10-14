@@ -24,6 +24,7 @@
 #include <ripple/app/tx/impl/SignerEntries.h>
 #include <ripple/basics/contract.h>
 #include <ripple/basics/Log.h>
+#include <ripple/basics/USDTProbes.h>
 #include <ripple/core/Config.h>
 #include <ripple/json/to_string.h>
 #include <ripple/ledger/View.h>
@@ -633,7 +634,8 @@ Transactor::reset(XRPAmount fee)
 std::pair<TER, bool>
 Transactor::operator()()
 {
-    JLOG(j_.trace()) << "apply: " << ctx_.tx.getTransactionID ();
+    auto const txid = ctx_.tx.getTransactionID();
+    JLOG(j_.trace()) << "apply: " << txid;
 
 #ifdef BEAST_DEBUG
     {
@@ -756,6 +758,12 @@ Transactor::operator()()
     }
 
     JLOG(j_.trace()) << (applied ? "applied" : "not applied") << transToken(result);
+
+    {
+        int const txnType = static_cast<int>(ctx_.tx.getTxnType());
+        (void)txnType;
+        RIPD_PROBE3(transactor, transactor_exit, &txid, &txnType, &result);
+    }
 
     return { result, applied };
 }
