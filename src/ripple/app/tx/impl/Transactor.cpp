@@ -24,6 +24,7 @@
 #include <ripple/app/tx/impl/Transactor.h>
 #include <ripple/app/tx/impl/details/NFTokenUtils.h>
 #include <ripple/basics/Log.h>
+#include <ripple/basics/USDTProbes.h>
 #include <ripple/basics/contract.h>
 #include <ripple/core/Config.h>
 #include <ripple/json/to_string.h>
@@ -829,7 +830,8 @@ Transactor::reset(XRPAmount fee)
 std::pair<TER, bool>
 Transactor::operator()()
 {
-    JLOG(j_.trace()) << "apply: " << ctx_.tx.getTransactionID();
+    auto const txid = ctx_.tx.getTransactionID();
+    JLOG(j_.trace()) << "apply: " << txid;
 
     STAmountSO stAmountSO{view().rules().enabled(fixSTAmountCanonicalize)};
     NumberSO stNumberSO{view().rules().enabled(fixUniversalNumber)};
@@ -1010,6 +1012,12 @@ Transactor::operator()()
 
     JLOG(j_.trace()) << (applied ? "applied" : "not applied")
                      << transToken(result);
+
+    {
+        int const txnType = static_cast<int>(ctx_.tx.getTxnType());
+        (void)txnType;
+        RIPD_PROBE3(transactor, transactor_exit, &txid, &txnType, &result);
+    }
 
     return {result, applied};
 }

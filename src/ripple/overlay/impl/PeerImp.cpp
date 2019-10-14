@@ -28,6 +28,7 @@
 #include <ripple/app/misc/Transaction.h>
 #include <ripple/app/misc/ValidatorList.h>
 #include <ripple/app/tx/apply.h>
+#include <ripple/basics/USDTProbes.h>
 #include <ripple/basics/UptimeClock.h>
 #include <ripple/basics/base64.h>
 #include <ripple/basics/random.h>
@@ -129,6 +130,7 @@ PeerImp::PeerImp(
                           << " tx reduce-relay enabled "
                           << txReduceRelayEnabled_ << " on " << remote_address_
                           << " " << id_;
+    RIPD_PROBE2(peer, connect, &remote_address_, &publicKey_);
 }
 
 PeerImp::~PeerImp()
@@ -144,6 +146,8 @@ PeerImp::~PeerImp()
     {
         JLOG(journal_.warn()) << name() << " left cluster";
     }
+
+    RIPD_PROBE2(peer, disconnect, &remote_address_, &publicKey_);
 }
 
 // Helper function to check for valid uint256 values in protobuf buffers
@@ -250,11 +254,17 @@ PeerImp::send(std::shared_ptr<Message> const& m)
     auto validator = m->getValidatorKey();
     if (validator && !squelch_.expireSquelch(*validator))
         return;
+    {
+        auto const category =
+            safe_cast<TrafficCount::category>(m->getCategory());
+        auto const bufSize =
+            static_cast<int>(m->getBuffer(compressionEnabled_).size());
 
-    overlay_.reportTraffic(
-        safe_cast<TrafficCount::category>(m->getCategory()),
-        false,
-        static_cast<int>(m->getBuffer(compressionEnabled_).size()));
+        RIPD_PROBE4(
+            peer, send, &remote_address_, &publicKey_, &category, &bufSize);
+
+        overlay_.reportTraffic(category, false, bufSize);
+    }
 
     auto sendq_size = send_queue_.size();
 
@@ -1017,7 +1027,11 @@ PeerImp::onMessageBegin(
         app_.getJobQueue().makeLoadEvent(jtPEER, protocolMessageName(type));
     fee_ = Resource::feeLightPeer;
     auto const category = TrafficCount::categorize(*m, type, true);
-    overlay_.reportTraffic(category, true, static_cast<int>(size));
+    auto const bufSize = static_cast<int>(size);
+    RIPD_PROBE4(
+        peer, receive, &remote_address_, &publicKey_, &category, &bufSize);
+
+    overlay_.reportTraffic(category, true, bufSize);
     using namespace protocol;
     if ((type == MessageType::mtTRANSACTION ||
          type == MessageType::mtHAVE_TRANSACTIONS ||
