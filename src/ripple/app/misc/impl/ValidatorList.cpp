@@ -746,6 +746,16 @@ ValidatorList::getJson() const
         }
     });
 
+    // Negative UNL
+    if (!negUnl_.empty())
+    {
+        Json::Value& jNegativeUNL = (res[jss::NegativeUNL] = Json::arrayValue);
+        for (auto const& k : negUnl_)
+        {
+            jNegativeUNL.append(toBase58(TokenType::NodePublic, k));
+        }
+    }
+
     return res;
 }
 
@@ -818,7 +828,10 @@ ValidatorList::getAvailable(boost::beast::string_view const& pubKey)
 }
 
 std::size_t
-ValidatorList::calculateQuorum(std::size_t trusted, std::size_t seen)
+ValidatorList::calculateQuorum(
+    std::size_t unlSize,
+    std::size_t effectiveUnlSize,
+    std::size_t seenSize)
 {
     // Do not use achievable quorum until lists from all configured
     // publishers are available
@@ -858,11 +871,12 @@ ValidatorList::calculateQuorum(std::size_t trusted, std::size_t seen)
     // Oi,j > nj/2 + ni − qi + ti,j
     // ni - pi > (ni - pi + pj)/2 + ni − .8*ni + .2*ni
     // pi + pj < .2*ni
-    auto quorum = static_cast<std::size_t>(std::ceil(trusted * 0.8f));
+    auto quorum = static_cast<std::size_t>(std::max(
+        std::ceil(effectiveUnlSize * 0.8f), std::ceil(unlSize * 0.6f)));
 
     // Use lower quorum specified via command line if the normal quorum appears
     // unreachable based on the number of recently received validations.
-    if (minimumQuorum_ && *minimumQuorum_ < quorum && seen < quorum)
+    if (minimumQuorum_ && *minimumQuorum_ < quorum && seenSize < quorum)
     {
         quorum = *minimumQuorum_;
 
@@ -922,7 +936,24 @@ ValidatorList::updateTrusted(hash_set<NodeID> const& seenValidators)
         << trustedMasterKeys_.size() << "  of " << keyListings_.size()
         << " listed validators eligible for inclusion in the trusted set";
 
-    quorum_ = calculateQuorum(trustedMasterKeys_.size(), seenValidators.size());
+    auto unlSize = trustedMasterKeys_.size();
+    auto effectiveUnlSize = unlSize;
+    auto seenSize = seenValidators.size();
+    if (!negUnl_.empty())
+    {
+        for (auto const& k : trustedMasterKeys_)
+        {
+            if (negUnl_.find(k) != negUnl_.end())
+                --effectiveUnlSize;
+        }
+
+        for (auto const& nid : seenValidators)
+        {
+            if (negUnlNodeIDs_.find(nid) != negUnlNodeIDs_.end())
+                --seenSize;
+        }
+    }
+    quorum_ = calculateQuorum(unlSize, effectiveUnlSize, seenSize);
 
     JLOG(j_.debug()) << "Using quorum of " << quorum_ << " for new set of "
                      << trustedMasterKeys_.size() << " trusted validators ("
@@ -937,6 +968,39 @@ ValidatorList::updateTrusted(hash_set<NodeID> const& seenValidators)
     }
 
     return trustChanges;
+}
+
+hash_set<PublicKey>
+ValidatorList::getTrustedMasterKeys()
+{
+    std::shared_lock lock{mutex_};
+    return trustedMasterKeys_;
+}
+
+hash_set<NodeID>
+ValidatorList::getNegativeUnlNodeIDs()
+{
+    std::shared_lock lock{mutex_};
+    return negUnlNodeIDs_;
+}
+
+hash_set<PublicKey>
+ValidatorList::getNegativeUnl()
+{
+    std::shared_lock lock{mutex_};
+    return negUnl_;
+}
+
+void
+ValidatorList::setNegativeUnl(hash_set<PublicKey> const& nUnl)
+{
+    std::lock_guard lock{mutex_};
+    negUnl_ = nUnl;
+    negUnlNodeIDs_.clear();
+    for (auto const& k : negUnl_)
+    {
+        negUnlNodeIDs_.insert(calcNodeID(k));
+    }
 }
 
 }  // namespace ripple
