@@ -9,6 +9,7 @@ import "org/xrpl/rpc/v1/get_fee.proto";
 import "org/xrpl/rpc/v1/submit.proto";
 import "org/xrpl/rpc/v1/get_transaction.proto";
 import "org/xrpl/rpc/v1/get_account_transaction_history.proto";
+import "org/xrpl/rpc/v1/meta.proto";
 
 
 // RPCs available to interact with the XRP Ledger.
@@ -27,4 +28,8 @@ service XRPLedgerAPIService {
   rpc GetTransaction(GetTransactionRequest) returns (GetTransactionResponse);
 
   rpc GetAccountTransactionHistory(GetAccountTransactionHistoryRequest) returns (GetAccountTransactionHistoryResponse);
+
+  rpc SubmitMetadata(SubmitMetadataRequest) returns (SubmitMetadataResponse);
+
+  rpc PrepareLedger(PrepareLedgerRequest) returns (PrepareLedgerResponse);
 }

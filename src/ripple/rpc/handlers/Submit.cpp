@@ -279,4 +279,92 @@ doSubmitGrpc(RPC::GRPCContext<org::xrpl::rpc::v1::SubmitTransactionRequest>& con
     return {result, status};
 }
 
+struct InMemoryLedger
+{
+    std::shared_ptr<Ledger> ledger;
+
+    static std::shared_ptr<InMemoryLedger> instance;
+
+    static std::shared_ptr<InMemoryLedger> getInstance()
+    {
+        if(!instance)
+            instance = std::make_shared<InMemoryLedger>();
+        return instance;
+    }
+};
+
+std::shared_ptr<InMemoryLedger> InMemoryLedger::instance = 0;
+
+std::pair<org::xrpl::rpc::v1::PrepareLedgerResponse, grpc::Status>
+doPrepareLedger(RPC::GRPCContext<org::xrpl::rpc::v1::PrepareLedgerRequest>& context)
+{
+    // return values
+    org::xrpl::rpc::v1::PrepareLedgerResponse result;
+    grpc::Status status = grpc::Status::OK;
+
+    auto inMemLgr = InMemoryLedger::getInstance();
+
+    return {result, status};
+}
+
+std::pair<org::xrpl::rpc::v1::SubmitMetadataResponse, grpc::Status>
+doSubmitMetadata(RPC::GRPCContext<org::xrpl::rpc::v1::SubmitMetadataRequest>& context)
+{
+    // return values
+    org::xrpl::rpc::v1::SubmitMetadataResponse result;
+    grpc::Status status = grpc::Status::OK;
+
+    //get the prev ledger
+    auto ledgerIndex = context.params.ledger_sequence();
+    auto ledger = context.ledgerMaster.getLedgerBySeq(ledgerIndex);
+
+    //create next ledger
+    Ledger next{*ledger,{}};
+
+    auto inMemLgr = InMemoryLedger::getInstance();
+    auto affectedNode = context.params.affected_nodes(0);
+    std::string const& ledgerBytes = affectedNode.ledger_index();
+    auto key = uint256::fromVoid(ledgerBytes.data());
+
+
+
+    std::shared_ptr<SLE> sle = std::make_shared<SLE>(ltACCOUNT_ROOT, key);
+    //construct the SLE
+    //
+
+
+    //set account
+    //set balance
+    //set flags
+    //set owner count
+    //set previous txn id
+    //set previous txn ledger seq
+    //set sequence
+    //
+    // decode account
+    AccountID accountID;
+    std::string strIdent = affectedNode.created_node().new_fields().account_root().account().value().address();
+    RPC::accountFromStringWithCode(accountID, strIdent, false);
+
+    sle->setAccountID(sfAccount, accountID);
+
+
+    next.rawInsert(sle);
+
+    bool writeToDb = false;
+
+    if(writeToDb)
+    {
+        //flush to db
+        next.stateMap().flushDirty(hotACCOUNT_NODE, next.info().seq);
+    }
+    else
+    {
+        // dont write
+        next.stateMap().flushDirtyNoWrite(hotACCOUNT_NODE, next.info().seq);
+    }
+
+    return {result, status};
+}
+
 }  // namespace ripple

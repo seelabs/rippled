@@ -236,6 +236,7 @@ public:
                   Delta& differences, int maxCount) const;
 
     int flushDirty (NodeObjectType t, std::uint32_t seq);
+    int flushDirtyNoWrite(NodeObjectType t, std::uint32_t seq);
     void walkMap (std::vector<SHAMapMissingNode>& missingNodes, int maxMissing) const;
     bool deepCompare (SHAMap & other) const;  // Intended for debug/test only
 

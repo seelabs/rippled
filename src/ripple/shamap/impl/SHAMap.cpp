@@ -894,6 +894,11 @@ int SHAMap::flushDirty (NodeObjectType t, std::uint32_t seq)
     return walkSubTree (true, t, seq);
 }
 
+int SHAMap::flushDirtyNoWrite(NodeObjectType t, std::uint32_t seq)
+{
+    return walkSubTree (false, t, seq);
+}
+
 int
 SHAMap::walkSubTree (bool doWrite, NodeObjectType t, std::uint32_t seq)
 {
