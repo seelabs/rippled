@@ -114,11 +114,42 @@ public:
     // supports a full ledger API
 
     void
-    doVoting (
-        std::shared_ptr <ReadView const> const& lastClosedLedger,
+    doVoting(
+        std::shared_ptr<ReadView const> const& lastClosedLedger,
         std::vector<STValidation::pointer> const& parentValidations,
-        std::shared_ptr<SHAMap> const& initialPosition)
+        std::shared_ptr<SHAMap> const& initialPosition,
+        bool isStandalone = false)
     {
+        // TODO submit hardcoded votes
+        if (isStandalone)
+        {
+            // Inject appropriate pseudo-transactions
+            for (auto const& it : hardcodedVotes_)
+            {
+                STTx amendTx(
+                    ttAMENDMENT,
+                    [&it, seq = lastClosedLedger->seq() + 1](auto& obj) {
+                        obj.setAccountID(sfAccount, AccountID());
+                        obj.setFieldH256(sfAmendment, it.amendment);
+                        obj.setFieldU32(sfLedgerSequence, seq);
+
+                        if (it.flags != 0)
+                            obj.setFieldU32(sfFlags, it.flags);
+                    });
+
+                Serializer s;
+                amendTx.add(s);
+
+                initialPosition->addGiveItem(
+                    std::make_shared<SHAMapItem>(
+                        amendTx.getTransactionID(), s.peekData()),
+                    true,
+                    false);
+            }
+
+            return;
+        }
+
         // Ask implementation what to do
         auto actions = doVoting (
             lastClosedLedger->parentCloseTime(),
@@ -152,6 +183,13 @@ public:
         }
     }
 
+    struct HardcodedVote
+    {
+        uint256 amendment;
+        uint32_t flags;
+    };
+
+    std::vector<HardcodedVote> hardcodedVotes_;
 };
 
 std::unique_ptr<AmendmentTable> make_AmendmentTable (

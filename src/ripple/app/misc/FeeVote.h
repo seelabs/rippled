@@ -69,11 +69,22 @@ public:
         @param lastClosedLedger
         @param initialPosition
     */
-    virtual
-    void
-    doVoting (std::shared_ptr<ReadView const> const& lastClosedLedger,
+    virtual void
+    doVoting(
+        std::shared_ptr<ReadView const> const& lastClosedLedger,
         std::vector<STValidation::pointer> const& parentValidations,
-            std::shared_ptr<SHAMap> const& initialPosition) = 0;
+        std::shared_ptr<SHAMap> const& initialPosition,
+        bool isStandalone = false) = 0;
+
+    struct HardcodedVote
+    {
+        uint64_t baseFee;
+        uint32_t baseReserve;
+        uint32_t incReserve;
+        uint32_t feeUnit;
+    };
+
+    std::vector<HardcodedVote> hardcodedVotes_;
 };
 
 /** Build FeeVote::Setup from a config section. */

@@ -100,9 +100,11 @@ public:
         STValidation::FeeSettings& fees) override;
 
     void
-    doVoting (std::shared_ptr<ReadView const> const& lastClosedLedger,
+    doVoting(
+        std::shared_ptr<ReadView const> const& lastClosedLedger,
         std::vector<STValidation::pointer> const& parentValidations,
-        std::shared_ptr<SHAMap> const& initialPosition) override;
+        std::shared_ptr<SHAMap> const& initialPosition,
+        bool isStandalone = false) override;
 };
 
 //--------------------------------------------------------------------------
@@ -147,10 +149,42 @@ void
 FeeVoteImpl::doVoting(
     std::shared_ptr<ReadView const> const& lastClosedLedger,
     std::vector<STValidation::pointer> const& set,
-    std::shared_ptr<SHAMap> const& initialPosition)
+    std::shared_ptr<SHAMap> const& initialPosition,
+    bool isStandalone)
 {
     // LCL must be flag ledger
     assert ((lastClosedLedger->info().seq % 256) == 0);
+    if (isStandalone)
+    {
+        auto const seq1 = lastClosedLedger->info().seq + 1;
+        for (auto it : hardcodedVotes_)
+        {
+            STTx feeTx(ttFEE, [seq1, &it](auto& obj) {
+                obj[sfAccount] = AccountID();
+                obj[sfLedgerSequence] = seq1;
+                obj[sfBaseFee] = it.baseFee;
+                obj[sfReserveBase] = it.baseReserve;
+                obj[sfReserveIncrement] = it.incReserve;
+                obj[sfReferenceFeeUnits] = it.feeUnit;
+            });
+
+            uint256 txID = feeTx.getTransactionID();
+
+            JLOG(journal_.warn()) << "Vote: " << txID;
+
+            Serializer s;
+            feeTx.add(s);
+
+            auto tItem = std::make_shared<SHAMapItem>(txID, s.peekData());
+
+            if (!initialPosition->addGiveItem(tItem, true, false))
+            {
+                JLOG(journal_.warn()) << "Ledger already had fee change";
+            }
+        }
+
+        return;
+    }
 
     detail::VotableValue baseFeeVote (
         lastClosedLedger->fees().base,

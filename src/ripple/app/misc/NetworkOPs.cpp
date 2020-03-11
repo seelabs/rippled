@@ -179,7 +179,9 @@ class NetworkOPsImp final
             decltype(start_) start;
         };
 
-        CounterData getCounterData() const{ 
+        CounterData
+        getCounterData() const
+        {
             std::lock_guard lock(mutex_);
             return { counters_, mode_, start_ };
         }
@@ -411,8 +413,10 @@ public:
     Json::Value getServerInfo (bool human, bool admin, bool counters) override;
     void clearLedgerFetch () override;
     Json::Value getLedgerFetchInfo () override;
-    std::uint32_t acceptLedger (
-        boost::optional<std::chrono::milliseconds> consensusDelay) override;
+    std::uint32_t
+    acceptLedger(
+        boost::optional<std::chrono::milliseconds> consensusDelay,
+        boost::optional<std::chrono::seconds> closeTime) override;
     uint256 getConsensusLCL () override;
     void reportFeeChange () override;
     void reportConsensusStateChange(ConsensusPhase phase);
@@ -605,6 +609,8 @@ private:
 
     std::recursive_mutex mSubLock;
 
+    std::mutex acceptorMutex_;
+
     std::atomic<OperatingMode> mMode;
 
     std::atomic <bool> needNetworkLedger_ {false};
@@ -693,18 +699,18 @@ private:
         beast::insight::Gauge tracking_transitions;
         beast::insight::Gauge full_transitions;
     };
-    
+
     std::mutex m_statsMutex;//Mutex to lock m_stats
     Stats m_stats;
 
 private:
     void collect_metrics()
-    {   
+    {
         auto [counters, mode, start] = accounting_.getCounterData();
         auto const current = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - start);
         counters[static_cast<std::size_t>(mode)].dur += current;
 
-        std::lock_guard lock (m_statsMutex);  
+        std::lock_guard lock(m_statsMutex);
         m_stats.disconnected_duration.set(counters[static_cast<std::size_t>(OperatingMode::DISCONNECTED)].dur.count());
         m_stats.connected_duration.set(counters[static_cast<std::size_t>(OperatingMode::CONNECTED)].dur.count());
         m_stats.syncing_duration.set(counters[static_cast<std::size_t>(OperatingMode::SYNCING)].dur.count());
@@ -3035,9 +3041,12 @@ bool NetworkOPsImp::unsubBook (std::uint64_t uSeq, Book const& book)
     return true;
 }
 
-std::uint32_t NetworkOPsImp::acceptLedger (
-    boost::optional<std::chrono::milliseconds> consensusDelay)
+std::uint32_t
+NetworkOPsImp::acceptLedger(
+    boost::optional<std::chrono::milliseconds> consensusDelay,
+    boost::optional<std::chrono::seconds> closeTime)
 {
+    std::lock_guard<std::mutex> lock(acceptorMutex_);
     // This code-path is exclusively used when the server is in standalone
     // mode via `ledger_accept`
     assert (m_standalone);
@@ -3048,7 +3057,10 @@ std::uint32_t NetworkOPsImp::acceptLedger (
     // FIXME Could we improve on this and remove the need for a specialized
     // API in Consensus?
     beginConsensus (m_ledgerMaster.getClosedLedger()->info().hash);
-    mConsensus.simulate (app_.timeKeeper().closeTime(), consensusDelay);
+    mConsensus.simulate(
+        closeTime ? NetClock::time_point(*closeTime)
+                  : app_.timeKeeper().closeTime(),
+        consensusDelay);
     return m_ledgerMaster.getCurrentLedger ()->info().seq;
 }
 
