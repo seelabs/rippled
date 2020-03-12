@@ -416,7 +416,8 @@ public:
     std::uint32_t
     acceptLedger(
         boost::optional<std::chrono::milliseconds> consensusDelay,
-        boost::optional<std::chrono::seconds> closeTime) override;
+        boost::optional<std::chrono::seconds> closeTime,
+        boost::optional<std::uint32_t> ledgerIndex) override;
     uint256 getConsensusLCL () override;
     void reportFeeChange () override;
     void reportConsensusStateChange(ConsensusPhase phase);
@@ -3044,9 +3045,14 @@ bool NetworkOPsImp::unsubBook (std::uint64_t uSeq, Book const& book)
 std::uint32_t
 NetworkOPsImp::acceptLedger(
     boost::optional<std::chrono::milliseconds> consensusDelay,
-    boost::optional<std::chrono::seconds> closeTime)
+    boost::optional<std::chrono::seconds> closeTime,
+    boost::optional<std::uint32_t> ledgerIndex)
 {
     std::lock_guard<std::mutex> lock(acceptorMutex_);
+    if (ledgerIndex &&
+        *ledgerIndex != m_ledgerMaster.getCurrentLedger()->info().seq)
+        return m_ledgerMaster.getCurrentLedger()->info().seq;
+
     // This code-path is exclusively used when the server is in standalone
     // mode via `ledger_accept`
     assert (m_standalone);

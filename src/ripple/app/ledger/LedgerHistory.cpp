@@ -58,7 +58,7 @@ LedgerHistory::insert(
     if(! ledger->isImmutable())
         LogicError("mutable Ledger in insert");
 
-    assert (ledger->stateMap().getHash ().isNonZero ());
+    // assert (ledger->stateMap().getHash ().isNonZero ());
 
     std::unique_lock sl (m_ledgers_by_hash.peekMutex ());
 

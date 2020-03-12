@@ -32,6 +32,8 @@
 
 namespace ripple {
 
+static std::shared_ptr<Ledger> cachedLedger;
+
 Json::Value doLedgerAccept (RPC::JsonContext& context)
 {
     std::unique_lock lock{context.app.getMasterMutex()};
@@ -41,16 +43,105 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
     {
         jvResult[jss::error] = "notStandAlone";
     }
+    else if (context.params.isMember(jss::ledger))
+    {
+        try
+        {
+            std::cout << "****" << std::endl;
+            auto lgrData = context.params[jss::ledger];
+            std::cout << "****" << std::endl;
+            LedgerInfo lgrInfo;
+            lgrInfo.seq = lgrData[jss::ledger_index].asUInt();
+            std::cout << "****" << std::endl;
+            lgrInfo.parentCloseTime = NetClock::time_point(
+                std::chrono::seconds(lgrData[jss::parent_close_time].asUInt()));
+            std::cout << "****" << std::endl;
+            lgrInfo.hash =
+                from_hex_text<uint256>(lgrData[jss::ledger_hash].asString());
+            std::cout << "****" << std::endl;
+            lgrInfo.txHash = from_hex_text<uint256>(
+                lgrData[jss::transaction_hash].asString());
+            std::cout << "****" << std::endl;
+            lgrInfo.accountHash =
+                from_hex_text<uint256>(lgrData[jss::account_hash].asString());
+            std::cout << "****" << std::endl;
+            lgrInfo.parentHash =
+                from_hex_text<uint256>(lgrData[jss::parent_hash].asString());
+            std::cout << "****" << std::endl;
+            lgrInfo.drops =
+                XRPAmount(std::stoll(lgrData[jss::total_coins].asString()));
+            std::cout << "****" << std::endl;
+            lgrInfo.validated = true;
+            std::cout << "****" << std::endl;
+            lgrInfo.accepted = true;
+            std::cout << "****" << std::endl;
+            lgrInfo.closeFlags = lgrData[jss::close_flags].asUInt();
+            std::cout << "****" << std::endl;
+            lgrInfo.closeTimeResolution = NetClock::duration(
+                lgrData[jss::close_time_resolution].asUInt());
+            std::cout << "****" << std::endl;
+            lgrInfo.closeTime = NetClock::time_point(
+                std::chrono::seconds(lgrData[jss::close_time].asUInt()));
+            std::cout << "****" << std::endl;
+            std::shared_ptr<Ledger> ledger = std::make_shared<Ledger>(
+                lgrInfo, context.app.config(), context.app.family());
+            std::cout << "****" << std::endl;
+            ledger->stateMap().clearSynching();
+
+            cachedLedger = ledger;
+
+            jvResult["msg"] = "hi";
+
+            std::cout << "****" << std::endl;
+            return jvResult;
+        }
+        catch (std::exception e)
+        {
+            jvResult[jss::error] = "An exception was thrown";
+            jvResult["msg"] = e.what();
+            return jvResult;
+        }
+    }
+    else if (context.params.isMember(jss::ledger_data))
+    {
+        assert(cachedLedger);
+        // auto ledgerIndex = context.params[jss::ledger_index].asUInt();
+        // std::shared_ptr<Ledger> Ledger =
+        //    context.app.getLedgerMaster().getLedgerBySeq(ledgerIndex);
+
+        auto data = context.params[jss::data].asString();
+        auto key = context.params[jss::index].asString();
+
+        auto dataBlob = strUnHex(data);
+        auto key256 = from_hex_text<uint256>(key);
+
+        SerialIter it{dataBlob->data(), dataBlob->size()};
+        std::shared_ptr<SLE> sle = std::make_shared<SLE>(it, key256);
+        cachedLedger->rawInsert(sle);
+
+        jvResult["msg"] = "success";
+        return jvResult;
+    }
+    else if (context.params.isMember("finish"))
+    {
+        jvResult["stored"] =
+            !context.app.getLedgerMaster().storeLedger(cachedLedger);
+        return jvResult;
+    }
     else
     {
+        boost::optional<uint32_t> ledgerIndex;
+        boost::optional<std::chrono::seconds> closeTime;
         if (context.params.isMember(jss::ledger_index))
         {
-            if (context.params[jss::ledger_index].asUInt() !=
-                context.ledgerMaster.getCurrentLedgerIndex())
-            {
-                jvResult[jss::error] = "old ledger";
-                return jvResult;
-            }
+            ledgerIndex = context.params[jss::ledger_index].asUInt();
+        }
+
+        if (context.params.isMember(jss::close_time))
+        {
+            auto ctJv = context.params[jss::close_time];
+            std::chrono::seconds ct(ctJv.asUInt());
+            closeTime = ct;
         }
 
         if (context.params.isMember(jss::amendments))
@@ -67,18 +158,12 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
             }
         }
 
-        if (context.params.isMember(jss::close_time))
-        {
-            auto closeTime = context.params[jss::close_time];
-            std::chrono::seconds ct(closeTime.asUInt());
-            context.netOps.acceptLedger({}, ct);
-        }
-        else
-        {
-            context.netOps.acceptLedger();
-        }
+        context.netOps.acceptLedger({}, closeTime, ledgerIndex);
         jvResult[jss::ledger_current_index] =
             context.ledgerMaster.getCurrentLedgerIndex ();
+        if (ledgerIndex &&
+            *ledgerIndex != (context.ledgerMaster.getCurrentLedgerIndex() - 1))
+            jvResult[jss::error] = "specified ledger already closed";
     }
 
     return jvResult;
