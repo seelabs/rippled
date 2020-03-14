@@ -50,6 +50,7 @@ class JobQueue;
 class InboundLedgers;
 class InboundTransactions;
 class AcceptedLedger;
+class Ledger;
 class LedgerMaster;
 class LoadManager;
 class ManifestCache;
@@ -173,6 +174,8 @@ public:
     virtual AccountIDCache const&   accountIDCache() const = 0;
     virtual OpenLedger&             openLedger() = 0;
     virtual OpenLedger const&       openLedger() const = 0;
+    virtual void
+    setOpenLedger(std::shared_ptr<Ledger>&) = 0;
     virtual DatabaseCon&            getTxnDB () = 0;
     virtual DatabaseCon&            getLedgerDB () = 0;
 

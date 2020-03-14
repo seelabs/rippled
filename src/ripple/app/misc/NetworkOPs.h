@@ -206,7 +206,8 @@ public:
     acceptLedger(
         boost::optional<std::chrono::milliseconds> consensusDelay = boost::none,
         boost::optional<std::chrono::seconds> closeTime = boost::none,
-        boost::optional<std::uint32_t> ledgerIndex = boost::none) = 0;
+        boost::optional<std::uint32_t> ledgerIndex = boost::none,
+        boost::optional<uint256> parentHash = boost::none) = 0;
 
     virtual uint256 getConsensusLCL () = 0;
 

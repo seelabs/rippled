@@ -417,7 +417,8 @@ public:
     acceptLedger(
         boost::optional<std::chrono::milliseconds> consensusDelay,
         boost::optional<std::chrono::seconds> closeTime,
-        boost::optional<std::uint32_t> ledgerIndex) override;
+        boost::optional<std::uint32_t> ledgerIndex,
+        boost::optional<uint256> parentHash) override;
     uint256 getConsensusLCL () override;
     void reportFeeChange () override;
     void reportConsensusStateChange(ConsensusPhase phase);
@@ -3046,12 +3047,13 @@ std::uint32_t
 NetworkOPsImp::acceptLedger(
     boost::optional<std::chrono::milliseconds> consensusDelay,
     boost::optional<std::chrono::seconds> closeTime,
-    boost::optional<std::uint32_t> ledgerIndex)
+    boost::optional<std::uint32_t> ledgerIndex,
+    boost::optional<uint256> parentHash)
 {
     std::lock_guard<std::mutex> lock(acceptorMutex_);
-    if (ledgerIndex &&
-        *ledgerIndex != m_ledgerMaster.getCurrentLedger()->info().seq)
-        return m_ledgerMaster.getCurrentLedger()->info().seq;
+    //    if (ledgerIndex &&
+    //        *ledgerIndex != m_ledgerMaster.getCurrentLedger()->info().seq)
+    //        return m_ledgerMaster.getCurrentLedger()->info().seq;
 
     // This code-path is exclusively used when the server is in standalone
     // mode via `ledger_accept`
@@ -3062,7 +3064,10 @@ NetworkOPsImp::acceptLedger(
 
     // FIXME Could we improve on this and remove the need for a specialized
     // API in Consensus?
-    beginConsensus (m_ledgerMaster.getClosedLedger()->info().hash);
+
+    beginConsensus(m_ledgerMaster.getHashBySeq(*ledgerIndex));
+    // beginConsensus (parentHash ? *parentHash :
+    // m_ledgerMaster.getClosedLedger()->info().hash);
     mConsensus.simulate(
         closeTime ? NetClock::time_point(*closeTime)
                   : app_.timeKeeper().closeTime(),

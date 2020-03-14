@@ -18,6 +18,7 @@
 //==============================================================================
 
 #include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/ledger/OpenLedger.h>
 #include <ripple/app/main/Application.h>
 #include <ripple/app/misc/AmendmentTable.h>
 #include <ripple/app/misc/NetworkOPs.h>
@@ -126,12 +127,23 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
     {
         jvResult["stored"] =
             !context.app.getLedgerMaster().storeLedger(cachedLedger);
+
+        cachedLedger->updateSkipList();
+        cachedLedger->setImmutable(context.app.config());
+        context.app.setOpenLedger(cachedLedger);
+        jvResult["open_ledger"] = cachedLedger->info().seq + 1;
+
+        jvResult[jss::ledger_current_index] =
+            context.ledgerMaster.getCurrentLedgerIndex();
+        jvResult["open_ledger_app"] =
+            context.app.openLedger().current()->info().seq;
         return jvResult;
     }
     else
     {
         boost::optional<uint32_t> ledgerIndex;
         boost::optional<std::chrono::seconds> closeTime;
+        boost::optional<uint256> parentHash;
         if (context.params.isMember(jss::ledger_index))
         {
             ledgerIndex = context.params[jss::ledger_index].asUInt();
@@ -142,6 +154,11 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
             auto ctJv = context.params[jss::close_time];
             std::chrono::seconds ct(ctJv.asUInt());
             closeTime = ct;
+        }
+        if (context.params.isMember(jss::parent_hash))
+        {
+            parentHash = from_hex_text<uint256>(
+                context.params[jss::parent_hash].asString());
         }
 
         if (context.params.isMember(jss::amendments))
@@ -158,7 +175,13 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
             }
         }
 
-        context.netOps.acceptLedger({}, closeTime, ledgerIndex);
+        if (ledgerIndex && cachedLedger->info().seq == ledgerIndex)
+        {
+            std::cout << "setting parent hash" << std::endl;
+            parentHash = cachedLedger->info().parentHash;
+        }
+
+        context.netOps.acceptLedger({}, closeTime, ledgerIndex, parentHash);
         jvResult[jss::ledger_current_index] =
             context.ledgerMaster.getCurrentLedgerIndex ();
         if (ledgerIndex &&
