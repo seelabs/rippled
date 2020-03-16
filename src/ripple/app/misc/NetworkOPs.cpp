@@ -3065,7 +3065,7 @@ NetworkOPsImp::acceptLedger(
     // FIXME Could we improve on this and remove the need for a specialized
     // API in Consensus?
 
-    beginConsensus(m_ledgerMaster.getHashBySeq(*ledgerIndex));
+    beginConsensus(m_ledgerMaster.getClosedLedger()->info().hash);
     // beginConsensus (parentHash ? *parentHash :
     // m_ledgerMaster.getClosedLedger()->info().hash);
     mConsensus.simulate(
