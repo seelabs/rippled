@@ -90,6 +90,7 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
                     lgrInfo, context.app.config(), context.app.family());
                 std::cout << "****" << std::endl;
                 ledger->stateMap().clearSynching();
+                ledger->txMap().clearSynching();
 
                 cachedLedger = ledger;
             }
@@ -97,6 +98,10 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
             {
                 cachedLedger = std::make_shared<Ledger>(
                     *cachedLedger, NetClock::time_point{});
+                cachedLedger->setLedgerInfo(lgrInfo);
+                std::cout
+                    << strHex(cachedLedger->stateMap().getHash().as_uint256())
+                    << std::endl;
             }
 
             jvResult["msg"] = "hi";
@@ -131,10 +136,38 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
         jvResult["msg"] = "success";
         return jvResult;
     }
+    else if(context.params.isMember("load_txns"))
+    {
+        auto arr = context.params["transactions"];
+        for (auto i = 0; i < arr.size(); ++i)
+        {
+            auto val = arr[i];
+
+            auto txn = strUnHex(val["tx_blob"].asString());
+
+            SerialIter it{txn->data(), txn->size()};
+            STTx sttx{it};
+            auto txSerializer = std::make_shared<Serializer>(sttx.getSerializer());
+
+            auto blob = strUnHex(val["meta"].asString());
+            TxMeta txMeta{
+                sttx.getTransactionID(), cachedLedger->info().seq, *blob};
+
+            auto metaSerializer =
+                std::make_shared<Serializer>(txMeta.getAsObject().getSerializer());
+
+            cachedLedger->rawTxInsert(
+                    sttx.getTransactionID(), txSerializer, metaSerializer);
+            jvResult["msg"] = "hi";
+            return jvResult;
+        }
+    }
     else if (context.params.isMember("finish"))
     {
         std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256())
                   << std::endl;
+        std::cout << strHex(cachedLedger->info().accountHash)
+            << std::endl;
         // cachedLedger->updateSkipList();
 
         std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256())
@@ -145,6 +178,7 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
         cachedLedger->stateMap().flushDirty(
             hotACCOUNT_NODE, cachedLedger->info().seq);
 
+        //TODO add in the txs
         cachedLedger->txMap().flushDirty(
             hotTRANSACTION_NODE, cachedLedger->info().seq);
 
@@ -172,71 +206,107 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
             context.app.openLedger().current()->info().seq;
         return jvResult;
     }
-    else if (context.params.isMember("meta"))
+    else if (context.params.isMember("load_meta"))
     {
-        auto txn = strUnHex(context.params["tx_blob"].asString());
 
-        SerialIter it{txn->data(), txn->size()};
-        STTx sttx{it};
-
-        auto blob = strUnHex(context.params["meta"].asString());
-        TxMeta txMeta{
-            sttx.getTransactionID(), context.params["ledger"].asUInt(), *blob};
-
-        STArray& nodes = txMeta.getNodes();
-        for (auto it = nodes.begin(); it != nodes.end(); ++it)
+        std::cout << "loading meta" << std::endl;
+        auto arr = context.params["transactions"];
+        for (auto i = 0; i < arr.size(); ++i)
         {
-            STObject& obj = *it;
+            std::cout << "processing meta" << std::endl;
+            auto val = arr[i];
+            auto txn = strUnHex(val["tx_blob"].asString());
 
-            // ledger index
-            uint256 ledgerIndex = obj.getFieldH256(sfLedgerIndex);
+            SerialIter it{txn->data(), txn->size()};
+            STTx sttx{it};
 
-            // ledger entry type
-            std::uint16_t lgrType = obj.getFieldU16(sfLedgerEntryType);
-            LedgerEntryType entryType = safe_cast<LedgerEntryType>(lgrType);
+            auto blob = strUnHex(val["meta"].asString());
+            TxMeta txMeta{
+                sttx.getTransactionID(), cachedLedger->info().seq, *blob};
 
-            // modified node
-            if (obj.getFName() == sfModifiedNode)
+            STArray& nodes = txMeta.getNodes();
+            for (auto it = nodes.begin(); it != nodes.end(); ++it)
             {
-                Keylet keylet{entryType, ledgerIndex};
-                std::shared_ptr<SLE> sle =
-                    std::make_shared<SLE>(*cachedLedger->read(keylet));
+                std::cout << "processing node" << std::endl;
+                STObject& obj = *it;
+                std::cout << obj.getJson(JsonOptions::none).toStyledString()
+                    << std::endl;
 
-                if (obj.isFieldPresent(sfFinalFields))
+                // ledger index
+                uint256 ledgerIndex = obj.getFieldH256(sfLedgerIndex);
+
+                // ledger entry type
+                std::uint16_t lgrType = obj.getFieldU16(sfLedgerEntryType);
+                LedgerEntryType entryType = safe_cast<LedgerEntryType>(lgrType);
+
+                // modified node
+                if (obj.getFName() == sfModifiedNode)
                 {
-                    STObject& data =
-                        obj.getField(sfFinalFields).downcast<STObject>();
+                    Keylet keylet{entryType, ledgerIndex};
+                    auto sle = cachedLedger->peek(keylet);
+                    assert(sle);
 
-                    for (auto i = 0; i < data.getCount(); ++i)
+                    if (obj.isFieldPresent(sfFinalFields))
                     {
-                        std::unique_ptr<STBase> base =
-                            std::make_unique<STBase>(data.getIndex(i));
-                        assert(base);
-                        sle->set(std::move(base));
+                        std::cout << "has final fields" << std::endl;
+                        STObject& data =
+                            obj.getField(sfFinalFields).downcast<STObject>();
+
+                        for (auto i = 0; i < data.getCount(); ++i)
+                        {
+                            auto ptr = data.getPIndex(i);
+                            assert(ptr);
+                            sle->set(ptr);
+                        }
                     }
+                    if(obj.isFieldPresent(sfPreviousTxnID))
+                    {
+                        sle->setFieldH256(sfPreviousTxnID, txMeta.getTxID());
+                    }
+                    if(obj.isFieldPresent(sfPreviousTxnLgrSeq))
+                    {
+                        sle->setFieldU32(sfPreviousTxnLgrSeq, txMeta.getLgrSeq());
+                    }
+                    std::cout << "replacing node : key = "
+                        << strHex(ledgerIndex)
+                        << std::endl;
+
+                    std::cout << sle->getJson(JsonOptions::none).toStyledString() << std::endl;
+
                     cachedLedger->rawReplace(sle);
                 }
-            }
-            // created node
-            else if (obj.getFName() == sfCreatedNode)
-            {
-                if (obj.isFieldPresent(sfNewFields))
+                // created node
+                else if (obj.getFName() == sfCreatedNode)
                 {
-                    STObject& data =
-                        obj.getField(sfNewFields).downcast<STObject>();
+                    if (obj.isFieldPresent(sfNewFields))
+                    {
+                        STObject& data =
+                            obj.getField(sfNewFields).downcast<STObject>();
+                        std::shared_ptr<SLE> sle =
+                            std::make_shared<SLE>(data, ledgerIndex);
+                        cachedLedger->rawInsert(sle);
+                    }
+
+                    std::cout << "adding node : key = "
+                        << strHex(ledgerIndex)
+                        << std::endl;
+                }
+                // deleted node
+                else if (obj.getFName() == sfDeletedNode)
+                {
+
+                    std::cout << "deleting node : key = "
+                        << strHex(ledgerIndex)
+                        << std::endl;
                     std::shared_ptr<SLE> sle =
-                        std::make_shared<SLE>(data, ledgerIndex);
-                    cachedLedger->rawInsert(sle);
+                        std::make_shared<SLE>(entryType, ledgerIndex);
+                    cachedLedger->rawErase(sle);
                 }
             }
-            // deleted node
-            else if (obj.getFName() == sfDeletedNode)
-            {
-                std::shared_ptr<SLE> sle =
-                    std::make_shared<SLE>(entryType, ledgerIndex);
-                cachedLedger->rawErase(sle);
-            }
         }
+        cachedLedger->updateSkipList();
+        jvResult["msg"] = "hi";
+        return jvResult;
     }
     else
     {

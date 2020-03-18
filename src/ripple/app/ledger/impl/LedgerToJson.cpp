@@ -187,8 +187,10 @@ void fillJsonState(Object& json, LedgerFill const& fill)
     auto expanded = isExpanded(fill);
     auto binary = isBinary(fill);
 
+    std::cout << "filling sles" << std::endl;
     for(auto const& sle : ledger.sles)
     {
+        std::cout << "filling sle" << std::endl;
         if (fill.type == ltINVALID || sle->getType () == fill.type)
         {
             if (binary)
@@ -203,6 +205,7 @@ void fillJsonState(Object& json, LedgerFill const& fill)
                 array.append(to_string(sle->key()));
         }
     }
+    std::cout << "filled sles" << std::endl;
 }
 
 template <class Object>

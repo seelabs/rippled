@@ -155,6 +155,12 @@ public:
         return info_;
     }
 
+    void
+        setLedgerInfo(LedgerInfo const& info)
+        {
+            info_ = info;
+        }
+
     Fees const&
     fees() const override
     {
@@ -316,6 +322,9 @@ public:
 
     void invariants() const;
     void unshare() const;
+
+    std::shared_ptr<SLE>
+    peek (Keylet const& k) const;
 private:
     class sles_iter_impl;
     class txs_iter_impl;
@@ -323,8 +332,6 @@ private:
     bool
     setup (Config const& config);
 
-    std::shared_ptr<SLE>
-    peek (Keylet const& k) const;
 
     bool mImmutable;
 
