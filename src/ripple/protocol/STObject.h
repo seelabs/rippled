@@ -30,6 +30,7 @@
 #include <ripple/protocol/STAmount.h>
 #include <ripple/protocol/STPathSet.h>
 #include <ripple/protocol/STVector256.h>
+#include <ripple/protocol/STVector64.h>
 #include <ripple/protocol/impl/STVar.h>
 #include <boost/iterator/transform_iterator.hpp>
 #include <boost/optional.hpp>
@@ -465,6 +466,8 @@ public:
     getFieldAmount(SField const& field) const;
     STPathSet const&
     getFieldPathSet(SField const& field) const;
+    const STVector64&
+    getFieldV64(SField const& field) const;
     const STVector256&
     getFieldV256(SField const& field) const;
     const STArray&
@@ -539,6 +542,8 @@ public:
     setFieldAmount(SField const& field, STAmount const&);
     void
     setFieldPathSet(SField const& field, STPathSet const&);
+    void
+    setFieldV64(SField const& field, STVector64 const& v);
     void
     setFieldV256(SField const& field, STVector256 const& v);
     void

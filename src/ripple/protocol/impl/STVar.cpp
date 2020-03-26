@@ -142,6 +142,9 @@ STVar::STVar(SerialIter& sit, SField const& name, int depth)
         case STI_VECTOR256:
             construct<STVector256>(sit, name);
             return;
+        case STI_VECTOR64:
+            construct<STVector64>(sit, name);
+            return;
         case STI_VL:
             construct<STBlob>(sit, name);
             return;
@@ -196,6 +199,9 @@ STVar::STVar(SerializedTypeID id, SField const& name)
             return;
         case STI_VECTOR256:
             construct<STVector256>(name);
+            return;
+        case STI_VECTOR64:
+            construct<STVector64>(name);
             return;
         case STI_VL:
             construct<STBlob>(name);

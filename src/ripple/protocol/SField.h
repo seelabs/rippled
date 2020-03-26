@@ -47,6 +47,7 @@ template <std::size_t>
 class STBitString;
 template <class>
 class STInteger;
+class STVector64;
 class STVector256;
 
 enum SerializedTypeID {
@@ -73,6 +74,7 @@ enum SerializedTypeID {
     STI_HASH160 = 17,
     STI_PATHSET = 18,
     STI_VECTOR256 = 19,
+    STI_VECTOR64 = 20,
 
     // high level types
     // cannot be serialized inside other types
@@ -324,6 +326,7 @@ using SF_U256 = TypedField<STBitString<256>>;
 using SF_Account = TypedField<STAccount>;
 using SF_Amount = TypedField<STAmount>;
 using SF_Blob = TypedField<STBlob>;
+using SF_Vec64 = TypedField<STVector64>;
 using SF_Vec256 = TypedField<STVector256>;
 
 //------------------------------------------------------------------------------

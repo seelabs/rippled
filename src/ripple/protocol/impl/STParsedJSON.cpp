@@ -563,6 +563,35 @@ parseLeaf(
 
             break;
 
+        case STI_VECTOR64:
+            if (!value.isArrayOrNull())
+            {
+                error = array_expected(json_name, fieldName);
+                return ret;
+            }
+
+            try
+            {
+                STVector64 tail(field);
+                for (Json::UInt i = 0; value.isValidIndex(i); ++i)
+                {
+                    // TBD: This is temporary code. STVector64 is for the
+                    // prototype only. Don't use lexical cast in non-prototype
+                    // code
+                    std::uint64_t const s =
+                        boost::lexical_cast<std::uint64_t>(value[i].asString());
+                    tail.push_back(s);
+                }
+                ret = detail::make_stvar<STVector64>(std::move(tail));
+            }
+            catch (std::exception const&)
+            {
+                error = invalid_data(json_name, fieldName);
+                return ret;
+            }
+
+            break;
+
         case STI_PATHSET:
             if (!value.isArrayOrNull())
             {

@@ -96,6 +96,7 @@ target_sources (xrpl_core PRIVATE
   src/ripple/protocol/impl/STTx.cpp
   src/ripple/protocol/impl/STValidation.cpp
   src/ripple/protocol/impl/STVar.cpp
+  src/ripple/protocol/impl/STVector64.cpp
   src/ripple/protocol/impl/STVector256.cpp
   src/ripple/protocol/impl/SecretKey.cpp
   src/ripple/protocol/impl/Seed.cpp

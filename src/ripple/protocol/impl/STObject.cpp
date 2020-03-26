@@ -586,6 +586,13 @@ STObject::getFieldPathSet(SField const& field) const
     return getFieldByConstRef<STPathSet>(field, empty);
 }
 
+const STVector64&
+STObject::getFieldV64(SField const& field) const
+{
+    static STVector64 const empty{};
+    return getFieldByConstRef<STVector64>(field, empty);
+}
+
 const STVector256&
 STObject::getFieldV256(SField const& field) const
 {
@@ -650,6 +657,12 @@ void
 STObject::setFieldH256(SField const& field, uint256 const& v)
 {
     setFieldUsingSetValue<STHash256>(field, v);
+}
+
+void
+STObject::setFieldV64(SField const& field, STVector64 const& v)
+{
+    setFieldUsingSetValue<STVector64>(field, v);
 }
 
 void

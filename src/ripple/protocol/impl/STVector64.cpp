@@ -17,24 +17,46 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_PROTOCOL_ST_H_INCLUDED
-#define RIPPLE_PROTOCOL_ST_H_INCLUDED
-
-#include <ripple/protocol/SField.h>
-#include <ripple/protocol/STAccount.h>
-#include <ripple/protocol/STAmount.h>
-#include <ripple/protocol/STArray.h>
-#include <ripple/protocol/STBase.h>
-#include <ripple/protocol/STBitString.h>
-#include <ripple/protocol/STBlob.h>
-#include <ripple/protocol/STInteger.h>
-#include <ripple/protocol/STLedgerEntry.h>
-#include <ripple/protocol/STObject.h>
-#include <ripple/protocol/STParsedJSON.h>
-#include <ripple/protocol/STPathSet.h>
-#include <ripple/protocol/STTx.h>
-#include <ripple/protocol/STValidation.h>
-#include <ripple/protocol/STVector256.h>
+#include <ripple/basics/Log.h>
+#include <ripple/basics/StringUtilities.h>
 #include <ripple/protocol/STVector64.h>
+#include <ripple/protocol/jss.h>
 
-#endif
+namespace ripple {
+
+STVector64::STVector64(SerialIter& sit, SField const& name) : STBase(name)
+{
+    Blob data = sit.getVL();
+    auto const count = data.size() / sizeof(std::uint64_t);
+    mValue.resize(count);
+    memcpy(mValue.data(), data.data(), data.size());
+}
+
+void
+STVector64::add(Serializer& s) const
+{
+    assert(fName->isBinary());
+    assert(fName->fieldType == STI_VECTOR64);
+    s.addVL(
+        reinterpret_cast<void const*>(mValue.data()),
+        mValue.size() * sizeof(std::uint64_t));
+}
+
+bool
+STVector64::isEquivalent(const STBase& t) const
+{
+    const STVector64* v = dynamic_cast<const STVector64*>(&t);
+    return v && (mValue == v->mValue);
+}
+
+Json::Value STVector64::getJson(JsonOptions) const
+{
+    Json::Value ret(Json::arrayValue);
+
+    for (auto const& vEntry : mValue)
+        ret.append(std::to_string(vEntry));
+
+    return ret;
+}
+
+}  // namespace ripple
