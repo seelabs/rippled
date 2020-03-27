@@ -133,8 +133,10 @@ public:
     createInstance (
         size_t,
         Section const&,
-        Scheduler&, beast::Journal) override
+        Scheduler&, beast::Journal,
+        std::shared_ptr<PgPool> pool) override
     {
+        boost::ignore_unused(pool);
         return std::make_unique <NullBackend> ();
     }
 };

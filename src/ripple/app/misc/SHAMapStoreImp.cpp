@@ -17,7 +17,6 @@
 */
 //==============================================================================
 
-
 #include <ripple/app/ledger/TransactionMaster.h>
 #include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/app/misc/SHAMapStoreImp.h>
@@ -174,13 +173,36 @@ SHAMapStoreImp::SHAMapStoreImp(
     , canDelete_ (std::numeric_limits <LedgerIndex>::max())
 {
     Config& config {app.config()};
+
+    Section& networkDbSection {config.section(ConfigSection::networkDb())};
+    if (! networkDbSection.empty())
+    {
+        std::string type = get(networkDbSection, "type",
+            "postgres");
+        std::string conninfo = get<std::string>(networkDbSection, "conninfo");
+        std::size_t max_connections = get(networkDbSection, "max_connections",
+            std::numeric_limits<std::size_t>::max());
+        std::size_t timeout = get(networkDbSection, "timeout", 600);
+        bool remember_ip = get(networkDbSection, "remember_ip", true);
+        std::cout << "network_db type " << type;
+        std::cout << " conninfo " << conninfo;
+        std::cout << " max_connections " << max_connections;
+        std::cout << " timeout " << timeout;
+        std::cout << " remember_ip " << remember_ip;
+        std::cout << std::endl;
+    }
+    else
+    {
+        std::cout << "network_db is empty\n";
+    }
+
+
     Section& section {config.section(ConfigSection::nodeDatabase())};
     if (section.empty())
     {
         Throw<std::runtime_error>(
             "Missing [" + ConfigSection::nodeDatabase() +
             "] entry in configuration file");
-
     }
 
     // RocksDB only. Use sensible defaults if no values specified.
@@ -266,7 +288,8 @@ SHAMapStoreImp::makeNodeStore(std::string const& name, std::int32_t readThreads)
             readThreads,
             app_.getJobQueue(),
             app_.config().section(ConfigSection::nodeDatabase()),
-            app_.logs().journal(nodeStoreName_));
+            app_.logs().journal(nodeStoreName_),
+            app_.pgPool());
         fdRequired_ += db->fdRequired();
     }
     return db;
@@ -575,7 +598,8 @@ SHAMapStoreImp::makeBackendRotating (std::string path)
     section.set("path", newPath.string());
 
     auto backend {NodeStore::Manager::instance().make_Backend(
-        section, scheduler_, app_.logs().journal(nodeStoreName_))};
+        section, scheduler_, app_.logs().journal(nodeStoreName_),
+        app_.pgPool())};
     backend->open();
     return backend;
 }

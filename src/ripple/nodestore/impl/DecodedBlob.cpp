@@ -21,6 +21,7 @@
 #include <ripple/nodestore/impl/DecodedBlob.h>
 #include <algorithm>
 #include <cassert>
+#include <iostream>
 
 namespace ripple {
 namespace NodeStore {
@@ -58,6 +59,13 @@ DecodedBlob::DecodedBlob (void const* key, void const* value, int valueBytes)
         switch (m_objectType)
         {
         default:
+            std::cerr << "bad decodedblob: "
+                << strHex(static_cast<char const*>(key),
+                    static_cast<char const*>(key) + 32)
+                << " "
+                << (valueBytes ? strHex(static_cast<char const*>(value),
+                    static_cast<char const*>(value) + valueBytes) : "(empty)")
+                << '\n';
             break;
 
         case hotUNKNOWN:

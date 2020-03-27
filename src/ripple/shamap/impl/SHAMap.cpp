@@ -18,6 +18,7 @@
 //==============================================================================
 
 #include <ripple/basics/contract.h>
+#include <ripple/nodestore/impl/EncodedBlob.h>
 #include <ripple/shamap/SHAMap.h>
 
 namespace ripple {
@@ -355,6 +356,17 @@ SHAMap::descendAsync (SHAMapInnerNode* parent, int branch,
             }
             if (!obj)
                 return nullptr;
+
+            NodeStore::EncodedBlob e;
+            e.prepare(obj);
+
+            JLOG(journal_.debug()) << "fetched " << hash.as_uint256()
+                    <<  " " << e.getSize() << " "
+                    << strHex(static_cast<char const*>(e.getKey()),
+                        static_cast<char const*>(e.getKey()) + 32)
+                    << " "
+                    << (e.getSize() ? strHex(static_cast<char const*>(e.getData()),
+                        static_cast<char const*>(e.getData()) + e.getSize()) : "(empty)");
 
             ptr = SHAMapAbstractNode::make(makeSlice(obj->getData()), 0, snfPREFIX,
                                            hash, true, f_.journal());

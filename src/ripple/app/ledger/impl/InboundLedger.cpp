@@ -146,7 +146,7 @@ InboundLedger::init(ScopedLockType& collectionLock)
 
 void InboundLedger::execute ()
 {
-    if (app_.getJobQueue ().getJobCountTotal (jtLEDGER_DATA) > 4)
+    if (app_.getJobQueue ().getJobCountTotal (jtLEDGER_DATA) > 12)
     {
         JLOG (m_journal.debug()) <<
             "Deferring InboundLedger timer due to load";

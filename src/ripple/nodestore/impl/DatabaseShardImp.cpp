@@ -161,7 +161,7 @@ DatabaseShardImp::init()
     if (auto factory = Manager::instance().find(backendName_))
     {
         auto backend {factory->createInstance(
-            NodeObject::keyBytes, section, scheduler_, j_)};
+            NodeObject::keyBytes, section, scheduler_, j_, app_.pgPool())};
         backed_ = backend->backed();
         if (!backed_)
         {

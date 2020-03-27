@@ -21,8 +21,12 @@
 #include <ripple/nodestore/impl/DatabaseNodeImp.h>
 
 #include <boost/algorithm/string/predicate.hpp>
+#include <memory>
 
 namespace ripple {
+
+class PgPool;
+
 namespace NodeStore {
 
 ManagerImp&
@@ -45,7 +49,8 @@ std::unique_ptr <Backend>
 ManagerImp::make_Backend (
     Section const& parameters,
     Scheduler& scheduler,
-    beast::Journal journal)
+    beast::Journal journal,
+    std::shared_ptr<PgPool> pool)
 {
     std::string const type {get<std::string>(parameters, "type")};
     if (type.empty())
@@ -56,7 +61,7 @@ ManagerImp::make_Backend (
         missing_backend();
 
     return factory->createInstance(
-        NodeObject::keyBytes, parameters, scheduler, journal);
+        NodeObject::keyBytes, parameters, scheduler, journal, pool);
 }
 
 std::unique_ptr <Database>
@@ -66,9 +71,10 @@ ManagerImp::make_Database (
     int readThreads,
     Stoppable& parent,
     Section const& config,
-    beast::Journal journal)
+    beast::Journal journal,
+    std::shared_ptr<PgPool> pool)
 {
-    auto backend {make_Backend(config, scheduler, journal)};
+    auto backend {make_Backend(config, scheduler, journal, pool)};
     backend->open();
     return std::make_unique <DatabaseNodeImp>(
         name,
@@ -126,7 +132,7 @@ make_Backend (Section const& config,
     Scheduler& scheduler, beast::Journal journal)
 {
     return Manager::instance().make_Backend (
-        config, scheduler, journal);
+        config, scheduler, journal, std::shared_ptr<PgPool>());
 }
 
 }

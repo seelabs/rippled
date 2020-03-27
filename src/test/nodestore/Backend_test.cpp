@@ -24,8 +24,12 @@
 #include <test/nodestore/TestBase.h>
 #include <test/unit_test/SuiteJournal.h>
 #include <algorithm>
+#include <memory>
 
 namespace ripple {
+
+class PgPool;
+
 namespace NodeStore {
 
 // Tests the Backend interface
@@ -60,7 +64,7 @@ public:
             // Open the backend
             std::unique_ptr <Backend> backend =
                 Manager::instance().make_Backend (
-                    params, scheduler, journal);
+                    params, scheduler, journal, std::shared_ptr<PgPool>());
             backend->open();
 
             // Write the batch
@@ -88,7 +92,7 @@ public:
         {
             // Re-open the backend
             std::unique_ptr <Backend> backend = Manager::instance().make_Backend (
-                params, scheduler, journal);
+                params, scheduler, journal, std::shared_ptr<PgPool>());
             backend->open();
 
             // Read it back in
