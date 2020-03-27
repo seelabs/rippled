@@ -139,6 +139,7 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
     else if(context.params.isMember("load_txns"))
     {
         auto arr = context.params["transactions"];
+        std::cout << "loading txns" << std::endl;
         for (auto i = 0; i < arr.size(); ++i)
         {
             auto val = arr[i];
@@ -155,19 +156,25 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
 
             auto metaSerializer =
                 std::make_shared<Serializer>(txMeta.getAsObject().getSerializer());
+            std::cout << "inserting " << strHex(sttx.getTransactionID())
+                      << std::endl;
 
             cachedLedger->rawTxInsert(
                     sttx.getTransactionID(), txSerializer, metaSerializer);
-            jvResult["msg"] = "hi";
-            return jvResult;
         }
+
+        jvResult["msg"] = "hi";
+        return jvResult;
     }
     else if (context.params.isMember("finish"))
     {
         std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256())
                   << std::endl;
-        std::cout << strHex(cachedLedger->info().accountHash)
-            << std::endl;
+        std::cout << strHex(cachedLedger->info().accountHash) << std::endl;
+
+        std::cout << strHex(cachedLedger->txMap().getHash().as_uint256())
+                  << std::endl;
+        std::cout << strHex(cachedLedger->info().txHash) << std::endl;
         // cachedLedger->updateSkipList();
 
         std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256())
@@ -178,9 +185,13 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
         cachedLedger->stateMap().flushDirty(
             hotACCOUNT_NODE, cachedLedger->info().seq);
 
-        //TODO add in the txs
+        // TODO add in the txs
+        // TOD why is this wrong?
         cachedLedger->txMap().flushDirty(
             hotTRANSACTION_NODE, cachedLedger->info().seq);
+        std::cout << strHex(cachedLedger->txMap().getHash().as_uint256())
+                  << std::endl;
+        std::cout << strHex(cachedLedger->info().txHash) << std::endl;
 
         std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256())
                   << std::endl;
@@ -219,10 +230,18 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
 
             SerialIter it{txn->data(), txn->size()};
             STTx sttx{it};
+            auto txSerializer =
+                std::make_shared<Serializer>(sttx.getSerializer());
 
             auto blob = strUnHex(val["meta"].asString());
             TxMeta txMeta{
                 sttx.getTransactionID(), cachedLedger->info().seq, *blob};
+
+            auto metaSerializer = std::make_shared<Serializer>(
+                txMeta.getAsObject().getSerializer());
+
+            cachedLedger->rawTxInsert(
+                sttx.getTransactionID(), txSerializer, metaSerializer);
 
             STArray& nodes = txMeta.getNodes();
             for (auto it = nodes.begin(); it != nodes.end(); ++it)
@@ -245,6 +264,7 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
                     Keylet keylet{entryType, ledgerIndex};
                     auto sle = cachedLedger->peek(keylet);
                     assert(sle);
+                    std::vector<std::string> fields;
 
                     if (obj.isFieldPresent(sfFinalFields))
                     {
@@ -256,7 +276,28 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
                         {
                             auto ptr = data.getPIndex(i);
                             assert(ptr);
+                            fields.push_back(ptr->getFName().getName());
                             sle->set(ptr);
+                            // ATTN ptr is moved from after this call
+                            // TODO how to copy
+                        }
+                    }
+                    if (obj.isFieldPresent(sfPreviousFields))
+                    {
+                        STObject& data =
+                            obj.getField(sfPreviousFields).downcast<STObject>();
+
+                        for (auto i = 0; i < data.getCount(); ++i)
+                        {
+                            auto ptr = data.getPIndex(i);
+                            assert(ptr);
+                            if (std::find(
+                                    fields.begin(),
+                                    fields.end(),
+                                    ptr->getFName().getName()) != fields.end())
+                            {
+                                sle->delField(ptr->getFName());
+                            }
                         }
                     }
                     if(obj.isFieldPresent(sfPreviousTxnID))
