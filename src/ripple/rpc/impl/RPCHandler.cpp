@@ -180,6 +180,7 @@ Status callMethod (
     {
         perfLog.rpcError(name, curId);
         JLOG (context.j.info()) << "Caught throw: " << e.what ();
+        std::cout << "exception : " << e.what() << std::endl;
 
         if (context.loadType == Resource::feeReferenceRPC)
             context.loadType = Resource::feeExceptionRPC;

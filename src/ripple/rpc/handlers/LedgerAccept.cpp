@@ -99,6 +99,9 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
                 cachedLedger = std::make_shared<Ledger>(
                     *cachedLedger, NetClock::time_point{});
                 cachedLedger->setLedgerInfo(lgrInfo);
+
+                cachedLedger->stateMap().clearSynching();
+                cachedLedger->txMap().clearSynching();
                 std::cout
                     << strHex(cachedLedger->stateMap().getHash().as_uint256())
                     << std::endl;
@@ -123,20 +126,68 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
         // std::shared_ptr<Ledger> Ledger =
         //    context.app.getLedgerMaster().getLedgerBySeq(ledgerIndex);
 
-        auto data = context.params[jss::data].asString();
-        auto key = context.params[jss::index].asString();
+        auto arr = context.params["state"];
+        for (auto elt : arr)
+        {
+            auto data = elt[jss::data].asString();
+            auto key = elt[jss::index].asString();
 
-        auto dataBlob = strUnHex(data);
-        auto key256 = from_hex_text<uint256>(key);
+            auto dataBlob = strUnHex(data);
+            auto key256 = from_hex_text<uint256>(key);
 
-        SerialIter it{dataBlob->data(), dataBlob->size()};
-        std::shared_ptr<SLE> sle = std::make_shared<SLE>(it, key256);
-        cachedLedger->rawInsert(sle);
-
+            SerialIter it{dataBlob->data(), dataBlob->size()};
+            std::shared_ptr<SLE> sle = std::make_shared<SLE>(it, key256);
+            cachedLedger->rawInsert(sle);
+        }
         jvResult["msg"] = "success";
         return jvResult;
     }
-    else if(context.params.isMember("load_txns"))
+    else if (context.params.isMember("load_diff"))
+    {
+        auto objs = context.params["objs"];
+        std::cout << "processing objs" << std::endl;
+
+        for (auto& x : objs)
+        {
+            std::cout << "index = " << x["index"].asString() << std::endl;
+
+            auto index = from_hex_text<uint256>(x["index"].asString());
+            if (x.isMember("node_binary"))
+            {
+                auto objRaw = strUnHex(x["node_binary"].asString());
+                SerialIter it{objRaw->data(), objRaw->size()};
+
+                std::shared_ptr<SLE> sle = std::make_shared<SLE>(it, index);
+                if (cachedLedger->exists(index))
+                {
+                    std::cout << "replacing" << std::endl;
+                    cachedLedger->rawReplace(sle);
+                }
+                else
+                {
+                    std::cout << "inserting" << std::endl;
+                    cachedLedger->rawInsert(sle);
+                }
+            }
+            else
+            {
+                if (cachedLedger->exists(index))
+                {
+                    std::cout << "erasing" << std::endl;
+                    cachedLedger->rawErase(index);
+                }
+                else
+                {
+                    std::cout << "noop" << std::endl;
+                }
+            }
+        }
+        std::cout << "done processing objs" << std::endl;
+
+        cachedLedger->updateSkipList();
+        jvResult["msg"] = "success";
+    }
+    else if (context.params.isMember("load_txns"))
     {
         auto arr = context.params["transactions"];
         std::cout << "loading txns" << std::endl;
@@ -148,19 +199,20 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
 
             SerialIter it{txn->data(), txn->size()};
             STTx sttx{it};
-            auto txSerializer = std::make_shared<Serializer>(sttx.getSerializer());
+            auto txSerializer =
+                std::make_shared<Serializer>(sttx.getSerializer());
 
             auto blob = strUnHex(val["meta"].asString());
             TxMeta txMeta{
                 sttx.getTransactionID(), cachedLedger->info().seq, *blob};
 
-            auto metaSerializer =
-                std::make_shared<Serializer>(txMeta.getAsObject().getSerializer());
+            auto metaSerializer = std::make_shared<Serializer>(
+                txMeta.getAsObject().getSerializer());
             std::cout << "inserting " << strHex(sttx.getTransactionID())
                       << std::endl;
 
             cachedLedger->rawTxInsert(
-                    sttx.getTransactionID(), txSerializer, metaSerializer);
+                sttx.getTransactionID(), txSerializer, metaSerializer);
         }
 
         jvResult["msg"] = "hi";
@@ -175,7 +227,6 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
         std::cout << strHex(cachedLedger->txMap().getHash().as_uint256())
                   << std::endl;
         std::cout << strHex(cachedLedger->info().txHash) << std::endl;
-        // cachedLedger->updateSkipList();
 
         std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256())
                   << std::endl;
@@ -185,10 +236,24 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
         cachedLedger->stateMap().flushDirty(
             hotACCOUNT_NODE, cachedLedger->info().seq);
 
+        std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256());
+
         // TODO add in the txs
         // TOD why is this wrong?
         cachedLedger->txMap().flushDirty(
             hotTRANSACTION_NODE, cachedLedger->info().seq);
+
+        if (cachedLedger->txMap().getHash().as_uint256() !=
+            cachedLedger->info().txHash)
+            jvResult["tx_hash"] = "wrong";
+        else
+            jvResult["tx_hash"] = "correct";
+
+        if (cachedLedger->stateMap().getHash().as_uint256() !=
+            cachedLedger->info().accountHash)
+            jvResult["account_hash"] = "wrong";
+        else
+            jvResult["account_hash"] = "correct";
         std::cout << strHex(cachedLedger->txMap().getHash().as_uint256())
                   << std::endl;
         std::cout << strHex(cachedLedger->info().txHash) << std::endl;
@@ -219,9 +284,10 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
     }
     else if (context.params.isMember("load_meta"))
     {
-
         std::cout << "loading meta" << std::endl;
         auto arr = context.params["transactions"];
+        std::vector<TxMeta> metasSorted;
+        metasSorted.resize(arr.size());
         for (auto i = 0; i < arr.size(); ++i)
         {
             std::cout << "processing meta" << std::endl;
@@ -239,9 +305,18 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
 
             auto metaSerializer = std::make_shared<Serializer>(
                 txMeta.getAsObject().getSerializer());
+            std::cout << "assigning" << std::endl;
+            metasSorted[txMeta.getIndex()] = txMeta;
+            std::cout << "assigned" << std::endl;
+        }
 
-            cachedLedger->rawTxInsert(
-                sttx.getTransactionID(), txSerializer, metaSerializer);
+        for (auto& txMeta : metasSorted)
+        {
+            std::cout << txMeta.getJson(JsonOptions::none).toStyledString()
+                      << std::endl;
+
+            // cachedLedger->rawTxInsert(
+            //    sttx.getTransactionID(), txSerializer, metaSerializer);
 
             STArray& nodes = txMeta.getNodes();
             for (auto it = nodes.begin(); it != nodes.end(); ++it)
@@ -249,7 +324,7 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
                 std::cout << "processing node" << std::endl;
                 STObject& obj = *it;
                 std::cout << obj.getJson(JsonOptions::none).toStyledString()
-                    << std::endl;
+                          << std::endl;
 
                 // ledger index
                 uint256 ledgerIndex = obj.getFieldH256(sfLedgerIndex);
@@ -265,6 +340,12 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
                     auto sle = cachedLedger->peek(keylet);
                     assert(sle);
                     std::vector<std::string> fields;
+                    if (obj.isFieldPresent(sfPreviousTxnID))
+                    {
+                        std::cout << "setting previous txn id : "
+                                  << sle->isFieldPresent(sfPreviousTxnID)
+                                  << std::endl;
+                    }
 
                     if (obj.isFieldPresent(sfFinalFields))
                     {
@@ -281,9 +362,11 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
                             // ATTN ptr is moved from after this call
                             // TODO how to copy
                         }
+                        std::cout << "processed final fields" << std::endl;
                     }
                     if (obj.isFieldPresent(sfPreviousFields))
                     {
+                        std::cout << "has previous fields" << std::endl;
                         STObject& data =
                             obj.getField(sfPreviousFields).downcast<STObject>();
 
@@ -294,25 +377,136 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
                             if (std::find(
                                     fields.begin(),
                                     fields.end(),
-                                    ptr->getFName().getName()) != fields.end())
+                                    ptr->getFName().getName()) == fields.end())
                             {
-                                sle->delField(ptr->getFName());
+                                sle->makeFieldAbsent(ptr->getFName());
                             }
                         }
+                        std::cout << "processed previous fields" << std::endl;
                     }
-                    if(obj.isFieldPresent(sfPreviousTxnID))
+                    if (obj.isFieldPresent(sfPreviousTxnID))
                     {
-                        sle->setFieldH256(sfPreviousTxnID, txMeta.getTxID());
+                        std::cout << "setting previous txn id : "
+                                  << sle->isFieldPresent(sfPreviousTxnID)
+                                  << std::endl;
+                        try
+                        {
+                            sle->setFieldH256(
+                                sfPreviousTxnID, txMeta.getTxID());
+                            std::cout << "set" << std::endl;
+                        }
+                        catch (std::exception const& e)
+                        {
+                            std::cout << "caught exception : " << e.what()
+                                      << std::endl;
+                            throw e;
+                        }
+                        /*
+                                                try
+                                                {
+                                                    sle->setFieldH128(
+                                                        sfPreviousTxnID,
+                           txMeta.getTxID());
+
+                                                    std::cout << "set" <<
+                           std::endl;
+                                                }
+                                                catch(std::exception const& e)
+                                                {
+                                                    std::cout << "caught
+                           exception" << std::endl;
+                                                }
+
+                                                try
+                                                {
+                                                    sle->setFieldU64(
+                                                        sfPreviousTxnID,
+                           txMeta.getTxID());
+
+                                                    std::cout << "set" <<
+                           std::endl;
+                                                }
+                                                catch(std::exception const& e)
+                                                {
+                                                    std::cout << "caught
+                           exception" << std::endl;
+                                                }
+
+
+                                                try
+                                                {
+                                                    sle->setFieldU32(
+                                                        sfPreviousTxnID,
+                           txMeta.getTxID());
+
+                                                    std::cout << "set" <<
+                           std::endl;
+                                                }
+                                                catch(std::exception const& e)
+                                                {
+                                                    std::cout << "caught
+                           exception" << std::endl;
+                                                }
+
+
+                                                try
+                                                {
+                                                    sle->setFieldU16(
+                                                        sfPreviousTxnID,
+                           txMeta.getTxID());
+
+                                                    std::cout << "set" <<
+                           std::endl;
+                                                }
+                                                catch(std::exception const& e)
+                                                {
+                                                    std::cout << "caught
+                           exception" << std::endl;
+                                                }
+
+                                                try
+                                                {
+                                                    sle->setFieldU8(
+                                                        sfPreviousTxnID,
+                           txMeta.getTxID());
+
+                                                    std::cout << "set" <<
+                           std::endl;
+                                                }
+                                                catch(std::exception const& e)
+                                                {
+                                                    std::cout << "caught
+                           exception" << std::endl;
+                                                }
+                                                */
                     }
-                    if(obj.isFieldPresent(sfPreviousTxnLgrSeq))
+                    if (obj.isFieldPresent(sfPreviousTxnLgrSeq))
                     {
-                        sle->setFieldU32(sfPreviousTxnLgrSeq, txMeta.getLgrSeq());
+                        std::cout << "setting previous txn lgr seq : "
+                                  << sle->isFieldPresent(sfPreviousTxnLgrSeq)
+                                  << std::endl;
+
+                        try
+                        {
+                            sle->setFieldU32(
+                                sfPreviousTxnLgrSeq, txMeta.getLgrSeq());
+
+                            std::cout << "set" << std::endl;
+                        }
+                        catch (std::exception const& e)
+                        {
+                            std::cout << "caught exception : " << e.what()
+                                      << std::endl;
+                            throw e;
+                        }
                     }
-                    std::cout << "replacing node : key = "
-                        << strHex(ledgerIndex)
+                    std::cout
+                        << "replacing node : key = " << strHex(ledgerIndex)
                         << std::endl;
 
-                    std::cout << sle->getJson(JsonOptions::none).toStyledString() << std::endl;
+                    std::cout
+                        << sle->getJson(JsonOptions::none).toStyledString()
+                        << std::endl;
 
                     cachedLedger->rawReplace(sle);
                 }
@@ -323,22 +517,21 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
                     {
                         STObject& data =
                             obj.getField(sfNewFields).downcast<STObject>();
+                        data.makeFieldPresent(sfLedgerEntryType);
+                        data.setFieldU16(sfLedgerEntryType, entryType);
                         std::shared_ptr<SLE> sle =
                             std::make_shared<SLE>(data, ledgerIndex);
                         cachedLedger->rawInsert(sle);
                     }
 
-                    std::cout << "adding node : key = "
-                        << strHex(ledgerIndex)
-                        << std::endl;
+                    std::cout << "adding node : key = " << strHex(ledgerIndex)
+                              << std::endl;
                 }
                 // deleted node
                 else if (obj.getFName() == sfDeletedNode)
                 {
-
-                    std::cout << "deleting node : key = "
-                        << strHex(ledgerIndex)
-                        << std::endl;
+                    std::cout << "deleting node : key = " << strHex(ledgerIndex)
+                              << std::endl;
                     std::shared_ptr<SLE> sle =
                         std::make_shared<SLE>(entryType, ledgerIndex);
                     cachedLedger->rawErase(sle);
@@ -393,7 +586,7 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
 
         context.netOps.acceptLedger({}, closeTime, ledgerIndex, parentHash);
         jvResult[jss::ledger_current_index] =
-            context.ledgerMaster.getCurrentLedgerIndex ();
+            context.ledgerMaster.getCurrentLedgerIndex();
         if (ledgerIndex &&
             *ledgerIndex != (context.ledgerMaster.getCurrentLedgerIndex() - 1))
             jvResult[jss::error] = "specified ledger already closed";
