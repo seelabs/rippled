@@ -48,9 +48,7 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
     {
         try
         {
-            std::cout << "****" << std::endl;
             auto lgrData = context.params[jss::ledger];
-            std::cout << "****" << std::endl;
             LedgerInfo lgrInfo;
             lgrInfo.seq = lgrData[jss::ledger_index].asUInt();
             if (cachedLedger && lgrInfo.seq <= cachedLedger->info().seq)
@@ -58,42 +56,29 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
                 jvResult["msg"] = "already loaded";
                 return jvResult;
             }
-            std::cout << "****" << std::endl;
             lgrInfo.parentCloseTime = NetClock::time_point(
                 std::chrono::seconds(lgrData[jss::parent_close_time].asUInt()));
-            std::cout << "****" << std::endl;
             lgrInfo.hash =
                 from_hex_text<uint256>(lgrData[jss::ledger_hash].asString());
-            std::cout << "****" << std::endl;
             lgrInfo.txHash = from_hex_text<uint256>(
                 lgrData[jss::transaction_hash].asString());
-            std::cout << "****" << std::endl;
             lgrInfo.accountHash =
                 from_hex_text<uint256>(lgrData[jss::account_hash].asString());
-            std::cout << "****" << std::endl;
             lgrInfo.parentHash =
                 from_hex_text<uint256>(lgrData[jss::parent_hash].asString());
-            std::cout << "****" << std::endl;
             lgrInfo.drops =
                 XRPAmount(std::stoll(lgrData[jss::total_coins].asString()));
-            std::cout << "****" << std::endl;
             lgrInfo.validated = true;
-            std::cout << "****" << std::endl;
             lgrInfo.accepted = true;
-            std::cout << "****" << std::endl;
             lgrInfo.closeFlags = lgrData[jss::close_flags].asUInt();
-            std::cout << "****" << std::endl;
             lgrInfo.closeTimeResolution = NetClock::duration(
                 lgrData[jss::close_time_resolution].asUInt());
-            std::cout << "****" << std::endl;
             lgrInfo.closeTime = NetClock::time_point(
                 std::chrono::seconds(lgrData[jss::close_time].asUInt()));
-            std::cout << "****" << std::endl;
             if (!cachedLedger)
             {
                 std::shared_ptr<Ledger> ledger = std::make_shared<Ledger>(
                     lgrInfo, context.app.config(), context.app.family());
-                std::cout << "****" << std::endl;
                 ledger->stateMap().clearSynching();
                 ledger->txMap().clearSynching();
 
@@ -107,14 +92,10 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
 
                 cachedLedger->stateMap().clearSynching();
                 cachedLedger->txMap().clearSynching();
-                std::cout
-                    << strHex(cachedLedger->stateMap().getHash().as_uint256())
-                    << std::endl;
             }
 
             jvResult["msg"] = "hi";
 
-            std::cout << "****" << std::endl;
             return jvResult;
         }
         catch (std::exception e)
@@ -127,10 +108,9 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
     else if (context.params.isMember(jss::ledger_data))
     {
         assert(cachedLedger);
-        // auto ledgerIndex = context.params[jss::ledger_index].asUInt();
-        // std::shared_ptr<Ledger> Ledger =
-        //    context.app.getLedgerMaster().getLedgerBySeq(ledgerIndex);
 
+        // load each ledger object into the account state tree
+        // This RPC is called several times before calling finish
         auto arr = context.params["state"];
         for (auto elt : arr)
         {
@@ -150,6 +130,8 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
     }
     else if (context.params.isMember("load_diff"))
     {
+        // load ledger objects modified in this ledger version
+
         auto objs = context.params["objs"];
         std::cout << "processing objs" << std::endl;
 
@@ -192,9 +174,11 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
 
         cachedLedger->updateSkipList();
         jvResult["msg"] = "success";
+        return jvResult;
     }
     else if (context.params.isMember("load_txns"))
     {
+        // load txns as blobs into ledger
         auto arr = context.params["transactions"];
         std::cout << "loading txns" << std::endl;
         for (auto i = 0; i < arr.size(); ++i)
@@ -227,9 +211,25 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
     }
     else if (context.params.isMember("finish"))
     {
+        // recompute hashes and save ledger to disk
+
+        // TODO: there is a similar if condition below
         if (context.params["ledger_index"].asUInt() != cachedLedger->info().seq)
         {
+            jvResult["msg"] = "wrong sequence";
+            return jvResult;
+        }
+
+        if (context.ledgerMaster.getCurrentLedgerIndex() >
+            cachedLedger->info().seq)
+        {
             jvResult["msg"] = "already_finished";
+
+            jvResult[jss::ledger_current_index] =
+                context.ledgerMaster.getCurrentLedgerIndex();
+            jvResult["open_ledger_app"] =
+                context.app.openLedger().current()->info().seq;
+
             return jvResult;
         }
 
@@ -241,18 +241,11 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
                   << std::endl;
         std::cout << strHex(cachedLedger->info().txHash) << std::endl;
 
-        std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256())
-                  << std::endl;
         cachedLedger->setImmutable(context.app.config());
-        std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256())
-                  << std::endl;
+
         cachedLedger->stateMap().flushDirty(
             hotACCOUNT_NODE, cachedLedger->info().seq);
 
-        std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256());
-
-        // TODO add in the txs
-        // TOD why is this wrong?
         cachedLedger->txMap().flushDirty(
             hotTRANSACTION_NODE, cachedLedger->info().seq);
 
@@ -268,39 +261,14 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
         else
             jvResult["account_hash"] = "correct";
 
-        if (context.ledgerMaster.getCurrentLedgerIndex() >
-            cachedLedger->info().seq)
-        {
-            jvResult["msg"] = "already_finished";
-
-            jvResult[jss::ledger_current_index] =
-                context.ledgerMaster.getCurrentLedgerIndex();
-            jvResult["open_ledger_app"] =
-                context.app.openLedger().current()->info().seq;
-
-            return jvResult;
-        }
-        std::cout << strHex(cachedLedger->txMap().getHash().as_uint256())
-                  << std::endl;
-        std::cout << strHex(cachedLedger->info().txHash) << std::endl;
-
-        std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256())
-                  << std::endl;
 
         context.app.setOpenLedger(cachedLedger);
-        std::cout << "set open ledger" << std::endl;
 
-        std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256())
-                  << std::endl;
         jvResult["stored"] =
             !context.app.getLedgerMaster().storeLedger(cachedLedger);
 
-        std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256())
-                  << std::endl;
         context.app.getLedgerMaster().switchLCL(cachedLedger);
 
-        std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256())
-                  << std::endl;
         jvResult["open_ledger"] = cachedLedger->info().seq + 1;
 
         jvResult[jss::ledger_current_index] =
@@ -309,268 +277,9 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
             context.app.openLedger().current()->info().seq;
         return jvResult;
     }
-    else if (context.params.isMember("load_meta"))
-    {
-        std::cout << "loading meta" << std::endl;
-        auto arr = context.params["transactions"];
-        std::vector<TxMeta> metasSorted;
-        metasSorted.resize(arr.size());
-        for (auto i = 0; i < arr.size(); ++i)
-        {
-            std::cout << "processing meta" << std::endl;
-            auto val = arr[i];
-            auto txn = strUnHex(val["tx_blob"].asString());
-
-            SerialIter it{txn->data(), txn->size()};
-            STTx sttx{it};
-            auto txSerializer =
-                std::make_shared<Serializer>(sttx.getSerializer());
-
-            auto blob = strUnHex(val["meta"].asString());
-            TxMeta txMeta{
-                sttx.getTransactionID(), cachedLedger->info().seq, *blob};
-
-            auto metaSerializer = std::make_shared<Serializer>(
-                txMeta.getAsObject().getSerializer());
-            std::cout << "assigning" << std::endl;
-            metasSorted[txMeta.getIndex()] = txMeta;
-            std::cout << "assigned" << std::endl;
-        }
-
-        for (auto& txMeta : metasSorted)
-        {
-            std::cout << txMeta.getJson(JsonOptions::none).toStyledString()
-                      << std::endl;
-
-            // cachedLedger->rawTxInsert(
-            //    sttx.getTransactionID(), txSerializer, metaSerializer);
-
-            STArray& nodes = txMeta.getNodes();
-            for (auto it = nodes.begin(); it != nodes.end(); ++it)
-            {
-                std::cout << "processing node" << std::endl;
-                STObject& obj = *it;
-                std::cout << obj.getJson(JsonOptions::none).toStyledString()
-                          << std::endl;
-
-                // ledger index
-                uint256 ledgerIndex = obj.getFieldH256(sfLedgerIndex);
-
-                // ledger entry type
-                std::uint16_t lgrType = obj.getFieldU16(sfLedgerEntryType);
-                LedgerEntryType entryType = safe_cast<LedgerEntryType>(lgrType);
-
-                // modified node
-                if (obj.getFName() == sfModifiedNode)
-                {
-                    Keylet keylet{entryType, ledgerIndex};
-                    auto sle = cachedLedger->peek(keylet);
-                    assert(sle);
-                    std::vector<std::string> fields;
-                    if (obj.isFieldPresent(sfPreviousTxnID))
-                    {
-                        std::cout << "setting previous txn id : "
-                                  << sle->isFieldPresent(sfPreviousTxnID)
-                                  << std::endl;
-                    }
-
-                    if (obj.isFieldPresent(sfFinalFields))
-                    {
-                        std::cout << "has final fields" << std::endl;
-                        STObject& data =
-                            obj.getField(sfFinalFields).downcast<STObject>();
-
-                        for (auto i = 0; i < data.getCount(); ++i)
-                        {
-                            auto ptr = data.getPIndex(i);
-                            assert(ptr);
-                            fields.push_back(ptr->getFName().getName());
-                            sle->set(ptr);
-                            // ATTN ptr is moved from after this call
-                            // TODO how to copy
-                        }
-                        std::cout << "processed final fields" << std::endl;
-                    }
-                    if (obj.isFieldPresent(sfPreviousFields))
-                    {
-                        std::cout << "has previous fields" << std::endl;
-                        STObject& data =
-                            obj.getField(sfPreviousFields).downcast<STObject>();
-
-                        for (auto i = 0; i < data.getCount(); ++i)
-                        {
-                            auto ptr = data.getPIndex(i);
-                            assert(ptr);
-                            if (std::find(
-                                    fields.begin(),
-                                    fields.end(),
-                                    ptr->getFName().getName()) == fields.end())
-                            {
-                                sle->makeFieldAbsent(ptr->getFName());
-                            }
-                        }
-                        std::cout << "processed previous fields" << std::endl;
-                    }
-                    if (obj.isFieldPresent(sfPreviousTxnID))
-                    {
-                        std::cout << "setting previous txn id : "
-                                  << sle->isFieldPresent(sfPreviousTxnID)
-                                  << std::endl;
-                        try
-                        {
-                            sle->setFieldH256(
-                                sfPreviousTxnID, txMeta.getTxID());
-                            std::cout << "set" << std::endl;
-                        }
-                        catch (std::exception const& e)
-                        {
-                            std::cout << "caught exception : " << e.what()
-                                      << std::endl;
-                            throw e;
-                        }
-                        /*
-                                                try
-                                                {
-                                                    sle->setFieldH128(
-                                                        sfPreviousTxnID,
-                           txMeta.getTxID());
-
-                                                    std::cout << "set" <<
-                           std::endl;
-                                                }
-                                                catch(std::exception const& e)
-                                                {
-                                                    std::cout << "caught
-                           exception" << std::endl;
-                                                }
-
-                                                try
-                                                {
-                                                    sle->setFieldU64(
-                                                        sfPreviousTxnID,
-                           txMeta.getTxID());
-
-                                                    std::cout << "set" <<
-                           std::endl;
-                                                }
-                                                catch(std::exception const& e)
-                                                {
-                                                    std::cout << "caught
-                           exception" << std::endl;
-                                                }
-
-
-                                                try
-                                                {
-                                                    sle->setFieldU32(
-                                                        sfPreviousTxnID,
-                           txMeta.getTxID());
-
-                                                    std::cout << "set" <<
-                           std::endl;
-                                                }
-                                                catch(std::exception const& e)
-                                                {
-                                                    std::cout << "caught
-                           exception" << std::endl;
-                                                }
-
-
-                                                try
-                                                {
-                                                    sle->setFieldU16(
-                                                        sfPreviousTxnID,
-                           txMeta.getTxID());
-
-                                                    std::cout << "set" <<
-                           std::endl;
-                                                }
-                                                catch(std::exception const& e)
-                                                {
-                                                    std::cout << "caught
-                           exception" << std::endl;
-                                                }
-
-                                                try
-                                                {
-                                                    sle->setFieldU8(
-                                                        sfPreviousTxnID,
-                           txMeta.getTxID());
-
-                                                    std::cout << "set" <<
-                           std::endl;
-                                                }
-                                                catch(std::exception const& e)
-                                                {
-                                                    std::cout << "caught
-                           exception" << std::endl;
-                                                }
-                                                */
-                    }
-                    if (obj.isFieldPresent(sfPreviousTxnLgrSeq))
-                    {
-                        std::cout << "setting previous txn lgr seq : "
-                                  << sle->isFieldPresent(sfPreviousTxnLgrSeq)
-                                  << std::endl;
-
-                        try
-                        {
-                            sle->setFieldU32(
-                                sfPreviousTxnLgrSeq, txMeta.getLgrSeq());
-
-                            std::cout << "set" << std::endl;
-                        }
-                        catch (std::exception const& e)
-                        {
-                            std::cout << "caught exception : " << e.what()
-                                      << std::endl;
-                            throw e;
-                        }
-                    }
-                    std::cout
-                        << "replacing node : key = " << strHex(ledgerIndex)
-                        << std::endl;
-
-                    std::cout
-                        << sle->getJson(JsonOptions::none).toStyledString()
-                        << std::endl;
-
-                    cachedLedger->rawReplace(sle);
-                }
-                // created node
-                else if (obj.getFName() == sfCreatedNode)
-                {
-                    if (obj.isFieldPresent(sfNewFields))
-                    {
-                        STObject& data =
-                            obj.getField(sfNewFields).downcast<STObject>();
-                        data.makeFieldPresent(sfLedgerEntryType);
-                        data.setFieldU16(sfLedgerEntryType, entryType);
-                        std::shared_ptr<SLE> sle =
-                            std::make_shared<SLE>(data, ledgerIndex);
-                        cachedLedger->rawInsert(sle);
-                    }
-
-                    std::cout << "adding node : key = " << strHex(ledgerIndex)
-                              << std::endl;
-                }
-                // deleted node
-                else if (obj.getFName() == sfDeletedNode)
-                {
-                    std::cout << "deleting node : key = " << strHex(ledgerIndex)
-                              << std::endl;
-                    std::shared_ptr<SLE> sle =
-                        std::make_shared<SLE>(entryType, ledgerIndex);
-                    cachedLedger->rawErase(sle);
-                }
-            }
-        }
-        cachedLedger->updateSkipList();
-        jvResult["msg"] = "hi";
-        return jvResult;
-    }
     else
     {
+        // Modified ledger accept functionality. Not being used
         boost::optional<uint32_t> ledgerIndex;
         boost::optional<std::chrono::seconds> closeTime;
         boost::optional<uint256> parentHash;
