@@ -53,6 +53,11 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
             std::cout << "****" << std::endl;
             LedgerInfo lgrInfo;
             lgrInfo.seq = lgrData[jss::ledger_index].asUInt();
+            if (cachedLedger && lgrInfo.seq <= cachedLedger->info().seq)
+            {
+                jvResult["msg"] = "already loaded";
+                return jvResult;
+            }
             std::cout << "****" << std::endl;
             lgrInfo.parentCloseTime = NetClock::time_point(
                 std::chrono::seconds(lgrData[jss::parent_close_time].asUInt()));
@@ -137,7 +142,8 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
 
             SerialIter it{dataBlob->data(), dataBlob->size()};
             std::shared_ptr<SLE> sle = std::make_shared<SLE>(it, key256);
-            cachedLedger->rawInsert(sle);
+            if (!cachedLedger->exists(key256))
+                cachedLedger->rawInsert(sle);
         }
         jvResult["msg"] = "success";
         return jvResult;
@@ -211,8 +217,9 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
             std::cout << "inserting " << strHex(sttx.getTransactionID())
                       << std::endl;
 
-            cachedLedger->rawTxInsert(
-                sttx.getTransactionID(), txSerializer, metaSerializer);
+            if (!cachedLedger->txExists(sttx.getTransactionID()))
+                cachedLedger->rawTxInsert(
+                    sttx.getTransactionID(), txSerializer, metaSerializer);
         }
 
         jvResult["msg"] = "hi";
@@ -220,6 +227,12 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
     }
     else if (context.params.isMember("finish"))
     {
+        if (context.params["ledger_index"].asUInt() != cachedLedger->info().seq)
+        {
+            jvResult["msg"] = "already_finished";
+            return jvResult;
+        }
+
         std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256())
                   << std::endl;
         std::cout << strHex(cachedLedger->info().accountHash) << std::endl;
@@ -254,12 +267,26 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
             jvResult["account_hash"] = "wrong";
         else
             jvResult["account_hash"] = "correct";
+
+        if (context.ledgerMaster.getCurrentLedgerIndex() >
+            cachedLedger->info().seq)
+        {
+            jvResult["msg"] = "already_finished";
+
+            jvResult[jss::ledger_current_index] =
+                context.ledgerMaster.getCurrentLedgerIndex();
+            jvResult["open_ledger_app"] =
+                context.app.openLedger().current()->info().seq;
+
+            return jvResult;
+        }
         std::cout << strHex(cachedLedger->txMap().getHash().as_uint256())
                   << std::endl;
         std::cout << strHex(cachedLedger->info().txHash) << std::endl;
 
         std::cout << strHex(cachedLedger->stateMap().getHash().as_uint256())
                   << std::endl;
+
         context.app.setOpenLedger(cachedLedger);
         std::cout << "set open ledger" << std::endl;
 
