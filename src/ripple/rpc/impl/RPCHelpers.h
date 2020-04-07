@@ -130,11 +130,11 @@ lookupLedger (std::shared_ptr<ReadView const>&, JsonContext&);
 Status
 lookupLedger (std::shared_ptr<ReadView const>&, JsonContext&, Json::Value& result);
 
-template <class T>
+template <class T, class R>
 Status
 ledgerFromRequest(
     T& ledger,
-    GRPCContext<org::xrpl::rpc::v1::GetAccountInfoRequest>& context);
+    GRPCContext<R>& context);
 
 bool
 isValidated(LedgerMaster& ledgerMaster, ReadView const& ledger,

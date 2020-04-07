@@ -51,6 +51,21 @@ std::pair<org::xrpl::rpc::v1::GetAccountTransactionHistoryResponse, grpc::Status
 doAccountTxGrpc(
     RPC::GRPCContext<org::xrpl::rpc::v1::GetAccountTransactionHistoryRequest>& context);
 
+
+std::pair<org::xrpl::rpc::v1::GetLedgerResponse, grpc::Status>
+doLedgerGrpc(
+    RPC::GRPCContext<org::xrpl::rpc::v1::GetLedgerRequest>& context);
+
+
+std::pair<org::xrpl::rpc::v1::GetLedgerEntryResponse, grpc::Status>
+doLedgerEntryGrpc(
+    RPC::GRPCContext<org::xrpl::rpc::v1::GetLedgerEntryRequest>& context);
+
+
+std::pair<org::xrpl::rpc::v1::GetLedgerDataResponse, grpc::Status>
+doLedgerDataGrpc(
+    RPC::GRPCContext<org::xrpl::rpc::v1::GetLedgerDataRequest>& context);
+
 }  // namespace ripple
 
 #endif
