@@ -95,6 +95,7 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
 
                     bool validated = false;
 
+                    int toWait = 1;
                     while(not validated)
                     {
                         grpc::ClientContext grpcContext;
@@ -103,6 +104,10 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
                         if(status.ok())
                         {
                             validated = reply.validated();
+                            if (!validated)
+                                std::this_thread::sleep_for(
+                                    std::chrono::seconds(2));
+                            toWait = 1;
                             continue;
                         }
                         std::cout << "reply = " << reply.DebugString()
@@ -112,7 +117,9 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
                             << std::endl;
                         std::cout << "request = " << request.DebugString()
                             << std::endl;
-                        std::this_thread::sleep_for(std::chrono::seconds(1));
+                        std::this_thread::sleep_for(
+                            std::chrono::seconds(toWait));
+                        toWait *= 2;
                     }
                     
 
@@ -270,6 +277,10 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
             storeLedger();
             std::cout << "stored initial ledger!" << std::endl;
 
+            // sleep for ten seconds to prevent throttling
+            std::this_thread::sleep_for(std::chrono::seconds(10));
+            std::cout << "starting continous update" << std::endl;
+
             while (true)
             {
                 ++ledgerIndex;
@@ -337,11 +348,16 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
                         }
                         ++iter;
                     }
+                    else if (status.error_code() == 8)
+                    {
+                        std::cout << "usage balance. pausing" << std::endl;
+
+                        std::this_thread::sleep_for(std::chrono::seconds(2));
+                    }
                     else
                     {
                         std::cout << "unexpected error, trying again"
                             << std::endl;
-                        std::this_thread::sleep_for(std::chrono::milliseconds(10));
                     
                     }
                 }
