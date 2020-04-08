@@ -361,6 +361,8 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
                     
                     }
                 }
+
+                ledger->updateSkipList();
                 storeLedger();
                 std::cout << "Stored ledger " + std::to_string(ledgerIndex)
                     << std::endl;
