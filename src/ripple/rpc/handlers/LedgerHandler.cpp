@@ -126,6 +126,7 @@ doLedgerGrpc(
 
     Serializer s;
     addRaw(ledger->info(), s);
+    std::cout << "serialized ledger header" << std::endl;
 
     response.set_ledger_header(s.peekData().data(), s.getLength());
 
@@ -133,14 +134,18 @@ doLedgerGrpc(
     {
         for (auto& i : ledger->txs)
         {
+            assert(i.first);
             if (request.expand())
             {
                 auto txn =
                     response.mutable_transactions_list()->add_transactions();
                 Serializer sTxn = i.first->getSerializer();
-                Serializer sMeta = i.second->getSerializer();
                 txn->set_transaction_blob(sTxn.data(), sTxn.getLength());
-                txn->set_metadata_blob(sMeta.data(), sMeta.getLength());
+                if(i.second)
+                {
+                    Serializer sMeta = i.second->getSerializer();
+                    txn->set_metadata_blob(sMeta.data(), sMeta.getLength());
+                }
             }
             else
             {
@@ -150,6 +155,9 @@ doLedgerGrpc(
             }
         }
     }
+    std::cout << "processed transactions" << std::endl;
+    
+    response.set_validated(RPC::isValidated (context.ledgerMaster, *ledger, context.app));
 
     return {response, status};
 }

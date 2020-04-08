@@ -170,6 +170,7 @@ doLedgerDataGrpc(
         {
             // Stop processing before the current key.
             auto k = sle->key();
+            --k;
             response.set_marker(k.data(),k.size());
             break;
         }

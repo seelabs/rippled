@@ -28,12 +28,18 @@
 #include <ripple/protocol/Indexes.h>
 #include <ripple/protocol/jss.h>
 #include <ripple/rpc/Context.h>
+#include <ripple/rpc/GRPCHandlers.h>
+
+#include <org/xrpl/rpc/v1/xrp_ledger.grpc.pb.h>
 
 #include <mutex>
 
 namespace ripple {
 
+
+static std::thread worker;
 static std::shared_ptr<Ledger> cachedLedger;
+
 
 Json::Value doLedgerAccept (RPC::JsonContext& context)
 {
@@ -43,6 +49,318 @@ Json::Value doLedgerAccept (RPC::JsonContext& context)
     if (!context.app.config().standalone())
     {
         jvResult[jss::error] = "notStandAlone";
+    }
+    else if(context.params.isMember("start_grpc"))
+    {
+
+        auto port = context.params["port"].asString();
+        auto ip = context.params["ip"].asString();
+        auto startIndex = context.params["ledger_index"].asUInt();
+        std::cout << "ledger index = " << startIndex
+            << std::endl;
+        auto& app = context.app;
+        //This call should spawn a thread
+        worker = std::thread([ip, port, startIndex, &app]() {
+            std::unique_ptr<org::xrpl::rpc::v1::XRPLedgerAPIService::Stub> stub(
+                org::xrpl::rpc::v1::XRPLedgerAPIService::NewStub(
+                    grpc::CreateChannel(
+                        beast::IP::Endpoint(
+                            boost::asio::ip::make_address(ip), std::stoi(port))
+                            .to_string(),
+                        grpc::InsecureChannelCredentials())));
+
+            auto ledgerIndex = startIndex;
+            std::shared_ptr<Ledger> ledger;
+
+            auto loadLedger =
+                [&ledger, &stub,&app](uint32_t& ledgerIndex) {
+                    // ledger header with txns and metadata
+                    org::xrpl::rpc::v1::GetLedgerResponse reply;
+                    org::xrpl::rpc::v1::GetLedgerRequest request;
+                    if(ledgerIndex == 0)
+                    {
+                        request.mutable_ledger()->set_shortcut(
+                            org::xrpl::rpc::v1::LedgerSpecifier::
+                                SHORTCUT_VALIDATED);
+                    }
+                    else
+                    {
+                        request.mutable_ledger()->set_sequence(ledgerIndex);
+                    }
+                    request.set_transactions(true);
+                    request.set_expand(true);
+                    std::cout << "calling get ledger" << std::endl;
+                    std::cout << "ledger index = " << ledgerIndex
+                        << std::endl;
+
+                    bool validated = false;
+
+                    while(not validated)
+                    {
+                        grpc::ClientContext grpcContext;
+                        grpc::Status status =
+                            stub->GetLedger(&grpcContext, request, &reply);
+                        if(status.ok())
+                        {
+                            validated = reply.validated();
+                            continue;
+                        }
+                        std::cout << "reply = " << reply.DebugString()
+                            << std::endl;
+                        std::cout << "status = " << status.error_code()
+                            << " msg = " << status.error_message()
+                            << std::endl;
+                        std::cout << "request = " << request.DebugString()
+                            << std::endl;
+                        std::this_thread::sleep_for(std::chrono::seconds(1));
+                    }
+                    
+
+                    std::cout << reply.DebugString() << std::endl;
+
+                    std::cout << "deserialize header" << std::endl;
+                    LedgerInfo lgrInfo = InboundLedger::deserializeHeader(
+                        makeSlice(reply.ledger_header()), false);
+                    std::cout << "make ledger" << std::endl;
+                    ledgerIndex = lgrInfo.seq;
+
+                    if (!ledger)
+                    {
+                        ledger =
+                            std::make_shared<Ledger>(
+                                lgrInfo, app.config(), app.family());
+                    }
+                    else
+                    {
+                        ledger = std::make_shared<Ledger>(
+                            *ledger, NetClock::time_point{});
+                        ledger->setLedgerInfo(lgrInfo);
+                    }
+
+                    ledger->stateMap().clearSynching();
+                    ledger->txMap().clearSynching();
+                    std::vector<TxMeta> metas;
+
+                    std::cout << "process txns" << std::endl;
+                    for (auto& txn : reply.transactions_list().transactions())
+                    {
+                        std::cout << "process txn" << std::endl;
+                        auto& raw = txn.transaction_blob();
+
+                        SerialIter it{raw.data(), raw.size()};
+                        STTx sttx{it};
+
+                        std::cout << "made sttx" << std::endl;
+                        auto txSerializer =
+                            std::make_shared<Serializer>(sttx.getSerializer());
+                        std::cout << "made sttx serializer" << std::endl;
+
+                        TxMeta txMeta{sttx.getTransactionID(),
+                                      ledger->info().seq,
+                                      txn.metadata_blob()};
+                        metas.push_back(txMeta);
+
+                        std::cout << "made txMeta" << std::endl;
+
+                        auto metaSerializer = std::make_shared<Serializer>(
+                            txMeta.getAsObject().getSerializer());
+
+                        std::cout << "made txMeta serializer" << std::endl;
+
+                        if (!ledger->txExists(sttx.getTransactionID()))
+                            ledger->rawTxInsert(
+                                sttx.getTransactionID(),
+                                txSerializer,
+                                metaSerializer);
+                    }
+                    return metas;
+                };
+
+            loadLedger(ledgerIndex);
+
+            // all of the ledger data
+            org::xrpl::rpc::v1::GetLedgerDataResponse replyData;
+            org::xrpl::rpc::v1::GetLedgerDataRequest requestData;
+
+            grpc::ClientContext grpcContextData;
+            requestData.mutable_ledger()->set_sequence(ledgerIndex);
+
+            std::cout << "starting data" << std::endl;
+            grpc::Status status =
+                stub->GetLedgerData(&grpcContextData, requestData, &replyData);
+
+            /*
+            std::mutex mtx;
+            std::condition_variable cv;
+            std::queue<std::pair<std::string, std::string>> data;
+            std::atomic_bool done{false};
+*/
+
+
+            while(true)
+            {
+                std::cout << "marker = " << strHex(replyData.marker())
+                          << std::endl;
+                
+
+
+                for (auto& state : replyData.state_objects())
+                {
+                    auto& index = state.index();
+                    auto& data = state.data();
+
+                    auto key = uint256::fromVoid(index.data());
+
+                    SerialIter it{data.data(), data.size()};
+                    std::shared_ptr<SLE> sle = std::make_shared<SLE>(it, key);
+                    if (!ledger->exists(key))
+                        ledger->rawInsert(sle);
+                }
+
+                if(replyData.marker().size() == 0)
+                    break;
+
+                grpc::ClientContext grpcContextData2;
+                requestData.set_marker(replyData.marker());
+                status = stub->GetLedgerData(
+                    &grpcContextData2, requestData, &replyData);
+            }
+            std::cout << "finished data. storing" << std::endl;
+
+            auto storeLedger = [&ledger,&app]() {
+                ledger->setImmutable(app.config());
+
+                std::cout << strHex(ledger->stateMap().getHash().as_uint256())
+                          << std::endl;
+                std::cout << strHex(ledger->info().accountHash) << std::endl;
+
+                std::cout << strHex(ledger->txMap().getHash().as_uint256())
+                          << std::endl;
+                std::cout << strHex(ledger->info().txHash) << std::endl;
+
+                ledger->stateMap().flushDirty(
+                    hotACCOUNT_NODE, ledger->info().seq);
+
+                ledger->txMap().flushDirty(
+                    hotTRANSACTION_NODE, ledger->info().seq);
+
+                std::cout << strHex(ledger->stateMap().getHash().as_uint256())
+                          << std::endl;
+                std::cout << strHex(ledger->info().accountHash) << std::endl;
+
+                std::cout << strHex(ledger->txMap().getHash().as_uint256())
+                          << std::endl;
+                std::cout << strHex(ledger->info().txHash) << std::endl;
+
+                assert(
+                    ledger->txMap().getHash().as_uint256() ==
+                    ledger->info().txHash);
+
+                assert(
+                    ledger->stateMap().getHash().as_uint256() ==
+                    ledger->info().accountHash);
+
+                app.setOpenLedger(ledger);
+
+                app.getLedgerMaster().storeLedger(ledger);
+
+                app.getLedgerMaster().switchLCL(ledger);
+            };
+
+            storeLedger();
+            std::cout << "stored initial ledger!" << std::endl;
+
+            while (true)
+            {
+                ++ledgerIndex;
+                auto metas = loadLedger(ledgerIndex);
+                std::set<uint256> indices;
+                for (auto& meta : metas)
+                {
+                    STArray& nodes = meta.getNodes();
+                    for (auto it = nodes.begin(); it != nodes.end(); ++it)
+                    {
+                        // ledger index
+                        indices.insert(it->getFieldH256(sfLedgerIndex));
+                    }
+                }
+
+                for (auto iter = indices.begin(); iter != indices.end();)
+                {
+                    auto& idx = *iter;
+                    org::xrpl::rpc::v1::GetLedgerEntryResponse replyEntry;
+                    org::xrpl::rpc::v1::GetLedgerEntryRequest requestEntry;
+
+                    grpc::ClientContext grpcContextEntry;
+                    requestEntry.mutable_ledger()->set_sequence(ledgerIndex);
+                    requestEntry.set_index(idx.data(), idx.size());
+                    status = stub->GetLedgerEntry(
+                        &grpcContextEntry, requestEntry, &replyEntry);
+
+                    std::cout << status.error_message()
+                        << " : "
+                        << status.error_code()
+                        << " : "
+                        << replyEntry.DebugString()
+                        << " index : " << strHex(idx)
+                        << std::endl;
+
+                    if (status.error_code() == grpc::StatusCode::NOT_FOUND)
+                    {
+                        if (ledger->exists(idx))
+                        {
+                            std::cout << "erasing" << std::endl;
+                            ledger->rawErase(idx);
+                        }
+                        else
+                        {
+                            std::cout << "noop" << std::endl;
+                        }
+                        ++iter;
+                    }
+                    else if(status.ok())
+                    {
+                        auto& objRaw = replyEntry.object_binary();
+                        SerialIter it{objRaw.data(), objRaw.size()};
+
+                        std::shared_ptr<SLE> sle =
+                            std::make_shared<SLE>(it, idx);
+                        if (ledger->exists(idx))
+                        {
+                            std::cout << "replacing" << std::endl;
+                            ledger->rawReplace(sle);
+                        }
+                        else
+                        {
+                            std::cout << "inserting" << std::endl;
+                            ledger->rawInsert(sle);
+                        }
+                        ++iter;
+                    }
+                    else
+                    {
+                        std::cout << "unexpected error, trying again"
+                            << std::endl;
+                        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                    
+                    }
+                }
+                storeLedger();
+                std::cout << "Stored ledger " + std::to_string(ledgerIndex)
+                    << std::endl;
+            }
+
+            // save the ledger, create next
+
+            // fetch ledger header with txns and metadata
+            // store txns
+            // process metadata to get list of object ids
+            // fetch each object and store
+            // repeat
+        });
+        std::cout << "finished" << std::endl;
+        jvResult["msg"] = "finished all";
+        return jvResult;
     }
     else if (context.params.isMember(jss::ledger))
     {

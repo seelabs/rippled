@@ -26,6 +26,8 @@ message GetLedgerResponse
         
         TransactionAndMetadataList transactions_list = 3;
     }
+
+    bool validated = 4;
 }
 
 message TransactionHashList

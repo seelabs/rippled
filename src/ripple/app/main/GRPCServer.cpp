@@ -434,7 +434,7 @@ GRPCServerImpl::setupListeners()
                 RequestGetLedgerData,
             doLedgerDataGrpc,
             RPC::NO_CONDITION,
-            Resource::feeMediumBurdenRPC));
+            Resource::feeReferenceRPC));
     }
     {
         using cd = CallData<
@@ -449,7 +449,7 @@ GRPCServerImpl::setupListeners()
                 RequestGetLedgerEntry,
             doLedgerEntryGrpc,
             RPC::NO_CONDITION,
-            Resource::feeMediumBurdenRPC));
+            Resource::feeReferenceRPC));
     }
     return requests;
 };
