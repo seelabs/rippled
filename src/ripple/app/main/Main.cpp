@@ -324,18 +324,17 @@ int run (int argc, char** argv)
     // Set up option parsing.
     //
     po::options_description gen ("General Options");
-    gen.add_options ()
-    ("conf", po::value<std::string> (), "Specify the configuration file.")
-    ("debug", "Enable normally suppressed debug logging")
-    ("fg", "Run in the foreground.")
-    ("help,h", "Display this message.")
-    ("quorum", po::value <std::size_t> (),
-        "Override the minimum validation quorum.")
-    ("silent", "No output to the console after startup.")
-    ("standalone,a", "Run with no peers.")
-    ("verbose,v", "Verbose logging.")
-    ("version", "Display the build version.")
-    ;
+    gen.add_options()(
+        "conf", po::value<std::string>(), "Specify the configuration file.")(
+        "debug", "Enable normally suppressed debug logging")(
+        "fg", "Run in the foreground.")("help,h", "Display this message.")(
+        "quorum",
+        po::value<std::size_t>(),
+        "Override the minimum validation quorum.")(
+        "reporting,r", "Run in reporting mode")(
+        "silent", "No output to the console after startup.")(
+        "standalone,a", "Run with no peers.")("verbose,v", "Verbose logging.")(
+        "version", "Display the build version.");
 
     po::options_description data ("Ledger/Data Options");
     data.add_options ()
@@ -487,8 +486,12 @@ int run (int argc, char** argv)
             vm["conf"].as<std::string> () : std::string();
 
     // config file, quiet flag.
-    config->setup (configFile, bool (vm.count ("quiet")),
-        bool(vm.count("silent")), bool(vm.count("standalone")));
+    config->setup(
+        configFile,
+        bool(vm.count("quiet")),
+        bool(vm.count("silent")),
+        bool(vm.count("standalone")),
+        bool(vm.count("reporting")));
 
     if (vm.count("vacuum"))
     {

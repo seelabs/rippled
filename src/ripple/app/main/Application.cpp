@@ -17,53 +17,54 @@
 */
 //==============================================================================
 
-#include <ripple/app/main/Application.h>
-#include <ripple/core/DatabaseCon.h>
-#include <ripple/core/Stoppable.h>
 #include <ripple/app/consensus/RCLValidations.h>
-#include <ripple/app/main/DBInit.h>
-#include <ripple/app/main/BasicApp.h>
-#include <ripple/app/main/Tuning.h>
 #include <ripple/app/ledger/InboundLedgers.h>
+#include <ripple/app/ledger/InboundTransactions.h>
 #include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/app/ledger/LedgerToJson.h>
 #include <ripple/app/ledger/OpenLedger.h>
 #include <ripple/app/ledger/OrderBookDB.h>
 #include <ripple/app/ledger/PendingSaves.h>
-#include <ripple/app/ledger/InboundTransactions.h>
 #include <ripple/app/ledger/TransactionMaster.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/main/BasicApp.h>
+#include <ripple/app/main/DBInit.h>
 #include <ripple/app/main/LoadManager.h>
 #include <ripple/app/main/NodeIdentity.h>
 #include <ripple/app/main/NodeStoreScheduler.h>
+#include <ripple/app/main/ReportingETL.h>
+#include <ripple/app/main/Tuning.h>
 #include <ripple/app/misc/AmendmentTable.h>
 #include <ripple/app/misc/HashRouter.h>
 #include <ripple/app/misc/LoadFeeTrack.h>
 #include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/app/misc/SHAMapStore.h>
 #include <ripple/app/misc/TxQ.h>
-#include <ripple/app/misc/ValidatorSite.h>
 #include <ripple/app/misc/ValidatorKeys.h>
+#include <ripple/app/misc/ValidatorSite.h>
 #include <ripple/app/paths/PathRequests.h>
 #include <ripple/app/tx/apply.h>
 #include <ripple/basics/ByteUtilities.h>
-#include <ripple/basics/ResolverAsio.h>
-#include <ripple/basics/safe_cast.h>
-#include <ripple/basics/Sustain.h>
 #include <ripple/basics/PerfLog.h>
+#include <ripple/basics/ResolverAsio.h>
+#include <ripple/basics/Sustain.h>
+#include <ripple/basics/safe_cast.h>
+#include <ripple/beast/asio/io_latency_probe.h>
+#include <ripple/beast/core/LexicalCast.h>
+#include <ripple/core/DatabaseCon.h>
+#include <ripple/core/Stoppable.h>
 #include <ripple/json/json_reader.h>
-#include <ripple/nodestore/DummyScheduler.h>
 #include <ripple/nodestore/DatabaseShard.h>
+#include <ripple/nodestore/DummyScheduler.h>
 #include <ripple/overlay/Cluster.h>
 #include <ripple/overlay/PeerReservationTable.h>
 #include <ripple/overlay/make_Overlay.h>
 #include <ripple/protocol/BuildInfo.h>
 #include <ripple/protocol/Feature.h>
-#include <ripple/protocol/STParsedJSON.h>
 #include <ripple/protocol/Protocol.h>
+#include <ripple/protocol/STParsedJSON.h>
 #include <ripple/resource/Fees.h>
 #include <ripple/rpc/impl/RPCHelpers.h>
-#include <ripple/beast/asio/io_latency_probe.h>
-#include <ripple/beast/core/LexicalCast.h>
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <ripple/app/main/GRPCServer.h>
@@ -393,6 +394,7 @@ public:
     io_latency_sampler m_io_latency_sampler;
 
     std::unique_ptr<GRPCServer> grpcServer_;
+    std::unique_ptr<ReportingETL> reportingETL_;
 
     //--------------------------------------------------------------------------
 
@@ -417,146 +419,199 @@ public:
 
     //--------------------------------------------------------------------------
 
-    ApplicationImp (
-            std::unique_ptr<Config> config,
-            std::unique_ptr<Logs> logs,
-            std::unique_ptr<TimeKeeper> timeKeeper)
-        : RootStoppable ("Application")
-        , BasicApp (numberOfThreads(*config))
-        , config_ (std::move(config))
-        , logs_ (std::move(logs))
-        , timeKeeper_ (std::move(timeKeeper))
-        , m_journal (logs_->journal("Application"))
+    ApplicationImp(
+        std::unique_ptr<Config> config,
+        std::unique_ptr<Logs> logs,
+        std::unique_ptr<TimeKeeper> timeKeeper)
+        : RootStoppable("Application")
+        , BasicApp(numberOfThreads(*config))
+        , config_(std::move(config))
+        , logs_(std::move(logs))
+        , timeKeeper_(std::move(timeKeeper))
+        , m_journal(logs_->journal("Application"))
 
         // PerfLog must be started before any other threads are launched.
-        , perfLog_ (perf::make_PerfLog(
-            perf::setup_PerfLog(config_->section("perf"), config_->CONFIG_DIR),
-            *this, logs_->journal("PerfLog"), [this] () { signalStop(); }))
+        , perfLog_(perf::make_PerfLog(
+              perf::setup_PerfLog(
+                  config_->section("perf"),
+                  config_->CONFIG_DIR),
+              *this,
+              logs_->journal("PerfLog"),
+              [this]() { signalStop(); }))
 
-        , m_txMaster (*this)
+        , m_txMaster(*this)
 
-        , m_nodeStoreScheduler (*this)
+        , m_nodeStoreScheduler(*this)
 
         , m_shaMapStore(make_SHAMapStore(
-            *this,
-            *this,
-            m_nodeStoreScheduler,
-            logs_->journal("SHAMapStore")))
+              *this,
+              *this,
+              m_nodeStoreScheduler,
+              logs_->journal("SHAMapStore")))
 
         , accountIDCache_(128000)
 
-        , m_tempNodeCache ("NodeCache", 16384, std::chrono::seconds {90},
-            stopwatch(), logs_->journal("TaggedCache"))
+        , m_tempNodeCache(
+              "NodeCache",
+              16384,
+              std::chrono::seconds{90},
+              stopwatch(),
+              logs_->journal("TaggedCache"))
 
-        , m_collectorManager (CollectorManager::New (
-            config_->section (SECTION_INSIGHT), logs_->journal("Collector")))
-        , cachedSLEs_ (std::chrono::minutes(1), stopwatch())
+        , m_collectorManager(CollectorManager::New(
+              config_->section(SECTION_INSIGHT),
+              logs_->journal("Collector")))
+        , cachedSLEs_(std::chrono::minutes(1), stopwatch())
         , validatorKeys_(*config_, m_journal)
 
-        , m_resourceManager (Resource::make_Manager (
-            m_collectorManager->collector(), logs_->journal("Resource")))
+        , m_resourceManager(Resource::make_Manager(
+              m_collectorManager->collector(),
+              logs_->journal("Resource")))
 
         // The JobQueue has to come pretty early since
         // almost everything is a Stoppable child of the JobQueue.
         //
-        , m_jobQueue (std::make_unique<JobQueue>(
-            m_collectorManager->group ("jobq"), m_nodeStoreScheduler,
-            logs_->journal("JobQueue"), *logs_, *perfLog_))
+        , m_jobQueue(std::make_unique<JobQueue>(
+              m_collectorManager->group("jobq"),
+              m_nodeStoreScheduler,
+              logs_->journal("JobQueue"),
+              *logs_,
+              *perfLog_))
 
         , m_nodeStore(m_shaMapStore->makeNodeStore("NodeStore.main", 4))
 
         // The shard store is optional and make_ShardStore can return null.
         , shardStore_(make_ShardStore(
-            *this,
-            *m_jobQueue,
-            m_nodeStoreScheduler,
-            4,
-            logs_->journal("ShardStore")))
+              *this,
+              *m_jobQueue,
+              m_nodeStoreScheduler,
+              4,
+              logs_->journal("ShardStore")))
 
-        , family_ (*this, *m_nodeStore, *m_collectorManager)
+        , family_(*this, *m_nodeStore, *m_collectorManager)
 
-        , m_orderBookDB (*this, *m_jobQueue)
+        , m_orderBookDB(*this, *m_jobQueue)
 
-        , m_pathRequests (std::make_unique<PathRequests> (
-            *this, logs_->journal("PathRequest"), m_collectorManager->collector ()))
+        , m_pathRequests(std::make_unique<PathRequests>(
+              *this,
+              logs_->journal("PathRequest"),
+              m_collectorManager->collector()))
 
-        , m_ledgerMaster (std::make_unique<LedgerMaster> (*this, stopwatch (),
-            *m_jobQueue, m_collectorManager->collector (),
-            logs_->journal("LedgerMaster")))
+        , m_ledgerMaster(std::make_unique<LedgerMaster>(
+              *this,
+              stopwatch(),
+              *m_jobQueue,
+              m_collectorManager->collector(),
+              logs_->journal("LedgerMaster")))
 
         // VFALCO NOTE must come before NetworkOPs to prevent a crash due
         //             to dependencies in the destructor.
         //
-        , m_inboundLedgers (make_InboundLedgers (*this, stopwatch(),
-            *m_jobQueue, m_collectorManager->collector ()))
+        , m_inboundLedgers(make_InboundLedgers(
+              *this,
+              stopwatch(),
+              *m_jobQueue,
+              m_collectorManager->collector()))
 
-        , m_inboundTransactions (make_InboundTransactions
-            ( *this, stopwatch()
-            , *m_jobQueue
-            , m_collectorManager->collector ()
-            , [this](std::shared_ptr <SHAMap> const& set,
-                bool fromAcquire)
-            {
-                gotTXSet (set, fromAcquire);
-            }))
+        , m_inboundTransactions(make_InboundTransactions(
+              *this,
+              stopwatch(),
+              *m_jobQueue,
+              m_collectorManager->collector(),
+              [this](std::shared_ptr<SHAMap> const& set, bool fromAcquire) {
+                  gotTXSet(set, fromAcquire);
+              }))
 
-        , m_acceptedLedgerCache ("AcceptedLedger", 4, std::chrono::minutes {1},
-            stopwatch(), logs_->journal("TaggedCache"))
+        , m_acceptedLedgerCache(
+              "AcceptedLedger",
+              4,
+              std::chrono::minutes{1},
+              stopwatch(),
+              logs_->journal("TaggedCache"))
 
-        , m_networkOPs (make_NetworkOPs (*this, stopwatch(),
-            config_->standalone(), config_->NETWORK_QUORUM, config_->START_VALID,
-            *m_jobQueue, *m_ledgerMaster, *m_jobQueue, validatorKeys_,
-            get_io_service(), logs_->journal("NetworkOPs"), m_collectorManager->collector()))
+        , m_networkOPs(make_NetworkOPs(
+              *this,
+              stopwatch(),
+              config_->standalone(),
+              config_->NETWORK_QUORUM,
+              config_->START_VALID,
+              *m_jobQueue,
+              *m_ledgerMaster,
+              *m_jobQueue,
+              validatorKeys_,
+              get_io_service(),
+              logs_->journal("NetworkOPs"),
+              m_collectorManager->collector()))
 
-        , cluster_ (std::make_unique<Cluster> (
-            logs_->journal("Overlay")))
+        , cluster_(std::make_unique<Cluster>(logs_->journal("Overlay")))
 
-        , peerReservations_(std::make_unique<PeerReservationTable>(logs_->journal("PeerReservationTable")))
+        , peerReservations_(std::make_unique<PeerReservationTable>(
+              logs_->journal("PeerReservationTable")))
 
-        , validatorManifests_ (std::make_unique<ManifestCache> (
-            logs_->journal("ManifestCache")))
+        , validatorManifests_(
+              std::make_unique<ManifestCache>(logs_->journal("ManifestCache")))
 
-        , publisherManifests_ (std::make_unique<ManifestCache> (
-            logs_->journal("ManifestCache")))
+        , publisherManifests_(
+              std::make_unique<ManifestCache>(logs_->journal("ManifestCache")))
 
-        , validators_ (std::make_unique<ValidatorList> (
-            *validatorManifests_, *publisherManifests_,
-            *timeKeeper_, config_->legacy("database_path"),
-            logs_->journal("ValidatorList"), config_->VALIDATION_QUORUM))
+        , validators_(std::make_unique<ValidatorList>(
+              *validatorManifests_,
+              *publisherManifests_,
+              *timeKeeper_,
+              config_->legacy("database_path"),
+              logs_->journal("ValidatorList"),
+              config_->VALIDATION_QUORUM))
 
-        , validatorSites_ (std::make_unique<ValidatorSite> (*this))
+        , validatorSites_(std::make_unique<ValidatorSite>(*this))
 
-        , serverHandler_ (make_ServerHandler (*this, *m_networkOPs, get_io_service (),
-            *m_jobQueue, *m_networkOPs, *m_resourceManager,
-            *m_collectorManager))
+        , serverHandler_(make_ServerHandler(
+              *this,
+              *m_networkOPs,
+              get_io_service(),
+              *m_jobQueue,
+              *m_networkOPs,
+              *m_resourceManager,
+              *m_collectorManager))
 
-        , mFeeTrack (std::make_unique<LoadFeeTrack>(logs_->journal("LoadManager")))
+        , mFeeTrack(
+              std::make_unique<LoadFeeTrack>(logs_->journal("LoadManager")))
 
-        , hashRouter_ (std::make_unique<HashRouter>(
-            stopwatch(), HashRouter::getDefaultHoldTime (),
-            HashRouter::getDefaultRecoverLimit ()))
+        , hashRouter_(std::make_unique<HashRouter>(
+              stopwatch(),
+              HashRouter::getDefaultHoldTime(),
+              HashRouter::getDefaultRecoverLimit()))
 
-        , mValidations (ValidationParms(),stopwatch(), *this, logs_->journal("Validations"))
+        , mValidations(
+              ValidationParms(),
+              stopwatch(),
+              *this,
+              logs_->journal("Validations"))
 
-        , m_loadManager (make_LoadManager (*this, *this, logs_->journal("LoadManager")))
+        , m_loadManager(
+              make_LoadManager(*this, *this, logs_->journal("LoadManager")))
 
         , txQ_(make_TxQ(setup_TxQ(*config_), logs_->journal("TxQ")))
 
-        , sweepTimer_ (get_io_service())
+        , sweepTimer_(get_io_service())
 
-        , entropyTimer_ (get_io_service())
+        , entropyTimer_(get_io_service())
 
-        , startTimers_ (false)
+        , startTimers_(false)
 
-        , m_signals (get_io_service())
+        , m_signals(get_io_service())
 
         , checkSigs_(true)
 
-        , m_resolver (ResolverAsio::New (get_io_service(), logs_->journal("Resolver")))
+        , m_resolver(
+              ResolverAsio::New(get_io_service(), logs_->journal("Resolver")))
 
-        , m_io_latency_sampler (m_collectorManager->collector()->make_event ("ios_latency"),
-            logs_->journal("Application"), std::chrono::milliseconds (100), get_io_service())
+        , m_io_latency_sampler(
+              m_collectorManager->collector()->make_event("ios_latency"),
+              logs_->journal("Application"),
+              std::chrono::milliseconds(100),
+              get_io_service())
         , grpcServer_(std::make_unique<GRPCServer>(*this))
+        , reportingETL_(std::make_unique<ReportingETL>(*this))
     {
         if (shardStore_)
         {
@@ -1615,6 +1670,11 @@ bool ApplicationImp::setup()
         {
             JLOG(m_journal.fatal()) << "Result: " << jvResult << std::endl;
         }
+    }
+
+    if (config_->reporting())
+    {
+        reportingETL_->run();
     }
 
     return true;

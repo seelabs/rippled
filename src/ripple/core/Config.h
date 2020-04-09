@@ -98,6 +98,8 @@ private:
     */
     bool                        RUN_STANDALONE = false;
 
+    bool RUN_REPORTING = false;
+
     /** Determines if the server will sign a tx, given an account's secret seed.
 
         In the past, this was allowed, but this functionality can have security
@@ -184,10 +186,19 @@ public:
 
     /* Be very careful to make sure these bool params
         are in the right order. */
-    void setup (std::string const& strConf, bool bQuiet,
-        bool bSilent, bool bStandalone);
-    void setupControl (bool bQuiet,
-        bool bSilent, bool bStandalone);
+    void
+    setup(
+        std::string const& strConf,
+        bool bQuiet,
+        bool bSilent,
+        bool bStandalone,
+        bool bReporting = false);
+    void
+    setupControl(
+        bool bQuiet,
+        bool bSilent,
+        bool bStandalone,
+        bool bReporting = false);
 
     /**
      *  Load the config from the contents of the string.
@@ -199,6 +210,11 @@ public:
     bool quiet() const { return QUIET; }
     bool silent() const { return SILENT; }
     bool standalone() const { return RUN_STANDALONE; }
+    bool
+    reporting() const
+    {
+        return RUN_REPORTING;
+    }
 
     bool canSign() const { return signingEnabled_; }
 

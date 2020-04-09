@@ -202,16 +202,26 @@ getEnvVar (char const* name)
 
 constexpr FeeUnit32 Config::TRANSACTION_FEE_BASE;
 
-void Config::setupControl(bool bQuiet,
-    bool bSilent, bool bStandalone)
+void
+Config::setupControl(
+    bool bQuiet,
+    bool bSilent,
+    bool bStandalone,
+    bool bReporting)
 {
     QUIET = bQuiet || bSilent;
     SILENT = bSilent;
-    RUN_STANDALONE = bStandalone;
+    RUN_STANDALONE = bStandalone || bReporting;
+    RUN_REPORTING = bReporting;
 }
 
-void Config::setup (std::string const& strConf, bool bQuiet,
-    bool bSilent, bool bStandalone)
+void
+Config::setup(
+    std::string const& strConf,
+    bool bQuiet,
+    bool bSilent,
+    bool bStandalone,
+    bool bReporting)
 {
     boost::filesystem::path dataDir;
     std::string strDbPath, strConfFile;
@@ -222,7 +232,7 @@ void Config::setup (std::string const& strConf, bool bQuiet,
     // config directory and that with "db" as the data
     // directory.
 
-    setupControl(bQuiet, bSilent, bStandalone);
+    setupControl(bQuiet, bSilent, bStandalone, bReporting);
 
     strDbPath = databaseDirName;
 
