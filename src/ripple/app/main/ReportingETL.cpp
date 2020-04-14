@@ -368,6 +368,8 @@ void ReportingETL::doInitialLedgerLoad()
     }
 }
 
+
+
 struct AsyncCallData
 {
     std::unique_ptr<org::xrpl::rpc::v1::GetLedgerDataResponse> cur;
@@ -421,7 +423,10 @@ struct AsyncCallData
     process(
         std::shared_ptr<Ledger>& ledger,
         std::unique_ptr<org::xrpl::rpc::v1::XRPLedgerAPIService::Stub>& stub,
-        grpc::CompletionQueue& cq)
+        grpc::CompletionQueue& cq,
+        bool flush,
+        bool asyncFlush,
+        ReportingETL::ThreadSafeQueue& queue)
     {
         /*
            std::cout << status.error_code() 
@@ -458,8 +463,16 @@ struct AsyncCallData
 
             SerialIter it{data.data(), data.size()};
             std::shared_ptr<SLE> sle = std::make_shared<SLE>(it, key);
-            if (!ledger->exists(sle->key()))
-                ledger->rawInsert(sle);
+            if(asyncFlush)
+                queue.push(sle);
+            else
+                if (!ledger->exists(sle->key()))
+                    ledger->rawInsert(sle);
+        }
+        if(flush and not asyncFlush)
+        {
+            ledger->stateMap().flushDirty(
+                    hotACCOUNT_NODE, ledger->info().seq);
         }
         return more;
     }
@@ -481,6 +494,33 @@ struct AsyncCallData
     }
 };
 
+void ReportingETL::doAsyncFlush()
+{
+    flusher_ = std::thread{[this](){
+        
+        std::shared_ptr<SLE> sle;
+        size_t num = 0;
+        while((sle = flushQueue_.pop()))
+        {
+            assert(sle);
+            if(!ledger_->exists(sle->key()))
+                ledger_->rawInsert(sle);
+
+            if(flushInterval_ != 0 and (num % flushInterval_) == 0)
+            {
+                JLOG(journal_.debug()) << "Flushing! key = "
+                    << strHex(sle->key());
+                ledger_->stateMap().flushDirty(
+                        hotACCOUNT_NODE, ledger_->info().seq);
+            }
+            ++num;
+        }
+        ledger_->stateMap().flushDirty(
+                hotACCOUNT_NODE, ledger_->info().seq);
+    }};
+
+}
+
 void ReportingETL::loadAsync()
 {
     grpc::CompletionQueue cq;
@@ -488,6 +528,11 @@ void ReportingETL::loadAsync()
     void* tag;
 
     bool ok = false;
+
+    if(asyncFlush_)
+    {
+        doAsyncFlush();
+    }
 
 
     std::vector<AsyncCallData> calls;
@@ -509,6 +554,7 @@ void ReportingETL::loadAsync()
         c.call(stub_, cq);
 
     size_t numFinished = 0;
+    size_t numCalls = 0;
     while(numFinished < calls.size() and not stopping_ and cq.Next(&tag, &ok))
     {
         assert(tag);
@@ -531,7 +577,11 @@ void ReportingETL::loadAsync()
             {
                 JLOG(journal_.debug()) << "Empty marker";
             }
-            if(!ptr->process(ledger_, stub_, cq))
+            bool flush = false;
+            if(flushDuringDownload_)
+                if(flushInterval_ != 0 and (numCalls % flushInterval_) == 0)
+                    flush = true;
+            if(!ptr->process(ledger_, stub_, cq, flush, asyncFlush_, flushQueue_))
             {
 
                 auto interim = std::chrono::system_clock::now();
@@ -541,7 +591,14 @@ void ReportingETL::loadAsync()
                     << "Current number of finished = " << numFinished
                     << " . Seconds = " << diff.count();
             }
+            numCalls++;
         }
+    }
+
+    if(asyncFlush_)
+    {
+        flushQueue_.finish();
+        flusher_.join();
     }
     auto end = std::chrono::system_clock::now();
 
@@ -792,11 +849,22 @@ ReportingETL::storeLedger()
         << currentIndex_;
     ledger_->setImmutable(app_.config());
 
+
+    auto start = std::chrono::system_clock::now();
+
     ledger_->stateMap().flushDirty(
         hotACCOUNT_NODE, ledger_->info().seq);
 
     ledger_->txMap().flushDirty(
         hotTRANSACTION_NODE, ledger_->info().seq);
+
+
+    auto interim = std::chrono::system_clock::now();
+
+    std::chrono::duration<double> diff = interim - start;
+
+    JLOG(journal_.debug()) << "Time to flush dirty = "
+                           << diff.count() << "seconds";
 
     JLOG(journal_.debug()) << "header account hash = "
         << strHex(ledger_->info().accountHash)
@@ -816,6 +884,11 @@ ReportingETL::storeLedger()
     app_.getLedgerMaster().storeLedger(ledger_);
 
     app_.getLedgerMaster().switchLCL(ledger_);
+    auto end = std::chrono::system_clock::now();
+
+    diff = end - start;
+    JLOG(journal_.debug()) << "Time to store ledger = "
+                           << diff.count() << "seconds";
     
     JLOG(journal_.info()) << "SUCCESS!!! Stored ledger = "
         << currentIndex_;
