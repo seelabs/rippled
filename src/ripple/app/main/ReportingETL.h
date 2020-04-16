@@ -103,38 +103,31 @@ class ReportingETL
         }
     };
     public:
+template <class T>
 struct ThreadSafeQueue
 {
 
-    std::queue<std::shared_ptr<SLE>> queue_;
+    std::queue<T> queue_;
 
     std::mutex m_;
     std::condition_variable cv_;
 
-    void push(std::shared_ptr<SLE> const& sle)
+    void push(T const& elt)
     {
         std::unique_lock<std::mutex> lck(m_);
-        queue_.push(sle);
+        queue_.push(elt);
         cv_.notify_all();
     }
 
-    std::shared_ptr<SLE> pop()
+    T pop()
     {
         std::unique_lock<std::mutex> lck(m_);
+        //TODO: is this able to be aborted?
         cv_.wait(lck,[this](){ return !queue_.empty();});
         auto ret = queue_.front();
         queue_.pop();
         return ret;
     }
-
-    void finish()
-    {
-        std::unique_lock<std::mutex> lck(m_);
-        std::shared_ptr<SLE> null;
-        queue_.push(null);
-        cv_.notify_all();
-    }
-    
 };
 
 private:
@@ -175,6 +168,8 @@ private:
     size_t parallelism_ = 16;
 
     bool asyncFlush_ = true;
+
+    bool updateViaDiff_ = false;
    
 
     //TODO better names for these functions
@@ -197,11 +192,19 @@ private:
     void diffLedgers();
 
     void doAsyncFlush();
+
+    void runGapHandler();
+
+    void updateViaDiff(uint32_t have, uint32_t want);
     
     std::thread flusher_;
+    
 
-    ThreadSafeQueue flushQueue_;
+    ThreadSafeQueue<std::shared_ptr<SLE>> flushQueue_;
 
+    std::thread gapHandler_;
+
+    ThreadSafeQueue<uint32_t> gaps_;
 
 
 public:
@@ -278,6 +281,14 @@ public:
             {
                 if(asyncFlush.first == "true")
                     asyncFlush_ = true;
+            }
+
+            std::pair<std::string, bool> updateViaDiff =
+                section.find("update_via_diff");
+            if (updateViaDiff.second)
+            {
+                if (updateViaDiff.first == "true")
+                    updateViaDiff_ = true;
             }
             try
             {

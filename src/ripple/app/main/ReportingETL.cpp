@@ -242,111 +242,6 @@ ReportingETL::doSubscribe()
     });
 }
 
-std::vector<TxMeta>
-ReportingETL::loadNextLedger()
-{
-    // ledger header with txns and metadata
-    org::xrpl::rpc::v1::GetLedgerResponse reply;
-    org::xrpl::rpc::v1::GetLedgerRequest request;
-    currentIndex_ = queue_.pop();
-    if (currentIndex_ == 0)
-    {
-        return std::vector<TxMeta>{};
-    }
-    request.mutable_ledger()->set_sequence(currentIndex_);
-    request.set_transactions(true);
-    request.set_expand(true);
-
-    bool validated = false;
-
-    int toWait = 1;
-    while (not validated and not stopping_)
-    {
-        grpc::ClientContext grpcContext;
-        grpc::Status status = stub_->GetLedger(&grpcContext, request, &reply);
-        if (status.ok())
-        {
-            validated = reply.validated();
-            if (!validated)
-                std::this_thread::sleep_for(std::chrono::seconds(2));
-            toWait = 1;
-            continue;
-        }
-        JLOG(journal_.warn())
-            << "Ledger = " << currentIndex_
-            << " not validated yet. reply = "
-            << reply.DebugString();
-        //TODO is this waiting logic still needed?
-        std::this_thread::sleep_for(std::chrono::seconds(toWait));
-        toWait *= 2;
-    }
-
-    LedgerInfo lgrInfo = InboundLedger::deserializeHeader(
-        makeSlice(reply.ledger_header()), false);
-    currentIndex_ = lgrInfo.seq;
-
-    JLOG(journal_.info()) << "Loading ledger header : "
-                           << " seq = " << lgrInfo.seq << " hash - "
-                           << to_string(lgrInfo.hash) << " account_hash = "
-                           << to_string(lgrInfo.accountHash)
-                           << " tx_hash = " << to_string(lgrInfo.txHash);
-
-    if (!ledger_)
-    {
-        ledger_ = std::make_shared<Ledger>(
-            lgrInfo, app_.config(), app_.family());
-    }
-    else
-    {
-        ledger_ =
-            std::make_shared<Ledger>(*ledger_, NetClock::time_point{});
-        ledger_->setLedgerInfo(lgrInfo);
-    }
-
-    ledger_->stateMap().clearSynching();
-    ledger_->txMap().clearSynching();
-    std::vector<TxMeta> metas;
-
-    JLOG(journal_.debug()) << "Loading transactions...";
-    for (auto& txn : reply.transactions_list().transactions())
-    {
-        auto& raw = txn.transaction_blob();
-
-        SerialIter it{raw.data(), raw.size()};
-        STTx sttx{it};
-
-        auto txSerializer = std::make_shared<Serializer>(sttx.getSerializer());
-
-        TxMeta txMeta{sttx.getTransactionID(),
-                      ledger_->info().seq,
-                      txn.metadata_blob()};
-        metas.push_back(txMeta);
-
-
-        auto metaSerializer =
-            std::make_shared<Serializer>(txMeta.getAsObject().getSerializer());
-
-
-        if (!ledger_->txExists(sttx.getTransactionID()))
-        {
-            ledger_->rawTxInsert(
-                sttx.getTransactionID(), txSerializer, metaSerializer);
-            JLOG(journal_.debug()) << "Inserted transaction = "
-                << strHex(sttx.getTransactionID())
-                << " into ledger = " << currentIndex_;
-        }
-        else
-        {
-            JLOG(journal_.warn())
-                << " Transaction = " << strHex(sttx.getTransactionID())
-                << " already exists in ledger = " << currentIndex_;
-        }
-    }
-    JLOG(journal_.debug())
-        << "Loaded transactions for ledger = " << currentIndex_;
-    return metas;
-}
-
 void ReportingETL::doInitialLedgerLoad()
 {
     //TODO change to switch
@@ -367,7 +262,6 @@ void ReportingETL::doInitialLedgerLoad()
         loadAsync();
     }
 }
-
 
 
 struct AsyncCallData
@@ -426,7 +320,7 @@ struct AsyncCallData
         grpc::CompletionQueue& cq,
         bool flush,
         bool asyncFlush,
-        ReportingETL::ThreadSafeQueue& queue)
+        ReportingETL::ThreadSafeQueue<std::shared_ptr<SLE>> & queue)
     {
         /*
            std::cout << status.error_code() 
@@ -513,11 +407,6 @@ void ReportingETL::doAsyncFlush()
                     << strHex(sle->key());
                 ledger_->stateMap().flushDirty(
                         hotACCOUNT_NODE, ledger_->info().seq);
-            }
-            if(num % 256 == 0)
-            {
-                JLOG(journal_.debug())
-                    << "Downloaded " << num << " ledger objects";
             }
             ++num;
         }
@@ -607,7 +496,8 @@ void ReportingETL::loadAsync()
 
     if(asyncFlush_)
     {
-        flushQueue_.finish();
+        std::shared_ptr<SLE> null;
+        flushQueue_.push(null);
         flusher_.join();
     }
     auto end = std::chrono::system_clock::now();
@@ -904,6 +794,196 @@ ReportingETL::storeLedger()
         << currentIndex_;
 }
 
+
+void
+ReportingETL::runGapHandler()
+{
+    
+    gapHandler_ = std::thread{[this]()
+        {
+
+            uint32_t gap = 0;
+            while((gap = gaps_.pop()))
+            {
+                //TODO implement the gap handling logic
+
+            
+            }
+        }
+
+    };
+
+}
+
+void
+ReportingETL::updateViaDiff(uint32_t have, uint32_t want)
+{
+
+    assert(ledger_->info().seq == want);
+    org::xrpl::rpc::v1::GetLedgerDiffRequest request;
+    org::xrpl::rpc::v1::GetLedgerDiffResponse response;
+    grpc::ClientContext context;
+    request.mutable_base_ledger()->set_sequence(have);
+    request.mutable_desired_ledger()->set_sequence(want);
+    request.set_include_blobs(true);
+    grpc::Status status =
+        stub_->GetLedgerDiff(&context, request, &response);
+
+    if (status.ok())
+    {
+        for (auto& diff : response.diffs())
+        {
+            uint256 key = uint256::fromVoid(diff.key().data());
+            if (diff.deleted())
+            {
+                if (ledger_->exists(key))
+                {
+                    JLOG(journal_.trace()) << "erasing = " << key;
+                    ledger_->rawErase(key);
+                }
+                else
+                {
+                    JLOG(journal_.trace()) << "noop = " << key;
+                }
+            }
+            else
+            {
+                auto& objRaw = diff.blob();
+                SerialIter it{objRaw.data(), objRaw.size()};
+
+                std::shared_ptr<SLE> sle = std::make_shared<SLE>(it, key);
+                if (ledger_->exists(key))
+                {
+                    JLOG(journal_.trace()) << "replacing = " << key;
+                    ledger_->rawReplace(sle);
+                }
+                else
+                {
+                    JLOG(journal_.trace()) << "inserting = " << key;
+                    ledger_->rawInsert(sle);
+                }
+            }
+        }
+    }
+    else
+    {
+        JLOG(journal_.error())
+            << "Error in GetLedgerDiff response : " << response.DebugString();
+    }
+}
+
+std::vector<TxMeta>
+ReportingETL::loadNextLedger()
+{
+    // ledger header with txns and metadata
+    org::xrpl::rpc::v1::GetLedgerResponse reply;
+    org::xrpl::rpc::v1::GetLedgerRequest request;
+    currentIndex_ = queue_.pop();
+    if (currentIndex_ == 0)
+    {
+        return std::vector<TxMeta>{};
+    }
+    request.mutable_ledger()->set_sequence(currentIndex_);
+    request.set_transactions(true);
+    request.set_expand(true);
+
+    bool validated = false;
+
+    int toWait = 1;
+    while (not validated and not stopping_)
+    {
+        grpc::ClientContext grpcContext;
+        grpc::Status status = stub_->GetLedger(&grpcContext, request, &reply);
+        if (status.ok())
+        {
+            validated = reply.validated();
+            if (!validated)
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+            toWait = 1;
+            continue;
+        }
+        else if(status.error_code() == grpc::StatusCode::NOT_FOUND)
+        {
+            //TODO: this is a gap, unless this is on the very first ledger
+            //and that ledger was specified in config
+
+            
+        }
+        JLOG(journal_.warn())
+            << "Ledger = " << currentIndex_
+            << " not validated yet. reply = "
+            << reply.DebugString();
+        //TODO is this waiting logic still needed?
+        std::this_thread::sleep_for(std::chrono::seconds(toWait));
+        toWait *= 2;
+    }
+
+    LedgerInfo lgrInfo = InboundLedger::deserializeHeader(
+        makeSlice(reply.ledger_header()), false);
+    currentIndex_ = lgrInfo.seq;
+
+    JLOG(journal_.info()) << "Loading ledger header : "
+                           << " seq = " << lgrInfo.seq << " hash - "
+                           << to_string(lgrInfo.hash) << " account_hash = "
+                           << to_string(lgrInfo.accountHash)
+                           << " tx_hash = " << to_string(lgrInfo.txHash);
+
+    if (!ledger_)
+    {
+        ledger_ = std::make_shared<Ledger>(
+            lgrInfo, app_.config(), app_.family());
+    }
+    else
+    {
+        ledger_ =
+            std::make_shared<Ledger>(*ledger_, NetClock::time_point{});
+        ledger_->setLedgerInfo(lgrInfo);
+    }
+
+    ledger_->stateMap().clearSynching();
+    ledger_->txMap().clearSynching();
+    std::vector<TxMeta> metas;
+
+    JLOG(journal_.debug()) << "Loading transactions...";
+    for (auto& txn : reply.transactions_list().transactions())
+    {
+        auto& raw = txn.transaction_blob();
+
+        SerialIter it{raw.data(), raw.size()};
+        STTx sttx{it};
+
+        auto txSerializer = std::make_shared<Serializer>(sttx.getSerializer());
+
+        TxMeta txMeta{sttx.getTransactionID(),
+                      ledger_->info().seq,
+                      txn.metadata_blob()};
+        metas.push_back(txMeta);
+
+
+        auto metaSerializer =
+            std::make_shared<Serializer>(txMeta.getAsObject().getSerializer());
+
+
+        if (!ledger_->txExists(sttx.getTransactionID()))
+        {
+            ledger_->rawTxInsert(
+                sttx.getTransactionID(), txSerializer, metaSerializer);
+            JLOG(journal_.trace()) << "Inserted transaction = "
+                << strHex(sttx.getTransactionID())
+                << " into ledger = " << currentIndex_;
+        }
+        else
+        {
+            JLOG(journal_.warn())
+                << " Transaction = " << strHex(sttx.getTransactionID())
+                << " already exists in ledger = " << currentIndex_;
+        }
+    }
+    JLOG(journal_.debug())
+        << "Loaded transactions for ledger = " << currentIndex_;
+    return metas;
+}
+
 void
 ReportingETL::continousUpdate()
 {
@@ -913,88 +993,92 @@ ReportingETL::continousUpdate()
         // signals stop
         if (metas.size() == 0)
             continue;
-        std::set<uint256> indices;
-        for (auto& meta : metas)
+
+        if(updateViaDiff_)
         {
-            STArray& nodes = meta.getNodes();
-            for (auto it = nodes.begin(); it != nodes.end(); ++it)
-            {
-                // ledger index
-                indices.insert(it->getFieldH256(sfLedgerIndex));
-            }
+            updateViaDiff(currentIndex_-1, currentIndex_);
         }
-        JLOG(journal_.info()) << "Ledger = " << currentIndex_
-            << "transactions = " << metas.size()
-            << "objects = " << indices.size();
-
-        for (auto iter = indices.begin(); iter != indices.end();)
+        else
         {
-            auto& idx = *iter;
-            org::xrpl::rpc::v1::GetLedgerEntryResponse replyEntry;
-            org::xrpl::rpc::v1::GetLedgerEntryRequest requestEntry;
-
-            grpc::ClientContext grpcContextEntry;
-            requestEntry.mutable_ledger()->set_sequence(currentIndex_);
-            requestEntry.set_index(idx.data(), idx.size());
-            grpc::Status status = stub_->GetLedgerEntry(
-                &grpcContextEntry, requestEntry, &replyEntry);
-
-
-
-            JLOG(journal_.trace()) 
-                << "index = " << idx
-                << "error_message = " << status.error_message()
-                << " . error_code = " << status.error_code()
-                << " reply = " << replyEntry.DebugString();
-
-            if (status.error_code() == grpc::StatusCode::NOT_FOUND)
+            std::set<uint256> indices;
+            for (auto& meta : metas)
             {
-                if (ledger_->exists(idx))
+                STArray& nodes = meta.getNodes();
+                for (auto it = nodes.begin(); it != nodes.end(); ++it)
                 {
-                    JLOG(journal_.trace()) << "erasing = " << idx;
-                    ledger_->rawErase(idx);
+                    // ledger index
+                    indices.insert(it->getFieldH256(sfLedgerIndex));
+                }
+            }
+            JLOG(journal_.info()) << "Ledger = " << currentIndex_
+                                  << "transactions = " << metas.size()
+                                  << "objects = " << indices.size();
+
+            for (auto iter = indices.begin(); iter != indices.end();)
+            {
+                auto& idx = *iter;
+                org::xrpl::rpc::v1::GetLedgerEntryResponse replyEntry;
+                org::xrpl::rpc::v1::GetLedgerEntryRequest requestEntry;
+
+                grpc::ClientContext grpcContextEntry;
+                requestEntry.mutable_ledger()->set_sequence(currentIndex_);
+                requestEntry.set_index(idx.data(), idx.size());
+                grpc::Status status = stub_->GetLedgerEntry(
+                    &grpcContextEntry, requestEntry, &replyEntry);
+
+                JLOG(journal_.trace())
+                    << "index = " << idx
+                    << "error_message = " << status.error_message()
+                    << " . error_code = " << status.error_code()
+                    << " reply = " << replyEntry.DebugString();
+
+                if (status.error_code() == grpc::StatusCode::NOT_FOUND)
+                {
+                    if (ledger_->exists(idx))
+                    {
+                        JLOG(journal_.trace()) << "erasing = " << idx;
+                        ledger_->rawErase(idx);
+                    }
+                    else
+                    {
+                        JLOG(journal_.trace()) << "noop = " << idx;
+                    }
+                    ++iter;
+                }
+                else if (status.ok())
+                {
+                    auto& objRaw = replyEntry.object_binary();
+                    SerialIter it{objRaw.data(), objRaw.size()};
+
+                    std::shared_ptr<SLE> sle = std::make_shared<SLE>(it, idx);
+                    if (ledger_->exists(idx))
+                    {
+                        JLOG(journal_.trace()) << "replacing = " << idx;
+                        ledger_->rawReplace(sle);
+                    }
+                    else
+                    {
+                        JLOG(journal_.trace()) << "inserting = " << idx;
+                        ledger_->rawInsert(sle);
+                    }
+                    ++iter;
+                }
+                else if (status.error_code() == 8)
+                {
+                    JLOG(journal_.warn()) << "usage balance. pausing";
+
+                    std::this_thread::sleep_for(std::chrono::seconds(2));
                 }
                 else
                 {
-                    JLOG(journal_.trace()) << "noop = " << idx;
+                    JLOG(journal_.warn()) << "unexpected error, trying again";
                 }
-                ++iter;
             }
-            else if (status.ok())
-            {
-                auto& objRaw = replyEntry.object_binary();
-                SerialIter it{objRaw.data(), objRaw.size()};
-
-                std::shared_ptr<SLE> sle = std::make_shared<SLE>(it, idx);
-                if (ledger_->exists(idx))
-                {
-
-                    JLOG(journal_.trace()) << "replacing = " << idx;
-                    ledger_->rawReplace(sle);
-                }
-                else
-                {
-
-                    JLOG(journal_.trace()) << "inserting = " << idx;
-                    ledger_->rawInsert(sle);
-                }
-                ++iter;
-            }
-            else if (status.error_code() == 8)
-            {
-                JLOG(journal_.warn()) << "usage balance. pausing";
-
-                std::this_thread::sleep_for(std::chrono::seconds(2));
-            }
-            else
-            {
-                JLOG(journal_.warn()) << "unexpected error, trying again";
-            }
+            ledger_->updateSkipList();
         }
         JLOG(journal_.debug())
             << "Updated ledger = " << currentIndex_;
 
-        ledger_->updateSkipList();
         storeLedger();
         JLOG(journal_.info()) << "SUCCESS! Stored ledger = "
                 << currentIndex_;
