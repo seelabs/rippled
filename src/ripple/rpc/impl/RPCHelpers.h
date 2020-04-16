@@ -86,8 +86,9 @@ getAccountObjects (ReadView const& ledger, AccountID const& account,
     If there is no error in the return value, the ledger pointer will have
     been filled
 */
+template <class T>
 Status
-getLedger(std::shared_ptr<ReadView const>& ledger, uint256 const & ledgerHash, Context& context);
+getLedger(T& ledger, uint256 const & ledgerHash, Context& context);
 
 
 /** Get ledger by sequence
@@ -135,6 +136,14 @@ Status
 ledgerFromRequest(
     T& ledger,
     GRPCContext<R>& context);
+
+
+template <class T>
+Status
+ledgerFromSpecifier(
+    T& ledger,
+    org::xrpl::rpc::v1::LedgerSpecifier const& specifier,
+    Context& context);
 
 bool
 isValidated(LedgerMaster& ledgerMaster, ReadView const& ledger,
