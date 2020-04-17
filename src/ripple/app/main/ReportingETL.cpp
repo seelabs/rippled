@@ -213,16 +213,24 @@ ReportingETL::doSubscribe()
                 Json::Reader reader;
                 reader.parse(
                     static_cast<char const*>(buffer.data().data()), response);
+                JLOG(journal_.info()) << "sub message = "
+                    << response.toStyledString();
 
                 uint32_t ledgerIndex = 0;
                 if (response.isMember("result"))
-                    ledgerIndex =
-                        response["result"][jss::ledger_index].asUInt();
-                else
+                {
+                    if (response["result"].isMember(jss::ledger_index))
+                    {
+                        ledgerIndex =
+                            response["result"][jss::ledger_index].asUInt();
+                    }
+                }
+                else if(response.isMember(jss::ledger_index))
+                {
                     ledgerIndex = response[jss::ledger_index].asUInt();
-                queue_.push(ledgerIndex);
-                JLOG(journal_.info()) << "received ledger = " << ledgerIndex
-                   << " on subscription stream";
+                }
+                if(ledgerIndex != 0)
+                    queue_.push(ledgerIndex);
             }
             JLOG(journal_.info()) << "Exited suscribe loop. Stopping queue";
 
