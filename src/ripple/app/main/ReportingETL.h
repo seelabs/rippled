@@ -40,6 +40,7 @@
 #include <mutex>
 #include <queue>
 
+#include <chrono>
 namespace ripple {
 
 class ReportingETL
@@ -137,9 +138,13 @@ private:
 
     std::thread subscriber_;
 
-    std::unique_ptr<org::xrpl::rpc::v1::XRPLedgerAPIService::Stub> stub_;
+    LedgerIndexQueue indexQueue_;
 
-    uint32_t currentIndex_ = 0;
+    std::thread writer_;
+
+    ThreadSafeQueue<std::shared_ptr<SLE>> writeQueue_;
+
+    std::unique_ptr<org::xrpl::rpc::v1::XRPLedgerAPIService::Stub> stub_;
 
     //TODO stopping logic needs to be better
     //There are a variety of loops and mutexs in play
@@ -148,65 +153,94 @@ private:
 
     std::shared_ptr<Ledger> ledger_;
 
-    LedgerIndexQueue queue_;
-
     std::string ip_;
+
     std::string wsPort_;
 
     beast::Journal journal_;
 
-    enum LoadMethod { ITERATIVE, BUFFER, PARALLEL, ASYNC};
-
-    LoadMethod method_ = ASYNC;
-
-    bool onlyDownload_ = false;
-
-    bool flushDuringDownload_ = false;
-
     size_t flushInterval_ = 0;
 
-    size_t parallelism_ = 16;
+    size_t numMarkers_ = 2;
 
-    bool asyncFlush_ = true;
+    void
+    loadInitialLedger();
 
-    bool updateViaDiff_ = false;
+    void
+    doETL();
 
-    bool useLedgerEntry_ = true;
+    void
+    fetchLedger(
+        org::xrpl::rpc::v1::GetLedgerResponse& out,
+        bool getObjects = true);
 
-    //TODO better names for these functions
-    void loadIterative();
+    void
+    updateLedger(org::xrpl::rpc::v1::GetLedgerResponse& in);
 
-    void loadParallel();
+    void
+    flushLedger();
 
-    void loadBuffer();
+    void
+    storeLedger();
 
-    void loadAsync();
-    
-    void doInitialLedgerLoad();
+    void
+    outputMetrics();
 
-    std::vector<TxMeta> loadNextLedger();
+    void
+    startWriter();
 
-    void storeLedger();
+    void
+    joinWriter();
 
-    void continousUpdate();
+    struct Metrics
+    {
+        size_t txnCount = 0;
 
-    void diffLedgers();
+        size_t objectCount = 0;
 
-    void doAsyncFlush();
+        double flushTime = 0;
 
-    void runGapHandler();
+        double updateTime = 0;
 
-    void updateViaDiff(uint32_t have, uint32_t want);
-    
-    std::thread flusher_;
-    
+        double storeTime = 0;
 
-    ThreadSafeQueue<std::shared_ptr<SLE>> flushQueue_;
+        void
+        printMetrics(beast::Journal& j)
+        {
+            auto totalTime = updateTime + flushTime + storeTime;
+            auto kvTime = updateTime + storeTime;
+            JLOG(j.info()) << " Metrics: "
+                           << " txnCount = " << txnCount
+                           << " objectCount = " << objectCount
+                           << " updateTime = " << updateTime
+                           << " flushTime = " << flushTime
+                           << " storeTime = " << storeTime
+                           << " update tps = " << txnCount / updateTime
+                           << " flush tps = " << txnCount / flushTime
+                           << " store tps = " << txnCount / storeTime
+                           << " update ops = " << objectCount / updateTime
+                           << " flush ops = " << objectCount / flushTime
+                           << " store ops = " << objectCount / storeTime
+                           << " total tps = " << txnCount / totalTime
+                           << " total ops = " << objectCount / totalTime
+                           << " key-value tps = " << txnCount / kvTime
+                           << " key-value ops = " << objectCount / kvTime
+                           << " (All times in seconds)";
+        }
 
-    std::thread gapHandler_;
+        void
+        addMetrics(Metrics& round)
+        {
+            txnCount += round.txnCount;
+            objectCount += round.objectCount;
+            flushTime += round.flushTime;
+            updateTime += round.updateTime;
+            storeTime += round.storeTime;
+        }
+    };
 
-    ThreadSafeQueue<uint32_t> gaps_;
-
+    Metrics totalMetrics;
+    Metrics roundMetrics;
 
 public:
     ReportingETL(Application& app)
@@ -236,69 +270,19 @@ public:
 
             if (startIndexPair.second)
             {
-                currentIndex_ = std::stoi(startIndexPair.first);
-                queue_.push(currentIndex_);
+                indexQueue_.push(std::stoi(startIndexPair.first));
             }
 
-            std::pair<std::string, bool> loadMethod = section.find("load_method");
-            if(loadMethod.second)
-            {
-                if(loadMethod.first == "parallel")
-                    method_ = PARALLEL;
-                else if(loadMethod.first == "iterative")
-                    method_ = ITERATIVE;
-                else if(loadMethod.first == "buffer")
-                    method_ = BUFFER;
-                else if(loadMethod.first == "async")
-                    method_ = ASYNC;
-            }
-
-            std::pair<std::string, bool> onlyDownload = section.find("download");
-            if(onlyDownload.second)
-            {
-                if(onlyDownload.first == "true")
-                    onlyDownload_ = true;
-            }
-
-
-            std::pair<std::string, bool> flush = section.find("flush");
-            if(flush.second)
-            {
-                if(flush.first == "true")
-                    flushDuringDownload_ = true;
-            }
-            std::pair<std::string, bool> flushInterval = section.find("flush_interval");
-            if(flushInterval.second)
+            std::pair<std::string, bool> flushInterval =
+                section.find("flush_interval");
+            if (flushInterval.second)
             {
                 flushInterval_ = std::stoi(flushInterval.first);
             }
 
-            std::pair<std::string, bool> p = section.find("parallelism");
+            std::pair<std::string, bool> p = section.find("num_markers");
             if(p.second)
-                parallelism_ = std::stoi(p.first);
-
-            std::pair<std::string, bool> asyncFlush = section.find("async_flush");
-            if(asyncFlush.second)
-            {
-                if(asyncFlush.first == "true")
-                    asyncFlush_ = true;
-            }
-
-            std::pair<std::string, bool> updateViaDiff =
-                section.find("update_via_diff");
-            if (updateViaDiff.second)
-            {
-                if (updateViaDiff.first == "true")
-                    updateViaDiff_ = true;
-            }
-
-            std::pair<std::string, bool> useLedgerEntry =
-                section.find("use_ledger_entry");
-            if (useLedgerEntry.second)
-            {
-                if (useLedgerEntry.first == "false")
-                    useLedgerEntry_ = false;
-            }
+                numMarkers_ = std::stoi(p.first);
 
             try
             {

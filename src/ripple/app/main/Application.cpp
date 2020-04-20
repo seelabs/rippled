@@ -886,6 +886,7 @@ public:
     setOpenLedger(std::shared_ptr<Ledger>& l) override
     {
         openLedger_.emplace(l, cachedSLEs_, logs_->journal("OpenLedger"));
+        // TODO maybe switch these back?
         // m_ledgerMaster->storeLedger(l);
         // m_ledgerMaster->switchLCL(l);
     }
