@@ -95,9 +95,8 @@ public:
 
     void runData ();
 
-    static
-    LedgerInfo
-    deserializeHeader(Slice data, bool hasPrefix);
+    static LedgerInfo
+    deserializeHeader(Slice data, bool hasPrefix, bool hasHash = false);
 
 private:
     enum class TriggerReason

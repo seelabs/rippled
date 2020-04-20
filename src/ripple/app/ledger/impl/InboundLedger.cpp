@@ -248,9 +248,7 @@ InboundLedger::neededStateHashes (
 }
 
 LedgerInfo
-InboundLedger::deserializeHeader (
-    Slice data,
-    bool hasPrefix)
+InboundLedger::deserializeHeader(Slice data, bool hasPrefix, bool hasHash)
 {
     SerialIter sit (data.data(), data.size());
 
@@ -268,6 +266,9 @@ InboundLedger::deserializeHeader (
     info.closeTime = NetClock::time_point{NetClock::duration{sit.get32()}};
     info.closeTimeResolution = NetClock::duration{sit.get8()};
     info.closeFlags = sit.get8 ();
+
+    if (hasHash)
+        info.hash = sit.get256();
 
     return info;
 }

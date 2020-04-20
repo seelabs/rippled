@@ -121,7 +121,7 @@ doLedgerGrpc(
     }
 
     Serializer s;
-    addRaw(ledger->info(), s);
+    addRaw(ledger->info(), s, true);
     std::cout << "serialized ledger header" << std::endl;
 
     response.set_ledger_header(s.peekData().data(), s.getLength());

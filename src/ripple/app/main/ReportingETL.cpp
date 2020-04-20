@@ -925,9 +925,11 @@ ReportingETL::loadNextLedger()
         std::this_thread::sleep_for(std::chrono::seconds(toWait));
         toWait *= 2;
     }
+    if (stopping_)
+        return std::vector<TxMeta>{};
 
     LedgerInfo lgrInfo = InboundLedger::deserializeHeader(
-        makeSlice(reply.ledger_header()), false);
+        makeSlice(reply.ledger_header()), false, true);
     currentIndex_ = lgrInfo.seq;
 
     JLOG(journal_.info()) << "Loading ledger header : "
@@ -965,13 +967,13 @@ ReportingETL::loadNextLedger()
         TxMeta txMeta{sttx.getTransactionID(),
                       ledger_->info().seq,
                       txn.metadata_blob()};
-        metas.push_back(txMeta);
-
+        if (useLedgerEntry_)
+            metas.push_back(txMeta);
 
         auto metaSerializer =
             std::make_shared<Serializer>(txMeta.getAsObject().getSerializer());
 
-
+        // TODO maybe remove this conditional. it should never be true
         if (!ledger_->txExists(sttx.getTransactionID()))
         {
             ledger_->rawTxInsert(

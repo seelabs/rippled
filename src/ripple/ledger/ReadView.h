@@ -434,7 +434,8 @@ bool getCloseAgree (LedgerInfo const& info)
     return (info.closeFlags & sLCF_NoConsensusTime) == 0;
 }
 
-void addRaw (LedgerInfo const&, Serializer&);
+void
+addRaw(LedgerInfo const&, Serializer&, bool includeHash = false);
 
 } // ripple
 

@@ -170,7 +170,8 @@ private:
     bool asyncFlush_ = true;
 
     bool updateViaDiff_ = false;
-   
+
+    bool useLedgerEntry_ = true;
 
     //TODO better names for these functions
     void loadIterative();
@@ -290,6 +291,15 @@ public:
                 if (updateViaDiff.first == "true")
                     updateViaDiff_ = true;
             }
+
+            std::pair<std::string, bool> useLedgerEntry =
+                section.find("use_ledger_entry");
+            if (useLedgerEntry.second)
+            {
+                if (useLedgerEntry.first == "false")
+                    useLedgerEntry_ = false;
+            }
+
             try
             {
                 stub_ = org::xrpl::rpc::v1::XRPLedgerAPIService::NewStub(
