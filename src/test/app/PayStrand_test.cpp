@@ -79,7 +79,7 @@ getTrustFlag(
         auto const useHigh = src.id() > dst.id();
         return sle->isFlag(trustFlag(flag, useHigh));
     }
-    Throw<std::runtime_error>("No line in getTrustFlag");
+    Throw<std::runtime_error>(ThrowToken{false}, "No line in getTrustFlag");
     return false;  // silence warning
 }
 

@@ -105,13 +105,13 @@ public:
         @param  name The name of the type.
         @return      The type.
     */
-    KeyType findTypeByName (std::string const& name) const
+    KeyType findTypeByName (ThrowToken throwToken, std::string const& name) const
     {
         Item const* const result = findByName (name);
 
         if (result != nullptr)
             return result->getType ();
-        Throw<std::runtime_error> ("Unknown format name");
+        Throw<std::runtime_error> (throwToken, "Unknown format name");
         return {}; // Silence compiler warning.
     }
 

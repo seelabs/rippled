@@ -2353,7 +2353,7 @@ public:
                 Json::Value req;
                 Json::Reader ().parse (txnTest.json, req);
                 if (RPC::contains_error (req))
-                    Throw<std::runtime_error> (
+                    Throw<std::runtime_error> (ThrowToken{false},
                         "Internal JSONRPC_test error.  Bad test JSON.");
 
                 static Role const testedRoles[] =

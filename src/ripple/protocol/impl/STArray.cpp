@@ -62,13 +62,13 @@ STArray::STArray (SField const& f, int n)
     v_.reserve(n);
 }
 
-STArray::STArray (SerialIter& sit, SField const& f, int depth)
+STArray::STArray (ThrowToken throwToken, SerialIter& sit, SField const& f, int depth)
     : STBase(f)
 {
     while (!sit.empty ())
     {
         int type, field;
-        sit.getFieldID (type, field);
+        sit.getFieldID (throwToken, type, field);
 
         if ((type == STI_ARRAY) && (field == 1))
             break;
@@ -77,7 +77,7 @@ STArray::STArray (SerialIter& sit, SField const& f, int depth)
         {
             JLOG (debugLog().error()) <<
                 "Encountered array with end of object marker";
-            Throw<std::runtime_error> ("Illegal terminator in array");
+            Throw<std::runtime_error> (throwToken, "Illegal terminator in array");
         }
 
         auto const& fn = SField::getField (type, field);
@@ -86,14 +86,14 @@ STArray::STArray (SerialIter& sit, SField const& f, int depth)
         {
             JLOG (debugLog().error()) <<
                 "Unknown field: " << type << "/" << field;
-            Throw<std::runtime_error> ("Unknown field");
+            Throw<std::runtime_error> (throwToken, "Unknown field");
         }
 
         if (fn.fieldType != STI_OBJECT)
         {
             JLOG (debugLog().error()) <<
                 "Array contains non-object";
-            Throw<std::runtime_error> ("Non-object in array");
+            Throw<std::runtime_error> (throwToken, "Non-object in array");
         }
 
         v_.emplace_back(sit, fn, depth+1);

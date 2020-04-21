@@ -200,7 +200,7 @@ do_detect(boost::asio::yield_context do_yield)
 
 template<class Handler>
 Door<Handler>::
-Door(Handler& handler, boost::asio::io_context& io_context,
+Door(ThrowToken throwToken, Handler& handler, boost::asio::io_context& io_context,
         Port const& port, beast::Journal j)
     : j_(j)
     , port_(port)
@@ -227,7 +227,7 @@ Door(Handler& handler, boost::asio::io_context& io_context,
     {
         JLOG(j_.error()) <<
             "Open port '" << port.name << "' failed:" << ec.message();
-        Throw<std::exception> ();
+        Throw<std::exception> (throwToken);
     }
 
     acceptor_.set_option(
@@ -236,7 +236,7 @@ Door(Handler& handler, boost::asio::io_context& io_context,
     {
         JLOG(j_.error()) <<
             "Option for port '" << port.name << "' failed:" << ec.message();
-        Throw<std::exception> ();
+        Throw<std::exception> (throwToken);
     }
 
     acceptor_.bind(local_address, ec);
@@ -244,7 +244,7 @@ Door(Handler& handler, boost::asio::io_context& io_context,
     {
         JLOG(j_.error()) <<
             "Bind port '" << port.name << "' failed:" << ec.message();
-        Throw<std::exception> ();
+        Throw<std::exception> (throwToken);
     }
 
     acceptor_.listen(boost::asio::socket_base::max_connections, ec);
@@ -252,7 +252,7 @@ Door(Handler& handler, boost::asio::io_context& io_context,
     {
         JLOG(j_.error()) <<
             "Listen on port '" << port.name << "' failed:" << ec.message();
-        Throw<std::exception> ();
+        Throw<std::exception> (throwToken);
     }
 
     JLOG(j_.info()) <<

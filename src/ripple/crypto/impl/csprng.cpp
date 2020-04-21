@@ -90,7 +90,7 @@ csprng_engine::operator()()
         sizeof(ret));
 
     if (result == 0)
-        Throw<std::runtime_error> ("Insufficient entropy");
+        Throw<std::runtime_error> (ThrowToken{false}, "Insufficient entropy");
 
     return ret;
 }
@@ -105,7 +105,7 @@ csprng_engine::operator()(void *ptr, std::size_t count)
         count);
 
     if (result != 1)
-        Throw<std::runtime_error> ("Insufficient entropy");
+        Throw<std::runtime_error> (ThrowToken{false}, "Insufficient entropy");
 }
 
 csprng_engine& crypto_prng()

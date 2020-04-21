@@ -73,7 +73,7 @@ msig::msig (std::vector<msig::Reg> signers_)
 }
 
 void
-msig::operator()(Env& env, JTx& jt) const
+msig::operator()(ThrowToken throwToken, Env& env, JTx& jt) const
 {
     auto const mySigners = signers;
     jt.signer = [mySigners, &env](Env&, JTx& jtx)
@@ -87,7 +87,7 @@ msig::operator()(Env& env, JTx& jt) const
         catch(parse_error const&)
         {
             env.test.log << pretty(jtx.jv) << std::endl;
-            Rethrow();
+            Rethrow(throwToken);
         }
         auto& js = jtx[sfSigners.getJsonName()];
         for(std::size_t i = 0; i < mySigners.size(); ++i)

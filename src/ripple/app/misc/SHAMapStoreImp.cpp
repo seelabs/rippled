@@ -28,7 +28,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 
 namespace ripple {
-void SHAMapStoreImp::SavedStateDB::init (BasicConfig const& config,
+void SHAMapStoreImp::SavedStateDB::init (ThrowToken throwToken, BasicConfig const& config,
                                          std::string const& dbName)
 {
     std::lock_guard lock (mutex_);
@@ -60,7 +60,7 @@ void SHAMapStoreImp::SavedStateDB::init (BasicConfig const& config,
                 "SELECT COUNT(Key) FROM DbState WHERE Key = 1;"
                 , soci::into (countO);
         if (!countO)
-            Throw<std::runtime_error> ("Failed to fetch Key Count from DbState.");
+            Throw<std::runtime_error> (throwToken, "Failed to fetch Key Count from DbState.");
         count = *countO;
     }
 
@@ -77,7 +77,7 @@ void SHAMapStoreImp::SavedStateDB::init (BasicConfig const& config,
                 "SELECT COUNT(Key) FROM CanDelete WHERE Key = 1;"
                 , soci::into (countO);
         if (!countO)
-            Throw<std::runtime_error> ("Failed to fetch Key Count from CanDelete.");
+            Throw<std::runtime_error> (throwToken, "Failed to fetch Key Count from CanDelete.");
         count = *countO;
     }
 
@@ -161,7 +161,7 @@ SHAMapStoreImp::SavedStateDB::setLastRotated (LedgerIndex seq)
 
 //------------------------------------------------------------------------------
 
-SHAMapStoreImp::SHAMapStoreImp(
+SHAMapStoreImp::SHAMapStoreImp(ThrowToken throwToken,
     Application& app,
     Stoppable& parent,
     NodeStore::Scheduler& scheduler,
@@ -177,7 +177,7 @@ SHAMapStoreImp::SHAMapStoreImp(
     Section& section {config.section(ConfigSection::nodeDatabase())};
     if (section.empty())
     {
-        Throw<std::runtime_error>(
+        Throw<std::runtime_error>(throwToken,
             "Missing [" + ConfigSection::nodeDatabase() +
             "] entry in configuration file");
 
@@ -210,13 +210,13 @@ SHAMapStoreImp::SHAMapStoreImp(
             minimumDeletionIntervalSA_ : minimumDeletionInterval_;
         if (deleteInterval_ < minInterval)
         {
-            Throw<std::runtime_error>("online_delete must be at least " +
+            Throw<std::runtime_error>(throwToken, "online_delete must be at least " +
                 std::to_string (minInterval));
         }
 
         if (config.LEDGER_HISTORY > deleteInterval_)
         {
-            Throw<std::runtime_error>(
+            Throw<std::runtime_error>(throwToken,
                 "online_delete must not be less than ledger_history (currently " +
                 std::to_string (config.LEDGER_HISTORY) + ")");
         }
@@ -479,7 +479,7 @@ SHAMapStoreImp::dbPaths()
         {
             journal_.error() << "node db path must be a directory. "
                     << dbPath.string();
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (ThrowToken{false},
                     "node db path must be a directory.");
         }
     }
@@ -552,12 +552,12 @@ SHAMapStoreImp::dbPaths()
                 << "However, there is no guarantee that the data in its\n"
                 << "existing form is usable.";
 
-        Throw<std::runtime_error> ("state db error");
+        Throw<std::runtime_error> (ThrowToken{false}, "state db error");
     }
 }
 
 std::unique_ptr <NodeStore::Backend>
-SHAMapStoreImp::makeBackendRotating (std::string path)
+SHAMapStoreImp::makeBackendRotating (ThrowToken throwToken, std::string path)
 {
     Section section {app_.config().section(ConfigSection::nodeDatabase())};
     boost::filesystem::path newPath;
@@ -577,7 +577,7 @@ SHAMapStoreImp::makeBackendRotating (std::string path)
 
     auto backend {NodeStore::Manager::instance().make_Backend(
         section, scheduler_, app_.logs().journal(nodeStoreName_))};
-    backend->open();
+    backend->open(throwToken);
     return backend;
 }
 

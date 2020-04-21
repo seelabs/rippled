@@ -45,7 +45,8 @@ class STArray;
 inline void
 throwFieldNotFound(SField const& field)
 {
-    Throw<std::runtime_error>("Field not found: " + field.getName());
+    // Don't track field not found errors through tokens for now
+    Throw<std::runtime_error>(ThrowToken{false}, "Field not found: " + field.getName());
 }
 
 class STObject
@@ -66,8 +67,8 @@ private:
         TypedField<T> const* f_;
 
         Proxy (Proxy const&) = default;
-        Proxy (STObject* st, TypedField<T> const* f);
-        value_type value() const;
+        Proxy (ThrowToken throwToken, STObject* st, TypedField<T> const* f);
+        value_type value(ThrowToken throwToken) const;
         T const* find() const;
 
         template <class U>
@@ -227,7 +228,7 @@ private:
 
         bool engaged() const noexcept;
 
-        void disengage();
+        void disengage(ThrowToken throwToken);
 
         optional_type
         optional_value() const;
@@ -271,12 +272,12 @@ public:
     STObject(STObject&&);
     STObject(STObject const&) = default;
     STObject (const SOTemplate & type, SField const& name);
-    STObject (const SOTemplate& type,
+    STObject (ThrowToken throwToken, const SOTemplate& type,
         SerialIter& sit, SField const& name) noexcept (false);
-    STObject (SerialIter& sit,
+    STObject (ThrowToken throwToken, SerialIter& sit,
         SField const& name, int depth = 0) noexcept (false);
-    STObject (SerialIter&& sit, SField const& name) noexcept (false)
-        : STObject(sit, name)
+    STObject (ThrowToken throwToken, SerialIter&& sit, SField const& name) noexcept (false)
+        : STObject(throwToken, sit, name)
     {
     }
     STObject& operator= (STObject const&) = default;
@@ -318,7 +319,7 @@ public:
         v_.reserve (n);
     }
 
-    void applyTemplate (const SOTemplate & type) noexcept (false);
+    void applyTemplate (ThrowToken throwToken, const SOTemplate & type) noexcept (false);
 
     void applyTemplateFromSField (SField const&) noexcept (false);
 
@@ -328,7 +329,7 @@ public:
     }
 
     void set (const SOTemplate&);
-    bool set (SerialIter& u, int depth = 0);
+    bool set (ThrowToken throwToken, SerialIter& u, int depth = 0);
 
     virtual SerializedTypeID getSType () const override
     {
@@ -439,7 +440,7 @@ public:
     */
     template<class T>
     typename T::value_type
-    operator[](TypedField<T> const& f) const;
+    operator[](std::pair<ThrowToken, TypedField<T>> const& f) const;
 
     /** Return the value of a field as boost::optional
 
@@ -473,7 +474,7 @@ public:
         if the field already exists, it is replaced.
     */
     void
-    set (std::unique_ptr<STBase> v);
+    set (ThrowToken throwToken, std::unique_ptr<STBase> v);
 
     void setFieldU8 (SField const& field, unsigned char);
     void setFieldU16 (SField const& field, std::uint16_t);
@@ -506,15 +507,15 @@ public:
         if (auto cf = dynamic_cast<Bits*> (rf))
             cf->setValue (v);
         else
-            Throw<std::runtime_error> ("Wrong field type");
+            Throw<std::runtime_error> (throwToken, "Wrong field type");
     }
 
-    STObject& peekFieldObject (SField const& field);
-    STArray& peekFieldArray (SField const& field);
+    STObject& peekFieldObject (ThrowToken throwToken, SField const& field);
+    STArray& peekFieldArray (ThrowToken throwToken, SField const& field);
 
     bool isFieldPresent (SField const& field) const;
     STBase* makeFieldPresent (SField const& field);
-    void makeFieldAbsent (SField const& field);
+    void makeFieldAbsent (ThrowToken throwToken, SField const& field);
     bool delField (SField const& field);
     void delField (int index);
 
@@ -552,7 +553,7 @@ private:
     template <typename T, typename V =
         typename std::remove_cv < typename std::remove_reference <
             decltype (std::declval <T> ().value ())>::type >::type >
-    V getFieldByValue (SField const& field) const
+    V getFieldByValue (ThrowToken throwToken, SField const& field) const
     {
         const STBase* rf = peekAtPField (field);
 
@@ -567,7 +568,7 @@ private:
         const T* cf = dynamic_cast<const T*> (rf);
 
         if (! cf)
-            Throw<std::runtime_error> ("Wrong field type");
+            Throw<std::runtime_error> (throwToken, "Wrong field type");
 
         return cf->value ();
     }
@@ -578,7 +579,7 @@ private:
     // obvious to return.  So we insist on having the call provide an
     // 'empty' value we return in that circumstance.
     template <typename T, typename V>
-    V const& getFieldByConstRef (SField const& field, V const& empty) const
+    V const& getFieldByConstRef (ThrowToken throwToken, SField const& field, V const& empty) const
     {
         const STBase* rf = peekAtPField (field);
 
@@ -593,14 +594,14 @@ private:
         const T* cf = dynamic_cast<const T*> (rf);
 
         if (! cf)
-            Throw<std::runtime_error> ("Wrong field type");
+            Throw<std::runtime_error> (throwToken, "Wrong field type");
 
         return *cf;
     }
 
     // Implementation for setting most fields with a setValue() method.
     template <typename T, typename V>
-    void setFieldUsingSetValue (SField const& field, V value)
+    void setFieldUsingSetValue (ThrowToken throwToken, SField const& field, V value)
     {
         static_assert(!std::is_lvalue_reference<V>::value, "");
 
@@ -615,14 +616,14 @@ private:
         T* cf = dynamic_cast<T*> (rf);
 
         if (! cf)
-            Throw<std::runtime_error> ("Wrong field type");
+            Throw<std::runtime_error> (throwToken, "Wrong field type");
 
         cf->setValue (std::move (value));
     }
 
     // Implementation for setting fields using assignment
     template <typename T>
-    void setFieldUsingAssignment (SField const& field, T const& value)
+    void setFieldUsingAssignment (ThrowToken throwToken, SField const& field, T const& value)
     {
         STBase* rf = getPField (field, true);
 
@@ -635,14 +636,14 @@ private:
         T* cf = dynamic_cast<T*> (rf);
 
         if (! cf)
-            Throw<std::runtime_error> ("Wrong field type");
+            Throw<std::runtime_error> (throwToken, "Wrong field type");
 
         (*cf) = value;
     }
 
     // Implementation for peeking STObjects and STArrays
     template <typename T>
-    T& peekField (SField const& field)
+    T& peekField (ThrowToken throwToken, SField const& field)
     {
         STBase* rf = getPField (field, true);
 
@@ -655,7 +656,7 @@ private:
         T* cf = dynamic_cast<T*> (rf);
 
         if (! cf)
-            Throw<std::runtime_error> ("Wrong field type");
+            Throw<std::runtime_error> (throwToken, "Wrong field type");
 
         return *cf;
     }
@@ -664,7 +665,7 @@ private:
 //------------------------------------------------------------------------------
 
 template <class T>
-STObject::Proxy<T>::Proxy (STObject* st, TypedField<T> const* f)
+STObject::Proxy<T>::Proxy (ThrowToken throwToken, STObject* st, TypedField<T> const* f)
     : st_ (st)
     , f_ (f)
 {
@@ -672,7 +673,7 @@ STObject::Proxy<T>::Proxy (STObject* st, TypedField<T> const* f)
     {
         // STObject has associated template
         if (! st_->peekAtPField(*f_))
-            Throw<STObject::FieldErr> (
+            Throw<STObject::FieldErr> (throwToken,
                 "Template field error '" + this->f_->getName() + "'");
         style_ = st_->mType->style(*f_);
     }
@@ -684,14 +685,14 @@ STObject::Proxy<T>::Proxy (STObject* st, TypedField<T> const* f)
 
 template <class T>
 auto
-STObject::Proxy<T>::value() const ->
+STObject::Proxy<T>::value(ThrowToken throwToken) const ->
     value_type
 {
     auto const t = find();
     if (t)
         return t->value();
     if (style_ != soeDEFAULT)
-        Throw<STObject::FieldErr> (
+        Throw<STObject::FieldErr> (throwToken,
             "Missing field '" + this->f_->getName() + "'");
     return value_type{};
 }
@@ -844,11 +845,11 @@ STObject::OptionalProxy<T>::engaged() const noexcept
 
 template <class T>
 void
-STObject::OptionalProxy<T>::disengage()
+STObject::OptionalProxy<T>::disengage(ThrowToken throwToken)
 {
     if (this->style_ == soeREQUIRED ||
             this->style_ == soeDEFAULT)
-        Throw<STObject::FieldErr> (
+        Throw<STObject::FieldErr> (throwToken,
             "Template field error '" + this->f_->getName() + "'");
     if (this->style_ == soeINVALID)
         this->st_->delField(*this->f_);
@@ -870,13 +871,14 @@ STObject::OptionalProxy<T>::optional_value() const ->
 
 template<class T>
 typename T::value_type
-STObject::operator[](TypedField<T> const& f) const
+STObject::operator[](std::pair<ThrowToken, TypedField<T>> const& inParam) const
 {
+    auto const& [throwToken, f] = inParam;
     auto const b = peekAtPField(f);
     if (! b)
         // This is a free object (no constraints)
         // with no template
-        Throw<STObject::FieldErr> (
+        Throw<STObject::FieldErr> (throwToken,
             "Missing field '" + f.getName() + "'");
     auto const u =
         dynamic_cast<T const*>(b);
@@ -885,7 +887,7 @@ STObject::operator[](TypedField<T> const& f) const
         assert(mType);
         assert(b->getSType() == STI_NOTPRESENT);
         if(mType->style(f) == soeOPTIONAL)
-            Throw<STObject::FieldErr> (
+            Throw<STObject::FieldErr> (throwToken,
                 "Missing field '" + f.getName() + "'");
         assert(mType->style(f) == soeDEFAULT);
         // Handle the case where value_type is a

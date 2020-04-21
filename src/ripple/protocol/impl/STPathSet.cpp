@@ -50,13 +50,13 @@ STPathElement::get_hash (STPathElement const& element)
     return (hash_account ^ hash_currency ^ hash_issuer);
 }
 
-STPathSet::STPathSet (SerialIter& sit, SField const& name)
+STPathSet::STPathSet (ThrowToken throwToken, SerialIter& sit, SField const& name)
     : STBase(name)
 {
     std::vector<STPathElement> path;
     for(;;)
     {
-        int iType = sit.get8 ();
+        int iType = sit.get8 (throwToken);
 
         if (iType == STPathElement::typeNone ||
             iType == STPathElement::typeBoundary)
@@ -65,7 +65,7 @@ STPathSet::STPathSet (SerialIter& sit, SField const& name)
             {
                 JLOG (debugLog().error())
                     << "Empty path in pathset";
-                Throw<std::runtime_error> ("empty path");
+                Throw<std::runtime_error> (throwToken, "empty path");
             }
 
             push_back (path);
@@ -78,7 +78,7 @@ STPathSet::STPathSet (SerialIter& sit, SField const& name)
         {
             JLOG (debugLog().error())
                 << "Bad path element " << iType << " in pathset";
-            Throw<std::runtime_error> ("bad path element");
+            Throw<std::runtime_error> (throwToken, "bad path element");
         }
         else
         {
@@ -91,13 +91,13 @@ STPathSet::STPathSet (SerialIter& sit, SField const& name)
             AccountID issuer;
 
             if (hasAccount)
-                account = sit.get160();
+                account = sit.get160(throwToken);
 
             if (hasCurrency)
-                currency = sit.get160();
+                currency = sit.get160(throwToken);
 
             if (hasIssuer)
-                issuer = sit.get160();
+                issuer = sit.get160(throwToken);
 
             path.emplace_back (account, currency, issuer, hasCurrency);
         }

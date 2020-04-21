@@ -31,9 +31,9 @@ namespace compression_algorithms {
 /** Convenience wrapper for Throw
  * @param message Message to log/throw
  */
-inline void doThrow(const char *message)
+inline void doThrow(ThrowToken throwToken, const char *message)
 {
-    Throw<std::runtime_error>(message);
+    Throw<std::runtime_error>(throwToken, message);
 }
 
 /** LZ4 block compression.
@@ -46,11 +46,11 @@ inline void doThrow(const char *message)
  */
 template<typename BufferFactory>
 std::size_t
-lz4Compress(void const* in,
+lz4Compress(ThrowToken throwToken, void const* in,
             std::size_t inSize, BufferFactory&& bf)
 {
     if (inSize > UINT32_MAX)
-        doThrow("lz4 compress: invalid size");
+        doThrow(throwToken, "lz4 compress: invalid size");
 
     auto const outCapacity = LZ4_compressBound(inSize);
 
@@ -63,7 +63,7 @@ lz4Compress(void const* in,
             inSize,
             outCapacity);
     if (compressedSize == 0)
-        doThrow("lz4 compress: failed");
+        doThrow(throwToken, "lz4 compress: failed");
 
     return compressedSize;
 }
@@ -77,14 +77,14 @@ lz4Compress(void const* in,
  */
 inline
 std::size_t
-lz4Decompress(std::uint8_t const* in, std::size_t inSize,
+lz4Decompress(ThrowToken throwToken, std::uint8_t const* in, std::size_t inSize,
               std::uint8_t* decompressed, std::size_t decompressedSize)
 {
     auto ret = LZ4_decompress_safe(reinterpret_cast<const char*>(in),
                                reinterpret_cast<char*>(decompressed), inSize, decompressedSize);
 
     if (ret <= 0 || ret != decompressedSize)
-        doThrow("lz4 decompress: failed");
+        doThrow(throwToken, "lz4 decompress: failed");
 
     return decompressedSize;
 }
@@ -99,7 +99,7 @@ lz4Decompress(std::uint8_t const* in, std::size_t inSize,
  */
 template<typename InputStream>
 std::size_t
-lz4Decompress(InputStream& in, std::size_t inSize,
+lz4Decompress(ThrowToken throwToken, InputStream& in, std::size_t inSize,
               std::uint8_t* decompressed, std::size_t decompressedSize)
 {
     std::vector<std::uint8_t> compressed;
@@ -141,9 +141,9 @@ lz4Decompress(InputStream& in, std::size_t inSize,
         in.BackUp(in.ByteCount() - currentBytes - copiedInSize);
 
     if ((copiedInSize == 0 && chunkSize < inSize) || (copiedInSize > 0 && copiedInSize != inSize))
-        doThrow("lz4 decompress: insufficient input size");
+        doThrow(throwToken, "lz4 decompress: insufficient input size");
 
-    return lz4Decompress(chunk, inSize, decompressed, decompressedSize);
+    return lz4Decompress(throwToken, chunk, inSize, decompressed, decompressedSize);
 }
 
 } // compression

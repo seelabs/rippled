@@ -34,9 +34,19 @@ namespace ripple {
     preconditions, postconditions, and invariants.
 */
 
+struct ThrowToken
+{
+    bool inTryBlock;
+    ThrowToken() = delete;
+    explicit
+    ThrowToken(bool v) : inTryBlock{v}
+    {
+    }
+};
+
 /** Generates and logs a call stack */
 void
-LogThrow (std::string const& title);
+LogThrow (ThrowToken, std::string const& title);
 
 /** Rethrow the exception currently being handled.
 
@@ -47,9 +57,9 @@ LogThrow (std::string const& title);
 [[noreturn]]
 inline
 void
-Rethrow ()
+Rethrow (ThrowToken t)
 {
-    LogThrow ("Re-throwing exception");
+    LogThrow (t, "Re-throwing exception");
     throw;
 }
 
@@ -57,13 +67,13 @@ template <class E, class... Args>
 [[noreturn]]
 inline
 void
-Throw (Args&&... args)
+Throw (ThrowToken t, Args&&... args)
 {
     static_assert (std::is_convertible<E*, std::exception*>::value,
         "Exception must derive from std::exception.");
 
     E e(std::forward<Args>(args)...);
-    LogThrow (std::string("Throwing exception of type " +
+    LogThrow (t, std::string("Throwing exception of type " +
                           beast::type_name<E>() +": ") + e.what());
     throw e;
 }

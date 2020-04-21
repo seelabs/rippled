@@ -1295,7 +1295,7 @@ struct RPCCallImp
         (*jvOutput) = jvInput;
     }
 
-    static bool onResponse (
+    static bool onResponse (ThrowToken throwToken,
         std::function<void (Json::Value const& jvInput)> callbackFuncP,
             const boost::system::error_code& ecResult, int iStatus,
                 std::string const& strData, beast::Journal j)
@@ -1306,26 +1306,26 @@ struct RPCCallImp
 
             // Receive reply
             if (iStatus == 401)
-                Throw<std::runtime_error> (
+                Throw<std::runtime_error> (throwToken,
                     "incorrect rpcuser or rpcpassword (authorization failed)");
             else if ((iStatus >= 400) && (iStatus != 400) && (iStatus != 404) && (iStatus != 500)) // ?
-                Throw<std::runtime_error> (
+                Throw<std::runtime_error> (throwToken,
                     std::string ("server returned HTTP error ") +
                         std::to_string (iStatus));
             else if (strData.empty ())
-                Throw<std::runtime_error> ("no response from server");
+                Throw<std::runtime_error> (throwToken, "no response from server");
 
             // Parse reply
             JLOG (j.debug()) << "RPC reply: " << strData << std::endl;
             if (strData.find("Unable to parse request") == 0)
-                Throw<RequestNotParseable> (strData);
+                Throw<RequestNotParseable> (throwToken, strData);
             Json::Reader    reader;
             Json::Value     jvReply;
             if (!reader.parse (strData, jvReply))
-                Throw<std::runtime_error> ("couldn't parse reply from server");
+                Throw<std::runtime_error> (throwToken, "couldn't parse reply from server");
 
             if (!jvReply)
-                Throw<std::runtime_error> ("expected reply to have result, error and id properties");
+                Throw<std::runtime_error> (throwToken, "expected reply to have result, error and id properties");
 
             Json::Value     jvResult (Json::objectValue);
 

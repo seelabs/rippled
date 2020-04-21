@@ -205,25 +205,25 @@ uint256 Serializer::getSHA512Half () const
     return sha512Half(makeSlice(mData));
 }
 
-int Serializer::addVL (Blob const& vector)
+int Serializer::addVL (ThrowToken throwToken, Blob const& vector)
 {
-    int ret = addEncoded (vector.size ());
+    int ret = addEncoded (throwToken, vector.size ());
     addRaw (vector);
-    assert (mData.size () == (ret + vector.size () + encodeLengthLength (vector.size ())));
+    assert (mData.size () == (ret + vector.size () + encodeLengthLength (throwToken, vector.size ())));
     return ret;
 }
 
-int Serializer::addVL (Slice const& slice)
+int Serializer::addVL (ThrowToken throwToken, Slice const& slice)
 {
-    int ret = addEncoded (slice.size());
+    int ret = addEncoded (throwToken, slice.size());
     if (slice.size())
         addRaw (slice.data(), slice.size());
     return ret;
 }
 
-int Serializer::addVL (const void* ptr, int len)
+int Serializer::addVL (ThrowToken throwToken, const void* ptr, int len)
 {
-    int ret = addEncoded (len);
+    int ret = addEncoded (throwToken, len);
 
     if (len)
         addRaw (ptr, len);
@@ -231,25 +231,25 @@ int Serializer::addVL (const void* ptr, int len)
     return ret;
 }
 
-bool Serializer::getVL (Blob& objectVL, int offset, int& length) const
+bool Serializer::getVL (ThrowToken throwToken, Blob& objectVL, int offset, int& length) const
 {
     int b1;
 
     if (!get8 (b1, offset++)) return false;
 
-    int datLen, lenLen = decodeLengthLength (b1);
+    int datLen, lenLen = decodeLengthLength (throwToken, b1);
 
     try
     {
         if (lenLen == 1)
-            datLen = decodeVLLength (b1);
+            datLen = decodeVLLength (throwToken, b1);
         else if (lenLen == 2)
         {
             int b2;
 
             if (!get8 (b2, offset++)) return false;
 
-            datLen = decodeVLLength (b1, b2);
+            datLen = decodeVLLength (throwToken, b1, b2);
         }
         else if (lenLen == 3)
         {
@@ -259,7 +259,7 @@ bool Serializer::getVL (Blob& objectVL, int offset, int& length) const
 
             if (!get8 (b3, offset++)) return false;
 
-            datLen = decodeVLLength (b1, b2, b3);
+            datLen = decodeVLLength (throwToken, b1, b2, b3);
         }
         else return false;
     }
@@ -272,25 +272,25 @@ bool Serializer::getVL (Blob& objectVL, int offset, int& length) const
     return getRaw (objectVL, offset, datLen);
 }
 
-bool Serializer::getVLLength (int& length, int offset) const
+bool Serializer::getVLLength (ThrowToken throwToken, int& length, int offset) const
 {
     int b1;
 
     if (!get8 (b1, offset++)) return false;
 
-    int lenLen = decodeLengthLength (b1);
+    int lenLen = decodeLengthLength (throwToken, b1);
 
     try
     {
         if (lenLen == 1)
-            length = decodeVLLength (b1);
+            length = decodeVLLength (throwToken, b1);
         else if (lenLen == 2)
         {
             int b2;
 
             if (!get8 (b2, offset++)) return false;
 
-            length = decodeVLLength (b1, b2);
+            length = decodeVLLength (throwToken, b1, b2);
         }
         else if (lenLen == 3)
         {
@@ -300,7 +300,7 @@ bool Serializer::getVLLength (int& length, int offset) const
 
             if (!get8 (b3, offset++)) return false;
 
-            length = decodeVLLength (b1, b2, b3);
+            length = decodeVLLength (throwToken, b1, b2, b3);
         }
         else return false;
     }
@@ -312,7 +312,7 @@ bool Serializer::getVLLength (int& length, int offset) const
     return true;
 }
 
-int Serializer::addEncoded (int length)
+int Serializer::addEncoded (ThrowToken throwToken, int length)
 {
     std::array<std::uint8_t, 4> bytes;
     int numBytes = 0;
@@ -337,14 +337,14 @@ int Serializer::addEncoded (int length)
         bytes[2] = static_cast<unsigned char> (length & 0xff);
         numBytes = 3;
     }
-    else Throw<std::overflow_error> ("lenlen");
+    else Throw<std::overflow_error> (throwToken, "lenlen");
 
     return addRaw (&bytes[0], numBytes);
 }
 
-int Serializer::encodeLengthLength (int length)
+int Serializer::encodeLengthLength (ThrowToken throwToken, int length)
 {
-    if (length < 0) Throw<std::overflow_error> ("len<0");
+    if (length < 0) Throw<std::overflow_error> (throwToken, "len<0");
 
     if (length <= 192) return 1;
 
@@ -352,13 +352,13 @@ int Serializer::encodeLengthLength (int length)
 
     if (length <= 918744) return 3;
 
-    Throw<std::overflow_error> ("len>918744");
+    Throw<std::overflow_error> (throwToken, "len>918744");
     return 0; // Silence compiler warning.
 }
 
-int Serializer::decodeLengthLength (int b1)
+int Serializer::decodeLengthLength (ThrowToken throwToken, int b1)
 {
-    if (b1 < 0) Throw<std::overflow_error> ("b1<0");
+    if (b1 < 0) Throw<std::overflow_error> (throwToken, "b1<0");
 
     if (b1 <= 192) return 1;
 
@@ -366,33 +366,33 @@ int Serializer::decodeLengthLength (int b1)
 
     if (b1 <= 254) return 3;
 
-    Throw<std::overflow_error> ("b1>254");
+    Throw<std::overflow_error> (throwToken, "b1>254");
     return 0; // Silence compiler warning.
 }
 
-int Serializer::decodeVLLength (int b1)
+int Serializer::decodeVLLength (ThrowToken throwToken, int b1)
 {
-    if (b1 < 0) Throw<std::overflow_error> ("b1<0");
+    if (b1 < 0) Throw<std::overflow_error> (throwToken, "b1<0");
 
-    if (b1 > 254) Throw<std::overflow_error> ("b1>254");
+    if (b1 > 254) Throw<std::overflow_error> (throwToken, "b1>254");
 
     return b1;
 }
 
-int Serializer::decodeVLLength (int b1, int b2)
+int Serializer::decodeVLLength (ThrowToken throwToken, int b1, int b2)
 {
-    if (b1 < 193) Throw<std::overflow_error> ("b1<193");
+    if (b1 < 193) Throw<std::overflow_error> (throwToken, "b1<193");
 
-    if (b1 > 240) Throw<std::overflow_error> ("b1>240");
+    if (b1 > 240) Throw<std::overflow_error> (throwToken, "b1>240");
 
     return 193 + (b1 - 193) * 256 + b2;
 }
 
-int Serializer::decodeVLLength (int b1, int b2, int b3)
+int Serializer::decodeVLLength (ThrowToken throwToken, int b1, int b2, int b3)
 {
-    if (b1 < 241) Throw<std::overflow_error> ("b1<241");
+    if (b1 < 241) Throw<std::overflow_error> (throwToken, "b1<241");
 
-    if (b1 > 254) Throw<std::overflow_error> ("b1>254");
+    if (b1 > 254) Throw<std::overflow_error> (throwToken, "b1>254");
 
     return 12481 + (b1 - 241) * 65536 + b2 * 256 + b3;
 }
@@ -416,10 +416,10 @@ SerialIter::reset() noexcept
 }
 
 void
-SerialIter::skip (int length)
+SerialIter::skip (ThrowToken throwToken, int length)
 {
     if (remain_ < length)
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken, 
             "invalid SerialIter skip");
     p_ += length;
     used_ += length;
@@ -427,10 +427,10 @@ SerialIter::skip (int length)
 }
 
 unsigned char
-SerialIter::get8()
+SerialIter::get8(ThrowToken throwToken)
 {
     if (remain_ < 1)
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken, 
             "invalid SerialIter get8");
     unsigned char t = *p_;
     ++p_;
@@ -440,10 +440,10 @@ SerialIter::get8()
 }
 
 std::uint16_t
-SerialIter::get16()
+SerialIter::get16(ThrowToken throwToken)
 {
     if (remain_ < 2)
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken, 
             "invalid SerialIter get16");
     auto t = p_;
     p_ += 2;
@@ -455,10 +455,10 @@ SerialIter::get16()
 }
 
 std::uint32_t
-SerialIter::get32()
+SerialIter::get32(ThrowToken throwToken)
 {
     if (remain_ < 4)
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken, 
             "invalid SerialIter get32");
     auto t = p_;
     p_ += 4;
@@ -472,10 +472,10 @@ SerialIter::get32()
 }
 
 std::uint64_t
-SerialIter::get64 ()
+SerialIter::get64 (ThrowToken throwToken)
 {
     if (remain_ < 8)
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken, 
             "invalid SerialIter get64");
     auto t = p_;
     p_ += 8;
@@ -493,18 +493,18 @@ SerialIter::get64 ()
 }
 
 void
-SerialIter::getFieldID (int& type, int& name)
+SerialIter::getFieldID (ThrowToken throwToken, int& type, int& name)
 {
-    type = get8();
+    type = get8(throwToken);
     name = type & 15;
     type >>= 4;
 
     if (type == 0)
     {
         // uncommon type
-        type = get8();
+        type = get8(throwToken);
         if (type == 0 || type < 16)
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (throwToken, 
                 "gFID: uncommon type out of range " +
                     std::to_string(type));
     }
@@ -512,9 +512,9 @@ SerialIter::getFieldID (int& type, int& name)
     if (name == 0)
     {
         // uncommon name
-        name = get8();
+        name = get8(throwToken);
         if (name == 0 || name < 16)
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (throwToken, 
                 "gFID: uncommon name out of range " +
                     std::to_string(name));
     }
@@ -522,12 +522,12 @@ SerialIter::getFieldID (int& type, int& name)
 
 // getRaw for blob or buffer
 template<class T>
-T SerialIter::getRawHelper (int size)
+T SerialIter::getRawHelper (ThrowToken throwToken, int size)
 {
     static_assert(std::is_same<T, Blob>::value ||
                   std::is_same<T, Buffer>::value, "");
     if (remain_ < size)
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken, 
             "invalid SerialIter getRaw");
     T result (size);
     if (size != 0)
@@ -545,40 +545,40 @@ T SerialIter::getRawHelper (int size)
 
 // VFALCO DEPRECATED Returns a copy
 Blob
-SerialIter::getRaw (int size)
+SerialIter::getRaw (ThrowToken throwToken, int size)
 {
-    return getRawHelper<Blob> (size);
+    return getRawHelper<Blob> (throwToken, size);
 }
 
-int SerialIter::getVLDataLength ()
+int SerialIter::getVLDataLength (ThrowToken throwToken)
 {
-    int b1 = get8();
+    int b1 = get8(throwToken);
     int datLen;
-    int lenLen = Serializer::decodeLengthLength(b1);
+    int lenLen = Serializer::decodeLengthLength(throwToken, b1);
     if (lenLen == 1)
     {
-        datLen = Serializer::decodeVLLength (b1);
+        datLen = Serializer::decodeVLLength (throwToken, b1);
     }
     else if (lenLen == 2)
     {
-        int b2 = get8();
-        datLen = Serializer::decodeVLLength (b1, b2);
+        int b2 = get8(throwToken);
+        datLen = Serializer::decodeVLLength (throwToken, b1, b2);
     }
     else
     {
         assert(lenLen == 3);
-        int b2 = get8();
-        int b3 = get8();
-        datLen = Serializer::decodeVLLength (b1, b2, b3);
+        int b2 = get8(throwToken);
+        int b3 = get8(throwToken);
+        datLen = Serializer::decodeVLLength (throwToken, b1, b2, b3);
     }
     return datLen;
 }
 
 Slice
-SerialIter::getSlice (std::size_t bytes)
+SerialIter::getSlice (ThrowToken throwToken, std::size_t bytes)
 {
     if (bytes > remain_)
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken, 
             "invalid SerialIter getSlice");
     Slice s(p_, bytes);
     p_ += bytes;
@@ -589,15 +589,15 @@ SerialIter::getSlice (std::size_t bytes)
 
 // VFALCO DEPRECATED Returns a copy
 Blob
-SerialIter::getVL()
+SerialIter::getVL(ThrowToken throwToken)
 {
-    return getRaw(getVLDataLength ());
+    return getRaw(throwToken, getVLDataLength (throwToken));
 }
 
 Buffer
-SerialIter::getVLBuffer()
+SerialIter::getVLBuffer(ThrowToken throwToken)
 {
-    return getRawHelper<Buffer> (getVLDataLength ());
+    return getRawHelper<Buffer> (throwToken, getVLDataLength (throwToken));
 }
 
 } // ripple

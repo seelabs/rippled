@@ -37,6 +37,7 @@ public:
 
     explicit
     HTTPClientSSLContext (
+        ThrowToken throwToken,
         Config const& config,
         beast::Journal j,
         boost::asio::ssl::context_base::method method =
@@ -52,7 +53,7 @@ public:
             registerSSLCerts(ssl_context_, ec, j_);
 
             if (ec && config.SSL_VERIFY_DIR.empty ())
-                Throw<std::runtime_error> (
+                Throw<std::runtime_error> (throwToken,
                     boost::str (boost::format (
                         "Failed to set_default_verify_paths: %s") %
                             ec.message ()));
@@ -67,7 +68,7 @@ public:
             ssl_context_.add_verify_path (config.SSL_VERIFY_DIR, ec);
 
             if (ec)
-                Throw<std::runtime_error> (
+                Throw<std::runtime_error> (throwToken,
                     boost::str (boost::format (
                         "Failed to add verify path: %s") % ec.message ()));
         }

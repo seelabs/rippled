@@ -94,21 +94,21 @@ public:
 
     template <class D>
     D&
-    downcast()
+    downcast(ThrowToken throwToken)
     {
         D* ptr = dynamic_cast<D*> (this);
         if (ptr == nullptr)
-            Throw<std::bad_cast> ();
+            Throw<std::bad_cast> (throwToken);
         return *ptr;
     }
 
     template <class D>
     D const&
-    downcast() const
+    downcast(ThrowToken throwToken) const
     {
         D const * ptr = dynamic_cast<D const*> (this);
         if (ptr == nullptr)
-            Throw<std::bad_cast> ();
+            Throw<std::bad_cast> (throwToken);
         return *ptr;
     }
 

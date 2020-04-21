@@ -60,7 +60,7 @@ public:
         beast::Journal journal) override;
 
     std::unique_ptr <Database>
-    make_Database (
+    make_Database (ThrowToken throwToken,
         std::string const& name,
         Scheduler& scheduler,
         int readThreads,

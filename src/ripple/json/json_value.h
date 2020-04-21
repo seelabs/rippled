@@ -232,10 +232,10 @@ public:
 
     const char* asCString () const;
     /** Returns the unquoted string value. */
-    std::string asString () const;
-    Int asInt () const;
-    UInt asUInt () const;
-    double asDouble () const;
+    std::string asString (ripple::ThrowToken throwToken) const;
+    Int asInt (ripple::ThrowToken throwToken) const;
+    UInt asUInt (ripple::ThrowToken throwToken) const;
+    double asDouble (ripple::ThrowToken throwToken) const;
     bool asBool () const;
 
     // TODO: What is the "empty()" method this docstring mentions?

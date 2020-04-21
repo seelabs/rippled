@@ -72,8 +72,8 @@ private:
         if (!is_directory (dbPath))
         {
             // someone created a file where we want to put our directory
-            Throw<std::runtime_error> ("Cannot create directory: " +
-                                      dbPath.string ());
+            Throw<std::runtime_error> (ThrowToken{false},
+                                       "Cannot create directory: " + dbPath.string ());
         }
     }
     static boost::filesystem::path getDatabasePath ()
@@ -172,7 +172,7 @@ public:
         std::string const m (static_cast<char const*> (s.data()), s.size());
         if (auto r = deserializeManifest(std::move(m)))
             return std::move(*r);
-        Throw<std::runtime_error> ("Could not create a revocation manifest");
+        Throw<std::runtime_error> (ThrowToken{false}, "Could not create a revocation manifest");
         return *deserializeManifest(std::move(m)); // Silence compiler warning.
     }
 
@@ -203,7 +203,7 @@ public:
         std::string const m (static_cast<char const*> (s.data()), s.size());
         if (auto r = deserializeManifest(std::move(m)))
             return std::move (*r);
-        Throw<std::runtime_error> ("Could not create a manifest");
+        Throw<std::runtime_error> (ThrowToken{false}, "Could not create a manifest");
         return *deserializeManifest(std::move(m)); // Silence compiler warning.
     }
 

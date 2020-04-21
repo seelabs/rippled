@@ -212,14 +212,14 @@ struct XRP_t
             auto const d = std::uint64_t(
                 std::round(v * c));
             if (double(d) / c != v)
-                Throw<std::domain_error> (
+                Throw<std::domain_error> (ThrowToken{false},
                     "unrepresentable");
             return { d };
         }
         auto const d = std::int64_t(
             std::round(v * c));
         if (double(d) / c != v)
-            Throw<std::domain_error> (
+            Throw<std::domain_error> (ThrowToken{false},
                 "unrepresentable");
         return { d };
     }

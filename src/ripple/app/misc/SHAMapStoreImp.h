@@ -64,7 +64,7 @@ private:
         { }
 
         // opens database and, if necessary, creates & initializes its tables.
-        void init (BasicConfig const& config, std::string const& dbName);
+        void init (ThrowToken throwToken, BasicConfig const& config, std::string const& dbName);
         // get/set the ledger index that we can delete up to and including
         LedgerIndex getCanDelete();
         LedgerIndex setCanDelete (LedgerIndex canDelete);
@@ -126,7 +126,7 @@ private:
     static constexpr auto nodeStoreName_ = "NodeStore";
 
 public:
-    SHAMapStoreImp(
+    SHAMapStoreImp(ThrowToken throwToken,
         Application& app,
         Stoppable& parent,
         NodeStore::Scheduler& scheduler,
@@ -190,7 +190,7 @@ private:
     void dbPaths();
 
     std::unique_ptr<NodeStore::Backend>
-    makeBackendRotating (std::string path = std::string());
+    makeBackendRotating (ThrowToken throwToken, std::string path = std::string());
 
     template <class CacheInstance>
     bool

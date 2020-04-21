@@ -333,7 +333,7 @@ CreateOffer::reachedOfferCrossingLimit (Taker const& taker) const
 }
 
 std::pair<TER, Amounts>
-CreateOffer::bridged_cross (
+CreateOffer::bridged_cross (ThrowToken throwToken,
     Taker& taker,
     ApplyView& view,
     ApplyView& view_cancel,
@@ -344,7 +344,7 @@ CreateOffer::bridged_cross (
     assert (!isXRP (takerAmount.in) && !isXRP (takerAmount.out));
 
     if (isXRP (takerAmount.in) || isXRP (takerAmount.out))
-        Throw<std::logic_error> ("Bridging with XRP and an endpoint.");
+        Throw<std::logic_error> (throwToken, "Bridging with XRP and an endpoint.");
 
     OfferStream offers_direct (view, view_cancel,
         Book (taker.issue_in (), taker.issue_out ()),
@@ -404,7 +404,7 @@ CreateOffer::bridged_cross (
                     fhIGNORE_FREEZE, viewJ);
             }
 
-            cross_result = taker.cross(offers_direct.tip ());
+            cross_result = taker.cross(throwToken, offers_direct.tip ());
 
             JLOG (j_.debug()) << "Direct Result: " << transToken (cross_result);
 
@@ -441,7 +441,7 @@ CreateOffer::bridged_cross (
                 stream << "  funds: " << owner2_funds_before;
             }
 
-            cross_result = taker.cross(offers_leg1.tip (), offers_leg2.tip ());
+            cross_result = taker.cross(throwToken, offers_leg1.tip (), offers_leg2.tip ());
 
             JLOG (j_.debug()) << "Bridge Result: " << transToken (cross_result);
 
@@ -497,14 +497,14 @@ CreateOffer::bridged_cross (
         assert (direct_consumed || leg1_consumed || leg2_consumed);
 
         if (!direct_consumed && !leg1_consumed && !leg2_consumed)
-            Throw<std::logic_error> ("bridged crossing: nothing was fully consumed.");
+            Throw<std::logic_error> (throwToken, "bridged crossing: nothing was fully consumed.");
     }
 
     return std::make_pair(cross_result, taker.remaining_offer ());
 }
 
 std::pair<TER, Amounts>
-CreateOffer::direct_cross (
+CreateOffer::direct_cross (ThrowToken throwToken,
     Taker& taker,
     ApplyView& view,
     ApplyView& view_cancel,
@@ -546,7 +546,7 @@ CreateOffer::direct_cross (
                 ctx_.app.journal ("View"));
         }
 
-        cross_result = taker.cross (offer);
+        cross_result = taker.cross (throwToken, offer);
 
         JLOG (j_.debug()) << "Direct Result: " << transToken (cross_result);
 
@@ -579,7 +579,7 @@ CreateOffer::direct_cross (
         assert (direct_consumed);
 
         if (!direct_consumed)
-            Throw<std::logic_error> ("direct crossing: nothing was fully consumed.");
+            Throw<std::logic_error> (throwToken, "direct crossing: nothing was fully consumed.");
     }
 
     return std::make_pair(cross_result, taker.remaining_offer ());
@@ -612,7 +612,7 @@ CreateOffer::step_account (OfferStream& stream, Taker const& taker)
 // already on the books. Return the status and the amount of
 // the offer to left unfilled.
 std::pair<TER, Amounts>
-CreateOffer::takerCross (
+CreateOffer::takerCross (ThrowToken throwToken,
     Sandbox& sb,
     Sandbox& sbCancel,
     Amounts const& takerAmount)
@@ -641,9 +641,9 @@ CreateOffer::takerCross (
     try
     {
         if (cross_type_ == CrossType::IouToIou)
-            return bridged_cross (taker, sb, sbCancel, when);
+            return bridged_cross (throwToken, taker, sb, sbCancel, when);
 
-        return direct_cross (taker, sb, sbCancel, when);
+        return direct_cross (throwToken, taker, sb, sbCancel, when);
     }
     catch (std::exception const& e)
     {
@@ -797,7 +797,7 @@ CreateOffer::flowCross (
                         // what is a good threshold to check?
                         afterCross.in.clear();
 
-                    afterCross.out = divRound (afterCross.in,
+                    afterCross.out = divRound (ThrowToken{true}, afterCross.in,
                         rate, takerAmount.out.issue(), true);
                 }
                 else
@@ -809,7 +809,7 @@ CreateOffer::flowCross (
                     assert (afterCross.out >= beast::zero);
                     if (afterCross.out < beast::zero)
                         afterCross.out.clear();
-                    afterCross.in = mulRound (afterCross.out,
+                    afterCross.in = mulRound (ThrowToken{true}, afterCross.out,
                         rate, takerAmount.in.issue(), true);
                 }
             }
@@ -924,7 +924,7 @@ static SBoxCmp compareSandboxes (char const* name, ApplyContext const& ctx,
 }
 
 std::pair<TER, Amounts>
-CreateOffer::cross (
+CreateOffer::cross (ThrowToken throwToken,
     Sandbox& sb,
     Sandbox& sbCancel,
     Amounts const& takerAmount)
@@ -939,7 +939,7 @@ CreateOffer::cross (
     Sandbox sbTaker { &sb };
     Sandbox sbCancelTaker { &sbCancel };
     auto const takerR = (!useFlowCross || doCompare)
-        ? takerCross (sbTaker, sbCancelTaker, takerAmount)
+        ? takerCross (throwToken, sbTaker, sbCancelTaker, takerAmount)
         : std::make_pair (tecINTERNAL, takerAmount);
 
     PaymentSandbox psbFlow { &sb };
@@ -1083,7 +1083,7 @@ CreateOffer::preCompute()
 }
 
 std::pair<TER, bool>
-CreateOffer::applyGuts (Sandbox& sb, Sandbox& sbCancel)
+CreateOffer::applyGuts (ThrowToken throwToken, Sandbox& sb, Sandbox& sbCancel)
 {
     using beast::zero;
 
@@ -1227,7 +1227,7 @@ CreateOffer::applyGuts (Sandbox& sb, Sandbox& sbCancel)
             stream << "    out: " << format_amount (takerAmount.out);
         }
 
-        std::tie(result, place_offer) = cross (sb, sbCancel, takerAmount);
+        std::tie(result, place_offer) = cross (throwToken, sb, sbCancel, takerAmount);
 
         // We expect the implementation of cross to succeed
         // or give a tec.
@@ -1411,7 +1411,7 @@ CreateOffer::applyGuts (Sandbox& sb, Sandbox& sbCancel)
 }
 
 TER
-CreateOffer::doApply()
+CreateOffer::doApply(ThrowToken throwToken)
 {
     // This is the ledger view that we work against. Transactions are applied
     // as we go on processing transactions.
@@ -1422,7 +1422,7 @@ CreateOffer::doApply()
     // if the order isn't going to be placed, to avoid wasting the work we did.
     Sandbox sbCancel (&ctx_.view());
 
-    auto const result = applyGuts(sb, sbCancel);
+    auto const result = applyGuts(throwToken, sb, sbCancel);
     if (result.second)
         sb.apply(ctx_.rawView());
     else

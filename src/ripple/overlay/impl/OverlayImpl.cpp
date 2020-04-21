@@ -554,7 +554,7 @@ OverlayImpl::onPrepare()
             {
                 if (addr.port () == 0)
                 {
-                    Throw<std::runtime_error> ("Port not specified for "
+                    Throw<std::runtime_error> (ThrowToken{false}, "Port not specified for "
                         "address:" + addr.to_string ());
                 }
 
@@ -1317,7 +1317,7 @@ bool ScoreHasTxSet::operator()(std::shared_ptr<Peer> const& bp) const
 //------------------------------------------------------------------------------
 
 Overlay::Setup
-setup_Overlay (BasicConfig const& config)
+setup_Overlay (ThrowToken throwToken, BasicConfig const& config)
 {
     Overlay::Setup setup;
 
@@ -1328,7 +1328,7 @@ setup_Overlay (BasicConfig const& config)
 
         set(setup.ipLimit, "ip_limit", section);
         if (setup.ipLimit < 0)
-            Throw<std::runtime_error>("Configured IP limit is invalid");
+            Throw<std::runtime_error>(throwToken, "Configured IP limit is invalid");
 
         std::string ip;
         set(ip, "public_ip", section);
@@ -1337,7 +1337,7 @@ setup_Overlay (BasicConfig const& config)
             boost::system::error_code ec;
             setup.public_ip = beast::IP::Address::from_string(ip, ec);
             if (ec || beast::IP::is_private(setup.public_ip))
-                Throw<std::runtime_error>("Configured public IP is invalid");
+                Throw<std::runtime_error>(throwToken, "Configured public IP is invalid");
         }
     }
 
@@ -1347,7 +1347,7 @@ setup_Overlay (BasicConfig const& config)
 
         if (values.size() > 1)
         {
-            Throw<std::runtime_error>(
+            Throw<std::runtime_error>(throwToken,
                 "Configured [crawl] section is invalid, too many values");
         }
 
@@ -1362,7 +1362,7 @@ setup_Overlay (BasicConfig const& config)
             }
             catch (boost::bad_lexical_cast const&)
             {
-                Throw<std::runtime_error>(
+                Throw<std::runtime_error>(throwToken,
                     "Configured [crawl] section has invalid value: " + values.front());
             }
         }
@@ -1413,7 +1413,7 @@ setup_Overlay (BasicConfig const& config)
     }
     catch (...)
     {
-        Throw<std::runtime_error>(
+        Throw<std::runtime_error>(throwToken,
             "Configured [network_id] section is invalid: must be a number "
             "or one of the strings 'main', 'testnet' or 'devnet'.");
     }

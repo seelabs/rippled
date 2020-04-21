@@ -54,12 +54,12 @@ public:
         @param createIfMissing Create the database files if necessary.
         This allows the caller to catch exceptions.
     */
-    virtual void open(bool createIfMissing = true) = 0;
+    virtual void open(ThrowToken throwToken, bool createIfMissing = true) = 0;
 
     /** Close the backend.
         This allows the caller to catch exceptions.
     */
-    virtual void close() = 0;
+    virtual void close(ThrowToken throwToken) = 0;
 
     /** Fetch a single object.
         If the object is not found or an error is encountered, the
@@ -69,7 +69,7 @@ public:
         @param pObject [out] The created object if successful.
         @return The result of the operation.
     */
-    virtual Status fetch (void const* key, std::shared_ptr<NodeObject>* pObject) = 0;
+    virtual Status fetch (ThrowToken throwToken, void const* key, std::shared_ptr<NodeObject>* pObject) = 0;
 
     /** Return `true` if batch fetches are optimized. */
     virtual
@@ -87,7 +87,7 @@ public:
         @note This will be called concurrently.
         @param object The object to store.
     */
-    virtual void store (std::shared_ptr<NodeObject> const& object) = 0;
+    virtual void store (ThrowToken throwToken, std::shared_ptr<NodeObject> const& object) = 0;
 
     /** Store a group of objects.
         @note This function will not be called concurrently with
@@ -101,7 +101,7 @@ public:
               or other methods.
         @see import
     */
-    virtual void for_each (std::function <void (std::shared_ptr<NodeObject>)> f) = 0;
+    virtual void for_each (ThrowToken throwToken, std::function <void (std::shared_ptr<NodeObject>)> f) = 0;
 
     /** Estimate the number of write operations pending. */
     virtual int getWriteLoad () = 0;
@@ -110,7 +110,7 @@ public:
     virtual void setDeletePath() = 0;
 
     /** Perform consistency checks on database. */
-    virtual void verify() = 0;
+    virtual void verify(ThrowToken throwToken) = 0;
 
     /** Returns the number of file descriptors the backend expects to need. */
     virtual int fdRequired() const = 0;

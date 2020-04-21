@@ -59,7 +59,7 @@ private:
         if (!is_directory (dbPath))
         {
             // someone created a file where we want to put out directory
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (ThrowToken{false},
                 "Cannot create directory: " + dbPath.string ());
         }
     }

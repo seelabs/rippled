@@ -63,11 +63,11 @@ public:
 
     /** Precondition: fee collection is likely.  Attempt to create the offer. */
     TER
-    doApply() override;
+    doApply(ThrowToken throwToken) override;
 
 private:
     std::pair<TER, bool>
-    applyGuts (Sandbox& view, Sandbox& view_cancel);
+    applyGuts (ThrowToken throwToken, Sandbox& view, Sandbox& view_cancel);
 
     // Determine if we are authorized to hold the asset we want to get.
     static
@@ -86,14 +86,14 @@ private:
         bool have_bridge, OfferStream const& leg1, OfferStream const& leg2);
 
     std::pair<TER, Amounts>
-    bridged_cross (
+    bridged_cross (ThrowToken throwToken,
         Taker& taker,
         ApplyView& view,
         ApplyView& view_cancel,
         NetClock::time_point const when);
 
     std::pair<TER, Amounts>
-    direct_cross (
+    direct_cross (ThrowToken throwToken,
         Taker& taker,
         ApplyView& view,
         ApplyView& view_cancel,
@@ -116,7 +116,7 @@ private:
     //
     // Charges fees on top to taker.
     std::pair<TER, Amounts>
-    takerCross (
+    takerCross (ThrowToken throwToken,
         Sandbox& sb,
         Sandbox& sbCancel,
         Amounts const& takerAmount);
@@ -133,7 +133,7 @@ private:
     // so the results can be compared.  Eventually this layer will be
     // removed once flowCross is determined to be stable.
     std::pair<TER, Amounts>
-    cross (
+    cross (ThrowToken throwToken,
         Sandbox& sb,
         Sandbox& sbCancel,
         Amounts const& takerAmount);

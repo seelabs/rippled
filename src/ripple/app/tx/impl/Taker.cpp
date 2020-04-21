@@ -369,7 +369,7 @@ BasicTaker::flow_iou_to_iou (
 
 // Calculates the direct flow through the specified offer
 BasicTaker::Flow
-BasicTaker::do_cross (Amounts offer, Quality quality, AccountID const& owner)
+BasicTaker::do_cross (ThrowToken throwToken, Amounts offer, Quality quality, AccountID const& owner)
 {
     auto const owner_funds = get_funds (owner, offer.out);
     auto const taker_funds = get_funds (account (), offer.in);
@@ -393,7 +393,7 @@ BasicTaker::do_cross (Amounts offer, Quality quality, AccountID const& owner)
     }
 
     if (!result.sanity_check ())
-        Throw<std::logic_error> ("Computed flow fails sanity check.");
+        Throw<std::logic_error> (throwToken, "Computed flow fails sanity check.");
 
     remaining_.out -= result.order.out;
     remaining_.in -= result.order.in;
@@ -405,7 +405,7 @@ BasicTaker::do_cross (Amounts offer, Quality quality, AccountID const& owner)
 
 // Calculates the bridged flow through the specified offers
 std::pair<BasicTaker::Flow, BasicTaker::Flow>
-BasicTaker::do_cross (
+BasicTaker::do_cross (ThrowToken throwToken,
     Amounts offer1, Quality quality1, AccountID const& owner1,
     Amounts offer2, Quality quality2, AccountID const& owner2)
 {
@@ -467,12 +467,12 @@ BasicTaker::do_cross (
     auto flow1 = flow_iou_to_xrp (offer1, quality1, xrp_funds, leg1_in_funds, leg1_rate);
 
     if (!flow1.sanity_check ())
-        Throw<std::logic_error> ("Computed flow1 fails sanity check.");
+        Throw<std::logic_error> (throwToken, "Computed flow1 fails sanity check.");
 
     auto flow2 = flow_xrp_to_iou (offer2, quality2, leg2_out_funds, xrp_funds, leg2_rate);
 
     if (!flow2.sanity_check ())
-        Throw<std::logic_error> ("Computed flow2 fails sanity check.");
+        Throw<std::logic_error> (throwToken, "Computed flow2 fails sanity check.");
 
     // We now have the maximal flows across each leg individually. We need to
     // equalize them, so that the amount of XRP that flows out of the first leg
@@ -496,7 +496,7 @@ BasicTaker::do_cross (
     }
 
     if (flow1.order.out != flow2.order.in)
-        Throw<std::logic_error> ("Bridged flow is out of balance.");
+        Throw<std::logic_error> (throwToken, "Bridged flow is out of balance.");
 
     remaining_.out -= flow2.order.out;
     remaining_.in -= flow1.order.in;
@@ -543,13 +543,13 @@ Taker::Taker (CrossType cross_type, ApplyView& view,
 }
 
 void
-Taker::consume_offer (Offer& offer, Amounts const& order)
+Taker::consume_offer (ThrowToken throwToken, Offer& offer, Amounts const& order)
 {
     if (order.in < beast::zero)
-        Throw<std::logic_error> ("flow with negative input.");
+        Throw<std::logic_error> (throwToken, "flow with negative input.");
 
     if (order.out < beast::zero)
-        Throw<std::logic_error> ("flow with negative output.");
+        Throw<std::logic_error> (throwToken, "flow with negative output.");
 
     JLOG(journal_.debug()) << "Consuming from offer " << offer;
 
@@ -570,13 +570,13 @@ Taker::get_funds (AccountID const& account, STAmount const& amount) const
     return accountFunds(view_, account, amount, fhZERO_IF_FROZEN, journal_);
 }
 
-TER Taker::transferXRP (
+TER Taker::transferXRP (ThrowToken throwToken,
     AccountID const& from,
     AccountID const& to,
     STAmount const& amount)
 {
     if (!isXRP (amount))
-        Throw<std::logic_error> ("Using transferXRP with IOU");
+        Throw<std::logic_error> (throwToken, "Using transferXRP with IOU");
 
     if (from == to)
         return tesSUCCESS;
@@ -588,13 +588,13 @@ TER Taker::transferXRP (
     return ripple::transferXRP (view_, from, to, amount, journal_);
 }
 
-TER Taker::redeemIOU (
+TER Taker::redeemIOU (ThrowToken throwToken,
     AccountID const& account,
     STAmount const& amount,
     Issue const& issue)
 {
     if (isXRP (amount))
-        Throw<std::logic_error> ("Using redeemIOU with XRP");
+        Throw<std::logic_error> (throwToken, "Using redeemIOU with XRP");
 
     if (account == issue.account)
         return tesSUCCESS;
@@ -606,23 +606,23 @@ TER Taker::redeemIOU (
     // If we are trying to redeem some amount, then the account
     // must have a credit balance.
     if (get_funds (account, amount) <= beast::zero)
-        Throw<std::logic_error> ("redeemIOU has no funds to redeem");
+        Throw<std::logic_error> (throwToken, "redeemIOU has no funds to redeem");
 
     auto ret = ripple::redeemIOU (view_, account, amount, issue, journal_);
 
     if (get_funds (account, amount) < beast::zero)
-        Throw<std::logic_error> ("redeemIOU redeemed more funds than available");
+        Throw<std::logic_error> (throwToken, "redeemIOU redeemed more funds than available");
 
     return ret;
 }
 
-TER Taker::issueIOU (
+TER Taker::issueIOU (ThrowToken throwToken,
     AccountID const& account,
     STAmount const& amount,
     Issue const& issue)
 {
     if (isXRP (amount))
-        Throw<std::logic_error> ("Using issueIOU with XRP");
+        Throw<std::logic_error> (throwToken, "Using issueIOU with XRP");
 
     if (account == issue.account)
         return tesSUCCESS;
@@ -636,10 +636,10 @@ TER Taker::issueIOU (
 
 // Performs funds transfers to fill the given offer and adjusts offer.
 TER
-Taker::fill (BasicTaker::Flow const& flow, Offer& offer)
+Taker::fill (ThrowToken throwToken, BasicTaker::Flow const& flow, Offer& offer)
 {
     // adjust offer
-    consume_offer (offer, flow.order);
+    consume_offer (throwToken, offer, flow.order);
 
     TER result = tesSUCCESS;
 
@@ -648,17 +648,17 @@ Taker::fill (BasicTaker::Flow const& flow, Offer& offer)
         assert (!isXRP (flow.order.in));
 
         if(result == tesSUCCESS)
-            result = redeemIOU (account (), flow.issuers.in, flow.issuers.in.issue ());
+            result = redeemIOU (throwToken, account (), flow.issuers.in, flow.issuers.in.issue ());
 
         if (result == tesSUCCESS)
-            result = issueIOU (offer.owner (), flow.order.in, flow.order.in.issue ());
+            result = issueIOU (throwToken, offer.owner (), flow.order.in, flow.order.in.issue ());
     }
     else
     {
         assert (isXRP (flow.order.in));
 
         if (result == tesSUCCESS)
-            result = transferXRP (account (), offer.owner (), flow.order.in);
+            result = transferXRP (throwToken, account (), offer.owner (), flow.order.in);
     }
 
     // Now send funds from the account whose offer we're taking
@@ -667,17 +667,17 @@ Taker::fill (BasicTaker::Flow const& flow, Offer& offer)
         assert (!isXRP (flow.order.out));
 
         if(result == tesSUCCESS)
-            result = redeemIOU (offer.owner (), flow.issuers.out, flow.issuers.out.issue ());
+            result = redeemIOU (throwToken, offer.owner (), flow.issuers.out, flow.issuers.out.issue ());
 
         if (result == tesSUCCESS)
-            result = issueIOU (account (), flow.order.out, flow.order.out.issue ());
+            result = issueIOU (throwToken, account (), flow.order.out, flow.order.out.issue ());
     }
     else
     {
         assert (isXRP (flow.order.out));
 
         if (result == tesSUCCESS)
-            result = transferXRP (offer.owner (), account (), flow.order.out);
+            result = transferXRP (throwToken, offer.owner (), account (), flow.order.out);
     }
 
     if (result == tesSUCCESS)
@@ -688,13 +688,13 @@ Taker::fill (BasicTaker::Flow const& flow, Offer& offer)
 
 // Performs bridged funds transfers to fill the given offers and adjusts offers.
 TER
-Taker::fill (
+Taker::fill (ThrowToken throwToken,
     BasicTaker::Flow const& flow1, Offer& leg1,
     BasicTaker::Flow const& flow2, Offer& leg2)
 {
     // Adjust offers accordingly
-    consume_offer (leg1, flow1.order);
-    consume_offer (leg2, flow2.order);
+    consume_offer (throwToken, leg1, flow1.order);
+    consume_offer (throwToken, leg2, flow2.order);
 
     TER result = tesSUCCESS;
 
@@ -702,24 +702,24 @@ Taker::fill (
     if (leg1.owner () != account ())
     {
         if (result == tesSUCCESS)
-            result = redeemIOU (account (), flow1.issuers.in, flow1.issuers.in.issue ());
+            result = redeemIOU (throwToken, account (), flow1.issuers.in, flow1.issuers.in.issue ());
 
         if (result == tesSUCCESS)
-            result = issueIOU (leg1.owner (), flow1.order.in, flow1.order.in.issue ());
+            result = issueIOU (throwToken, leg1.owner (), flow1.order.in, flow1.order.in.issue ());
     }
 
     // leg1 to leg2: bridging over XRP
     if (result == tesSUCCESS)
-        result = transferXRP (leg1.owner (), leg2.owner (), flow1.order.out);
+        result = transferXRP (throwToken, leg1.owner (), leg2.owner (), flow1.order.out);
 
     // leg2 to Taker: IOU
     if (leg2.owner () != account ())
     {
         if (result == tesSUCCESS)
-            result = redeemIOU (leg2.owner (), flow2.issuers.out, flow2.issuers.out.issue ());
+            result = redeemIOU (throwToken, leg2.owner (), flow2.issuers.out, flow2.issuers.out.issue ());
 
         if (result == tesSUCCESS)
-            result = issueIOU (account (), flow2.order.out, flow2.order.out.issue ());
+            result = issueIOU (throwToken, account (), flow2.order.out, flow2.order.out.issue ());
     }
 
     if (result == tesSUCCESS)
@@ -732,31 +732,31 @@ Taker::fill (
 }
 
 TER
-Taker::cross (Offer& offer)
+Taker::cross (ThrowToken throwToken, Offer& offer)
 {
     // In direct crossings, at least one leg must not be XRP.
     if (isXRP (offer.amount ().in) && isXRP (offer.amount ().out))
         return tefINTERNAL;
 
-    auto const amount = do_cross (
+    auto const amount = do_cross (throwToken,
         offer.amount (), offer.quality (), offer.owner ());
 
-    return fill (amount, offer);
+    return fill (throwToken, amount, offer);
 }
 
 TER
-Taker::cross (Offer& leg1, Offer& leg2)
+Taker::cross (ThrowToken throwToken, Offer& leg1, Offer& leg2)
 {
     // In bridged crossings, XRP must can't be the input to the first leg
     // or the output of the second leg.
     if (isXRP (leg1.amount ().in) || isXRP (leg2.amount ().out))
         return tefINTERNAL;
 
-    auto ret = do_cross (
+    auto ret = do_cross (throwToken,
         leg1.amount (), leg1.quality (), leg1.owner (),
         leg2.amount (), leg2.quality (), leg2.owner ());
 
-    return fill (ret.first, leg1, ret.second, leg2);
+    return fill (throwToken, ret.first, leg1, ret.second, leg2);
 }
 
 Rate

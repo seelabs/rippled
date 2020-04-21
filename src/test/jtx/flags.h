@@ -68,7 +68,7 @@ private:
         case asfDefaultRipple:  mask_ |= lsfDefaultRipple;  break;
         case asfDepositAuth:    mask_ |= lsfDepositAuth;    break;
         default:
-        Throw<std::runtime_error> (
+            Throw<std::runtime_error> (ThrowToken{false},
             "unknown flag");
         }
     }

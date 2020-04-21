@@ -288,6 +288,7 @@ to_string (XRPAmount const& amount)
 inline
 XRPAmount
 mulRatio (
+    ThrowToken throwToken,
     XRPAmount const& amt,
     std::uint32_t num,
     std::uint32_t den,
@@ -296,7 +297,7 @@ mulRatio (
     using namespace boost::multiprecision;
 
     if (!den)
-        Throw<std::runtime_error> ("division by zero");
+        Throw<std::runtime_error> (throwToken, "division by zero");
 
     int128_t const amt128 (amt.drops ());
     auto const neg = amt.drops () < 0;
@@ -310,7 +311,7 @@ mulRatio (
             r -= 1;
     }
     if (r > std::numeric_limits<XRPAmount::value_type>::max ())
-        Throw<std::overflow_error> ("XRP mulRatio overflow");
+        Throw<std::overflow_error> (throwToken, "XRP mulRatio overflow");
     return XRPAmount (r.convert_to<XRPAmount::value_type> ());
 }
 

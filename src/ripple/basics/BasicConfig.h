@@ -99,12 +99,12 @@ public:
                an empty string.
      */
     std::string
-    legacy () const
+    legacy (ThrowToken throwToken) const
     {
         if (lines_.empty ())
             return "";
         if (lines_.size () > 1)
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (throwToken,
                 "A legacy value must have exactly one line. Section: " + name_);
         return lines_[0];
     }

@@ -176,7 +176,7 @@ public:
     }
 
     void
-    addFixedPeer (std::string const& name,
+    addFixedPeer (ThrowToken throwToken, std::string const& name,
         std::vector <beast::IP::Endpoint> const& addresses)
     {
         std::lock_guard _(lock_);
@@ -192,7 +192,7 @@ public:
         {
             if (remote_address.port () == 0)
             {
-                Throw<std::runtime_error> ("Port not specified for address:" +
+                Throw<std::runtime_error> (throwToken, "Port not specified for address:" +
                     remote_address.to_string ());
             }
 

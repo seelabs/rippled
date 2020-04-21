@@ -304,7 +304,7 @@ public:
         : STBase (n)
     { }
 
-    STPathSet (SerialIter& sit, SField const& name);
+    STPathSet (ThrowToken throwToken, SerialIter& sit, SField const& name);
 
     STBase*
     copy (std::size_t n, void* buf) const override

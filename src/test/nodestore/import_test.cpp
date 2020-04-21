@@ -280,12 +280,12 @@ parse_args(std::string const& s)
     {
         boost::smatch m;
         if (! boost::regex_match (kv, m, re1))
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (ThrowToken{false},
                 "invalid parameter " + kv);
         auto const result =
             map.emplace(m[1], m[2]);
         if (! result.second)
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (ThrowToken{false},
                 "duplicate parameter " + m[1]);
     }
     return map;
@@ -378,7 +378,7 @@ public:
                 rocksdb::DB::OpenForReadOnly(
                     options, from_path, &pdb);
             if (! status.ok () || ! pdb)
-                Throw<std::runtime_error> (
+                Throw<std::runtime_error> (ThrowToken{false},
                     "Can't open '" + from_path + "': " +
                         status.ToString());
             db.reset(pdb);
@@ -396,14 +396,14 @@ public:
         error_code ec;
         df.create(file_mode::append, dp, ec);
         if (ec)
-            Throw<nudb::system_error>(ec);
+            Throw<nudb::system_error>(ThrowToken{false}, ec);
         bulk_writer<native_file> dw(
             df, 0, bulk_size);
         {
             {
                 auto os = dw.prepare(dat_file_header::size, ec);
                 if (ec)
-                    Throw<nudb::system_error>(ec);
+                    Throw<nudb::system_error>(ThrowToken{false}, ec);
                 write(os, dh);
             }
             rocksdb::ReadOptions options;
@@ -416,7 +416,7 @@ public:
             for (it->SeekToFirst (); it->Valid (); it->Next())
             {
                 if (it->key().size() != 32)
-                    Throw<std::runtime_error> (
+                    Throw<std::runtime_error> (ThrowToken{false},
                         "Unexpected key size " +
                             std::to_string(it->key().size()));
                 void const* const key = it->key().data();
@@ -443,7 +443,7 @@ public:
                     32 +                    // Key
                     out.second, ec);
                 if (ec)
-                    Throw<nudb::system_error>(ec);
+                    Throw<nudb::system_error>(ThrowToken{false}, ec);
                 write<uint48_t>(os, out.second);
                 std::memcpy(os.data(32), key, 32);
                 std::memcpy(os.data(out.second),
@@ -453,7 +453,7 @@ public:
             }
             dw.flush(ec);
             if (ec)
-                Throw<nudb::system_error>(ec);
+                Throw<nudb::system_error>(ThrowToken{false}, ec);
         }
         db.reset();
         log <<
@@ -461,7 +461,7 @@ public:
                 std::chrono::steady_clock::now() - start);
         auto const df_size = df.size(ec);
         if (ec)
-            Throw<nudb::system_error>(ec);
+            Throw<nudb::system_error>(ThrowToken{false}, ec);
         // Create key file
         key_file_header kh;
         kh.version = currentVersion;
@@ -479,7 +479,7 @@ public:
         native_file kf;
         kf.create(file_mode::append, kp, ec);
         if (ec)
-            Throw<nudb::system_error>(ec);
+            Throw<nudb::system_error>(ThrowToken{false}, ec);
         buffer buf(kh.block_size);
         {
             std::memset(buf.get(), 0, kh.block_size);
@@ -487,7 +487,7 @@ public:
             write(os, kh);
             kf.write(0, buf.get(), kh.block_size, ec);
             if (ec)
-                Throw<nudb::system_error>(ec);
+                Throw<nudb::system_error>(ThrowToken{false}, ec);
         }
         // Build contiguous sequential sections of the
         // key file using multiple passes over the data.
@@ -531,7 +531,7 @@ public:
                 auto is = r.prepare(
                     field<uint48_t>::size, ec); // Size
                 if (ec)
-                    Throw<nudb::system_error>(ec);
+                    Throw<nudb::system_error>(ThrowToken{false}, ec);
                 read<uint48_t>(is, size);
                 if (size > 0)
                 {
@@ -540,7 +540,7 @@ public:
                         dh.key_size +           // Key
                         size, ec);                  // Data
                     if (ec)
-                        Throw<nudb::system_error>(ec);
+                        Throw<nudb::system_error>(ThrowToken{false}, ec);
                     std::uint8_t const* const key =
                         is.data(dh.key_size);
                     auto const h = hash<hash_type>(
@@ -555,7 +555,7 @@ public:
                         (n - b0) * kh.block_size);
                     maybe_spill(b, dw, ec);
                     if (ec)
-                        Throw<nudb::system_error>(ec);
+                        Throw<nudb::system_error>(ThrowToken{false}, ec);
                     b.insert(offset, size, h);
                 }
                 else
@@ -565,22 +565,22 @@ public:
                     is = r.prepare(
                         field<std::uint16_t>::size, ec);
                     if (ec)
-                        Throw<nudb::system_error>(ec);
+                        Throw<nudb::system_error>(ThrowToken{false}, ec);
                     read<std::uint16_t>(is, size);  // Size
                     r.prepare(size, ec); // skip
                     if (ec)
-                        Throw<nudb::system_error>(ec);
+                        Throw<nudb::system_error>(ThrowToken{false}, ec);
                 }
             }
             kf.write((b0 + 1) * kh.block_size,
                 buf.get(), bn * kh.block_size, ec);
             if (ec)
-                Throw<nudb::system_error>(ec);
+                Throw<nudb::system_error>(ThrowToken{false}, ec);
             ++npass;
         }
         dw.flush(ec);
         if (ec)
-            Throw<nudb::system_error>(ec);
+            Throw<nudb::system_error>(ThrowToken{false}, ec);
         p.finish(log);
     }
 };

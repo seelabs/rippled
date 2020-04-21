@@ -30,7 +30,7 @@ public:
     {
         try
         {
-            Throw<std::runtime_error>("Throw test");
+            Throw<std::runtime_error>(ThrowToken{false}, "Throw test");
         }
         catch (std::runtime_error const& e1)
         {
@@ -38,7 +38,7 @@ public:
 
             try
             {
-                Rethrow();
+                Rethrow(ThrowToken{false});
             }
             catch (std::runtime_error const& e2)
             {

@@ -97,20 +97,20 @@ STVar::operator= (STVar&& rhs)
     return *this;
 }
 
-STVar::STVar (defaultObject_t, SField const& name)
-    : STVar(name.fieldType, name)
+STVar::STVar (ThrowToken throwToken, defaultObject_t, SField const& name)
+    : STVar(throwToken, name.fieldType, name)
 {
 }
 
-STVar::STVar (nonPresentObject_t, SField const& name)
-    : STVar(STI_NOTPRESENT, name)
+STVar::STVar (ThrowToken throwToken, nonPresentObject_t, SField const& name)
+    : STVar(throwToken, STI_NOTPRESENT, name)
 {
 }
 
-STVar::STVar (SerialIter& sit, SField const& name, int depth)
+STVar::STVar (ThrowToken throwToken, SerialIter& sit, SField const& name, int depth)
 {
     if (depth > 10)
-        Throw<std::runtime_error> ("Maximum nesting depth of STVar exceeded");
+        Throw<std::runtime_error> (throwToken, "Maximum nesting depth of STVar exceeded");
     switch (name.fieldType)
     {
     case STI_NOTPRESENT:    construct<STBase>(name); return;
@@ -129,11 +129,11 @@ STVar::STVar (SerialIter& sit, SField const& name, int depth)
     case STI_OBJECT:        construct<STObject>(sit, name, depth); return;
     case STI_ARRAY:         construct<STArray>(sit, name, depth); return;
     default:
-        Throw<std::runtime_error> ("Unknown object type");
+        Throw<std::runtime_error> (throwToken, "Unknown object type");
     }
 }
 
-STVar::STVar (SerializedTypeID id, SField const& name)
+STVar::STVar (ThrowToken throwToken, SerializedTypeID id, SField const& name)
 {
     assert ((id == STI_NOTPRESENT) || (id == name.fieldType));
     switch (id)
@@ -154,7 +154,7 @@ STVar::STVar (SerializedTypeID id, SField const& name)
     case STI_OBJECT:        construct<STObject>(name); return;
     case STI_ARRAY:         construct<STArray>(name); return;
     default:
-        Throw<std::runtime_error> ("Unknown object type");
+        Throw<std::runtime_error> (throwToken, "Unknown object type");
     }
 }
 

@@ -34,7 +34,7 @@ namespace NodeStore {
 
 uint256 const Shard::finalKey {0};
 
-Shard::Shard(
+Shard::Shard(ThrowToken throwToken,
     Application& app,
     DatabaseShard const& db,
     std::uint32_t index,
@@ -49,7 +49,7 @@ Shard::Shard(
     , j_(j)
 {
     if (index_ < db.earliestShardIndex())
-        Throw<std::runtime_error>("Shard: Invalid index");
+        Throw<std::runtime_error>(throwToken, "Shard: Invalid index");
 }
 
 Shard::~Shard()

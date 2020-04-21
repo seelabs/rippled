@@ -150,14 +150,14 @@ public:
 
     // normal hash access functions
     bool hasItem (uint256 const& id) const;
-    bool delItem (uint256 const& id);
-    bool addItem (SHAMapItem&& i, bool isTransaction, bool hasMeta);
+    bool delItem (ThrowToken throwToken, uint256 const& id);
+    bool addItem (ThrowToken throwToken, SHAMapItem&& i, bool isTransaction, bool hasMeta);
     SHAMapHash getHash () const;
 
     // save a copy if you have a temporary anyway
-    bool updateGiveItem (std::shared_ptr<SHAMapItem const> const&,
+    bool updateGiveItem (ThrowToken throwToken, std::shared_ptr<SHAMapItem const> const&,
                          bool isTransaction, bool hasMeta);
-    bool addGiveItem (std::shared_ptr<SHAMapItem const> const&,
+    bool addGiveItem (ThrowToken throwToken, std::shared_ptr<SHAMapItem const> const&,
                       bool isTransaction, bool hasMeta);
 
     // Save a copy if you need to extend the life
@@ -169,7 +169,7 @@ public:
         peekItem (uint256 const& id, SHAMapTreeNode::TNType & type) const;
 
     // traverse functions
-    const_iterator upper_bound(uint256 const& id) const;
+    const_iterator upper_bound(ThrowToken throwToken, uint256 const& id) const;
 
     /**  Visit every node in this SHAMap
 
@@ -185,7 +185,7 @@ public:
          @param function called with every node visited.
          If function returns false, visitDifferences exits.
     */
-    void visitDifferences(SHAMap const* have,
+    void visitDifferences(ThrowToken throwToken, SHAMap const* have,
         std::function<bool (SHAMapAbstractNode&)>) const;
 
     /**  Visit every leaf node in this SHAMap
@@ -210,7 +210,7 @@ public:
     std::vector<std::pair<SHAMapNodeID, uint256>>
     getMissingNodes (int maxNodes, SHAMapSyncFilter *filter);
 
-    bool getNodeFat (SHAMapNodeID node,
+    bool getNodeFat (ThrowToken throwToken, SHAMapNodeID node,
         std::vector<SHAMapNodeID>& nodeIDs,
             std::vector<Blob>& rawNode,
                 bool fatLeaves, std::uint32_t depth) const;
@@ -232,7 +232,7 @@ public:
 
     // caution: otherMap must be accessed only by this function
     // return value: true=successfully completed, false=too different
-    bool compare (SHAMap const& otherMap,
+    bool compare (ThrowToken throwToken, SHAMap const& otherMap,
                   Delta& differences, int maxCount) const;
 
     int flushDirty (NodeObjectType t, std::uint32_t seq);
@@ -266,7 +266,7 @@ private:
     std::shared_ptr<SHAMapAbstractNode> fetchNodeNT (
         SHAMapHash const& hash,
         SHAMapSyncFilter *filter) const;
-    std::shared_ptr<SHAMapAbstractNode> fetchNode (SHAMapHash const& hash) const;
+    std::shared_ptr<SHAMapAbstractNode> fetchNode (ThrowToken throwToken, SHAMapHash const& hash) const;
     std::shared_ptr<SHAMapAbstractNode> checkFilter(SHAMapHash const& hash,
         SHAMapSyncFilter* filter) const;
 
@@ -297,15 +297,15 @@ private:
         writeNode(NodeObjectType t, std::uint32_t seq,
                   std::shared_ptr<SHAMapAbstractNode> node) const;
 
-    SHAMapTreeNode* firstBelow (std::shared_ptr<SHAMapAbstractNode>,
+    SHAMapTreeNode* firstBelow (ThrowToken throwToken, std::shared_ptr<SHAMapAbstractNode>,
                                 SharedPtrNodeStack& stack, int branch = 0) const;
 
     // Simple descent
     // Get a child of the specified node
     SHAMapAbstractNode* descend (SHAMapInnerNode*, int branch) const;
-    SHAMapAbstractNode* descendThrow (SHAMapInnerNode*, int branch) const;
+    SHAMapAbstractNode* descendThrow (ThrowToken throwToken, SHAMapInnerNode*, int branch) const;
     std::shared_ptr<SHAMapAbstractNode> descend (std::shared_ptr<SHAMapInnerNode> const&, int branch) const;
-    std::shared_ptr<SHAMapAbstractNode> descendThrow (std::shared_ptr<SHAMapInnerNode> const&, int branch) const;
+    std::shared_ptr<SHAMapAbstractNode> descendThrow (ThrowToken throwToken, std::shared_ptr<SHAMapInnerNode> const&, int branch) const;
 
     // Descend with filter
     SHAMapAbstractNode* descendAsync (SHAMapInnerNode* parent, int branch,
@@ -321,13 +321,13 @@ private:
         descendNoStore (std::shared_ptr<SHAMapInnerNode> const&, int branch) const;
 
     /** If there is only one leaf below this node, get its contents */
-    std::shared_ptr<SHAMapItem const> const& onlyBelow (SHAMapAbstractNode*) const;
+    std::shared_ptr<SHAMapItem const> const& onlyBelow (ThrowToken throwToken, SHAMapAbstractNode*) const;
 
-    bool hasInnerNode (SHAMapNodeID const& nodeID, SHAMapHash const& hash) const;
-    bool hasLeafNode (uint256 const& tag, SHAMapHash const& hash) const;
+    bool hasInnerNode (ThrowToken throwToken, SHAMapNodeID const& nodeID, SHAMapHash const& hash) const;
+    bool hasLeafNode (ThrowToken throwToken, uint256 const& tag, SHAMapHash const& hash) const;
 
-    SHAMapTreeNode const* peekFirstItem(SharedPtrNodeStack& stack) const;
-    SHAMapTreeNode const* peekNextItem(uint256 const& id, SharedPtrNodeStack& stack) const;
+    SHAMapTreeNode const* peekFirstItem(ThrowToken throwToken, SharedPtrNodeStack& stack) const;
+    SHAMapTreeNode const* peekNextItem(ThrowToken throwToken, uint256 const& id, SharedPtrNodeStack& stack) const;
     bool walkBranch (SHAMapAbstractNode* node,
                      std::shared_ptr<SHAMapItem const> const& otherMapItem,
                      bool isFirstMap, Delta & differences, int & maxCount) const;

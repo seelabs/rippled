@@ -3043,7 +3043,7 @@ std::uint32_t NetworkOPsImp::acceptLedger (
     assert (m_standalone);
 
     if (!m_standalone)
-        Throw<std::runtime_error> ("Operation only possible in STANDALONE mode.");
+        Throw<std::runtime_error> (ThrowToken{false}, "Operation only possible in STANDALONE mode.");
 
     // FIXME Could we improve on this and remove the need for a specialized
     // API in Consensus?

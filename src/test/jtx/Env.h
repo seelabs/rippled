@@ -79,7 +79,7 @@ supported_amendments()
             if (auto const f = getRegisteredFeature(s))
                 feats.push_back(*f);
             else
-                Throw<std::runtime_error> ("Unknown feature: " + s + "  in supportedAmendments.");
+                Throw<std::runtime_error> (ThrowToken{false}, "Unknown feature: " + s + "  in supportedAmendments.");
         }
         return FeatureBitset(feats);
     }();

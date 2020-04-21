@@ -1545,7 +1545,7 @@ setup_TxQ(Config const& config)
     {
         if (max < setup.minimumTxnInLedger)
         {
-            Throw<std::runtime_error>(
+            Throw<std::runtime_error>(ThrowToken{false},
                 "The minimum number of low-fee transactions allowed "
                 "per ledger (minimum_txn_in_ledger) exceeds "
                 "the maximum number of low-fee transactions allowed per "
@@ -1554,7 +1554,7 @@ setup_TxQ(Config const& config)
         }
         if (max < setup.minimumTxnInLedgerSA)
         {
-            Throw<std::runtime_error>(
+            Throw<std::runtime_error>(ThrowToken{false},
                 "The minimum number of low-fee transactions allowed "
                 "per ledger (minimum_txn_in_ledger_standalone) exceeds "
                 "the maximum number of low-fee transactions allowed per "

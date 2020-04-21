@@ -127,14 +127,14 @@ public:
     qualityUpperBound(ReadView const& v, DebtDirection prevStepDir) const override;
 
     std::pair<TIn, TOut>
-    revImp (
+    revImp (ThrowToken throwToken,
         PaymentSandbox& sb,
         ApplyView& afView,
         boost::container::flat_set<uint256>& ofrsToRm,
         TOut const& out);
 
     std::pair<TIn, TOut>
-    fwdImp (
+    fwdImp (ThrowToken throwToken,
         PaymentSandbox& sb,
         ApplyView& afView,
         boost::container::flat_set<uint256>& ofrsToRm,
@@ -186,13 +186,13 @@ private:
     // Return the unfunded and bad offers and the number of offers consumed.
     template <class Callback>
     std::pair<boost::container::flat_set<uint256>, std::uint32_t>
-    forEachOffer (
+    forEachOffer (ThrowToken throwToken,
         PaymentSandbox& sb,
         ApplyView& afView,
         DebtDirection prevStepDebtDir,
         Callback& callback) const;
 
-    void consumeOffer (PaymentSandbox& sb,
+    void consumeOffer (ThrowToken throwToken, PaymentSandbox& sb,
         TOffer<TIn, TOut>& offer,
         TAmounts<TIn, TOut> const& ofrAmt,
         TAmounts<TIn, TOut> const& stepAmt,
@@ -289,21 +289,21 @@ class BookOfferCrossingStep
 private:
     // Helper function that throws if the optional passed to the constructor
     // is none.
-    static Quality getQuality (boost::optional<Quality> const& limitQuality)
+    static Quality getQuality (ThrowToken throwToken, boost::optional<Quality> const& limitQuality)
     {
         // It's really a programming error if the quality is missing.
         assert (limitQuality);
         if (!limitQuality)
-            Throw<FlowException> (tefINTERNAL, "Offer requires quality.");
+            Throw<FlowException> (throwToken, tefINTERNAL, "Offer requires quality.");
         return *limitQuality;
     }
 
 public:
-    BookOfferCrossingStep (
+    BookOfferCrossingStep (ThrowToken throwToken,
         StrandContext const& ctx, Issue const& in, Issue const& out)
     : BookStep<TIn, TOut, BookOfferCrossingStep<TIn, TOut>> (ctx, in, out)
     , defaultPath_ (ctx.isDefaultPath)
-    , qualityThreshold_ (getQuality (ctx.limitQuality))
+    , qualityThreshold_ (getQuality (throwToken, ctx.limitQuality))
     {
     }
 
@@ -447,7 +447,7 @@ BookStep<TIn, TOut, TDerived>::qualityUpperBound(
 // Adjust the offer amount and step amount subject to the given input limit
 template <class TIn, class TOut>
 static
-void limitStepIn (Quality const& ofrQ,
+void limitStepIn (ThrowToken throwToken, Quality const& ofrQ,
     TAmounts<TIn, TOut>& ofrAmt,
     TAmounts<TIn, TOut>& stpAmt,
     TOut& ownerGives,
@@ -458,11 +458,11 @@ void limitStepIn (Quality const& ofrQ,
     if (limit < stpAmt.in)
     {
         stpAmt.in = limit;
-        auto const inLmt = mulRatio (
+        auto const inLmt = mulRatio (throwToken,
             stpAmt.in, QUALITY_ONE, transferRateIn, /*roundUp*/ false);
         ofrAmt = ofrQ.ceil_in (ofrAmt, inLmt);
         stpAmt.out = ofrAmt.out;
-        ownerGives = mulRatio (
+        ownerGives = mulRatio (throwToken,
             ofrAmt.out, transferRateOut, QUALITY_ONE, /*roundUp*/ false);
     }
 }
@@ -470,7 +470,7 @@ void limitStepIn (Quality const& ofrQ,
 // Adjust the offer amount and step amount subject to the given output limit
 template <class TIn, class TOut>
 static
-void limitStepOut (Quality const& ofrQ,
+void limitStepOut (ThrowToken throwToken, Quality const& ofrQ,
     TAmounts<TIn, TOut>& ofrAmt,
     TAmounts<TIn, TOut>& stpAmt,
     TOut& ownerGives,
@@ -481,7 +481,7 @@ void limitStepOut (Quality const& ofrQ,
     if (limit < stpAmt.out)
     {
         stpAmt.out = limit;
-        ownerGives = mulRatio (
+        ownerGives = mulRatio (throwToken,
             stpAmt.out, transferRateOut, QUALITY_ONE, /*roundUp*/ false);
         ofrAmt = ofrQ.ceil_out (ofrAmt, stpAmt.out);
         stpAmt.in = mulRatio (
@@ -492,7 +492,7 @@ void limitStepOut (Quality const& ofrQ,
 template <class TIn, class TOut, class TDerived>
 template <class Callback>
 std::pair<boost::container::flat_set<uint256>, std::uint32_t>
-BookStep<TIn, TOut, TDerived>::forEachOffer (
+BookStep<TIn, TOut, TDerived>::forEachOffer (ThrowToken throwToken,
     PaymentSandbox& sb,
     ApplyView& afView,
     DebtDirection prevStepDir,
@@ -585,12 +585,12 @@ BookStep<TIn, TOut, TDerived>::forEachOffer (
 
         auto ofrAmt = offer.amount ();
         TAmounts stpAmt{
-            mulRatio (ofrAmt.in, ofrInRate, QUALITY_ONE, /*roundUp*/ true),
+            mulRatio (throwToken, ofrAmt.in, ofrInRate, QUALITY_ONE, /*roundUp*/ true),
             ofrAmt.out};
 
         // owner pays the transfer fee.
         auto ownerGives =
-            mulRatio (ofrAmt.out, ofrOutRate, QUALITY_ONE, /*roundUp*/ false);
+            mulRatio (throwToken, ofrAmt.out, ofrOutRate, QUALITY_ONE, /*roundUp*/ false);
 
         auto const funds =
             (offer.owner () == offer.issueOut ().account)
@@ -618,7 +618,7 @@ BookStep<TIn, TOut, TDerived>::forEachOffer (
 }
 
 template <class TIn, class TOut, class TDerived>
-void BookStep<TIn, TOut, TDerived>::consumeOffer (
+void BookStep<TIn, TOut, TDerived>::consumeOffer (ThrowToken throwToken,
     PaymentSandbox& sb,
     TOffer<TIn, TOut>& offer,
     TAmounts<TIn, TOut> const& ofrAmt,
@@ -631,7 +631,7 @@ void BookStep<TIn, TOut, TDerived>::consumeOffer (
         auto const dr = accountSend (sb, book_.in.account, offer.owner (),
             toSTAmount (ofrAmt.in, book_.in), j_);
         if (dr != tesSUCCESS)
-            Throw<FlowException> (dr);
+            Throw<FlowException> (throwToken, dr);
     }
 
     // The offer owner pays `ownerGives`. The difference between ownerGives and
@@ -640,10 +640,10 @@ void BookStep<TIn, TOut, TDerived>::consumeOffer (
         auto const cr = accountSend (sb, offer.owner (), book_.out.account,
             toSTAmount (ownerGives, book_.out), j_);
         if (cr != tesSUCCESS)
-            Throw<FlowException> (cr);
+            Throw<FlowException> (throwToken, cr);
     }
 
-    offer.consume (sb, ofrAmt);
+    offer.consume (throwToken, sb, ofrAmt);
 }
 
 template<class TCollection>
@@ -658,7 +658,7 @@ auto sum (TCollection const& col)
 
 template<class TIn, class TOut, class TDerived>
 std::pair<TIn, TOut>
-BookStep<TIn, TOut, TDerived>::revImp (
+BookStep<TIn, TOut, TDerived>::revImp (ThrowToken throwToken,
     PaymentSandbox& sb,
     ApplyView& afView,
     boost::container::flat_set<uint256>& ofrsToRm,
@@ -696,7 +696,7 @@ BookStep<TIn, TOut, TDerived>::revImp (
             savedOuts.insert(stpAmt.out);
             result = TAmounts<TIn, TOut>(sum (savedIns), sum(savedOuts));
             remainingOut = out - result.out;
-            this->consumeOffer (sb, offer, ofrAmt, stpAmt, ownerGives);
+            this->consumeOffer (throwToken, sb, offer, ofrAmt, stpAmt, ownerGives);
             // return true b/c even if the payment is satisfied,
             // we need to consume the offer
             return true;
@@ -706,14 +706,14 @@ BookStep<TIn, TOut, TDerived>::revImp (
             auto ofrAdjAmt = ofrAmt;
             auto stpAdjAmt = stpAmt;
             auto ownerGivesAdj = ownerGives;
-            limitStepOut (offer.quality (), ofrAdjAmt, stpAdjAmt, ownerGivesAdj,
+            limitStepOut (throwToken, offer.quality (), ofrAdjAmt, stpAdjAmt, ownerGivesAdj,
                 transferRateIn, transferRateOut, remainingOut);
             remainingOut = beast::zero;
             savedIns.insert (stpAdjAmt.in);
             savedOuts.insert (remainingOut);
             result.in = sum(savedIns);
             result.out = out;
-            this->consumeOffer (sb, offer, ofrAdjAmt, stpAdjAmt, ownerGivesAdj);
+            this->consumeOffer (throwToken, sb, offer, ofrAdjAmt, stpAdjAmt, ownerGivesAdj);
 
             // Explicitly check whether the offer is funded.  Given that we have
             // (stpAmt.out > remainingOut), it's natural to assume the offer
@@ -730,7 +730,7 @@ BookStep<TIn, TOut, TDerived>::revImp (
                 return prevStep_->debtDirection (sb, StrandDirection::reverse);
             return DebtDirection::issues;
         }();
-        auto const r = forEachOffer (sb, afView, prevStepDebtDir, eachOffer);
+        auto const r = forEachOffer (throwToken, sb, afView, prevStepDebtDir, eachOffer);
         boost::container::flat_set<uint256> toRm = std::move(std::get<0>(r));
         std::uint32_t const offersConsumed = std::get<1>(r);
         SetUnion(ofrsToRm, toRm);
@@ -776,7 +776,7 @@ BookStep<TIn, TOut, TDerived>::revImp (
 
 template<class TIn, class TOut, class TDerived>
 std::pair<TIn, TOut>
-BookStep<TIn, TOut, TDerived>::fwdImp (
+BookStep<TIn, TOut, TDerived>::fwdImp (ThrowToken throwToken,
     PaymentSandbox& sb,
     ApplyView& afView,
     boost::container::flat_set<uint256>& ofrsToRm,
@@ -824,7 +824,7 @@ BookStep<TIn, TOut, TDerived>::fwdImp (
         }
         else
         {
-            limitStepIn (offer.quality (), ofrAdjAmt, stpAdjAmt, ownerGivesAdj,
+            limitStepIn (throwToken, offer.quality (), ofrAdjAmt, stpAdjAmt, ownerGivesAdj,
                 transferRateIn, transferRateOut, remainingIn);
             savedIns.insert (remainingIn);
             lastOut = savedOuts.insert (stpAdjAmt.out);
@@ -849,7 +849,7 @@ BookStep<TIn, TOut, TDerived>::fwdImp (
             auto ofrAdjAmtRev = ofrAmt;
             auto stpAdjAmtRev = stpAmt;
             auto ownerGivesAdjRev = ownerGives;
-            limitStepOut (offer.quality (), ofrAdjAmtRev, stpAdjAmtRev,
+            limitStepOut (throwToken, offer.quality (), ofrAdjAmtRev, stpAdjAmtRev,
                 ownerGivesAdjRev, transferRateIn, transferRateOut,
                 remainingOut);
 
@@ -877,7 +877,7 @@ BookStep<TIn, TOut, TDerived>::fwdImp (
         }
 
         remainingIn = in - result.in;
-        this->consumeOffer (sb, offer, ofrAdjAmt, stpAdjAmt, ownerGivesAdj);
+        this->consumeOffer (throwToken, sb, offer, ofrAdjAmt, stpAdjAmt, ownerGivesAdj);
 
         // When the mantissas of two iou amounts differ by less than ten, then
         // subtracting them leaves a result of zero. This can cause the check for

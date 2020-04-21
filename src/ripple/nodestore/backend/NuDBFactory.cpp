@@ -49,7 +49,7 @@ public:
     std::atomic <bool> deletePath_;
     Scheduler& scheduler_;
 
-    NuDBBackend (
+    NuDBBackend (ThrowToken throwToken,
         size_t keyBytes,
         Section const& keyValues,
         Scheduler& scheduler,
@@ -61,11 +61,11 @@ public:
         , scheduler_ (scheduler)
     {
         if (name_.empty())
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (throwToken,
                 "nodestore: Missing path in NuDB backend");
     }
 
-    NuDBBackend (
+    NuDBBackend (ThrowToken throwToken,
         size_t keyBytes,
         Section const& keyValues,
         Scheduler& scheduler,
@@ -79,7 +79,7 @@ public:
         , scheduler_ (scheduler)
     {
         if (name_.empty())
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (throwToken,
                 "nodestore: Missing path in NuDB backend");
     }
 
@@ -95,7 +95,7 @@ public:
     }
 
     void
-    open(bool createIfMissing) override
+    open(ThrowToken throwToken, bool createIfMissing) override
     {
         using namespace boost::filesystem;
         if (db_.is_open())
@@ -119,25 +119,25 @@ public:
             if(ec == nudb::errc::file_exists)
                 ec = {};
             if(ec)
-                Throw<nudb::system_error>(ec);
+                Throw<nudb::system_error>(throwToken, ec);
         }
         db_.open (dp, kp, lp, ec);
         if(ec)
-            Throw<nudb::system_error>(ec);
+            Throw<nudb::system_error>(throwToken, ec);
         if (db_.appnum() != currentType)
-            Throw<std::runtime_error>(
+            Throw<std::runtime_error>(throwToken,
                 "nodestore: unknown appnum");
     }
 
     void
-    close() override
+    close(ThrowToken throwToken) override
     {
         if (db_.is_open())
         {
             nudb::error_code ec;
             db_.close(ec);
             if(ec)
-                Throw<nudb::system_error>(ec);
+                Throw<nudb::system_error>(throwToken, ec);
             if (deletePath_)
             {
                 boost::filesystem::remove_all (name_);
@@ -146,7 +146,7 @@ public:
     }
 
     Status
-    fetch (void const* key, std::shared_ptr<NodeObject>* pno) override
+    fetch (ThrowToken throwToken, void const* key, std::shared_ptr<NodeObject>* pno) override
     {
         Status status;
         pno->reset();
@@ -156,7 +156,7 @@ public:
             {
                 nudb::detail::buffer bf;
                 auto const result =
-                    nodeobject_decompress(data, size, bf);
+                        nodeobject_decompress(throwToken, data, size, bf);
                 DecodedBlob decoded (key, result.first, result.second);
                 if (! decoded.wasOk ())
                 {
@@ -169,7 +169,7 @@ public:
         if(ec == nudb::error::key_not_found)
             return notFound;
         if(ec)
-            Throw<nudb::system_error>(ec);
+            Throw<nudb::system_error>(throwToken, ec);
         return status;
     }
 
@@ -182,32 +182,32 @@ public:
     std::vector<std::shared_ptr<NodeObject>>
     fetchBatch (std::size_t n, void const* const* keys) override
     {
-        Throw<std::runtime_error> ("pure virtual called");
+        Throw<std::runtime_error> (ThrowToken{false}, "pure virtual called");
         return {};
     }
 
     void
-    do_insert (std::shared_ptr <NodeObject> const& no)
+    do_insert (ThrowToken throwToken, std::shared_ptr <NodeObject> const& no)
     {
         EncodedBlob e;
         e.prepare (no);
         nudb::error_code ec;
         nudb::detail::buffer bf;
-        auto const result = nodeobject_compress(
+        auto const result = nodeobject_compress(throwToken,
             e.getData(), e.getSize(), bf);
         db_.insert (e.getKey(), result.first, result.second, ec);
         if(ec && ec != nudb::error::key_exists)
-            Throw<nudb::system_error>(ec);
+            Throw<nudb::system_error>(throwToken, ec);
     }
 
     void
-    store (std::shared_ptr <NodeObject> const& no) override
+    store (ThrowToken throwToken, std::shared_ptr <NodeObject> const& no) override
     {
         BatchWriteReport report;
         report.writeCount = 1;
         auto const start =
             std::chrono::steady_clock::now();
-        do_insert (no);
+        do_insert (throwToken, no);
         report.elapsed = std::chrono::duration_cast <
             std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - start);
@@ -215,14 +215,14 @@ public:
     }
 
     void
-    storeBatch (Batch const& batch) override
+    storeBatch (ThrowToken throwToken, Batch const& batch) override
     {
         BatchWriteReport report;
         report.writeCount = batch.size();
         auto const start =
             std::chrono::steady_clock::now();
         for (auto const& e : batch)
-            do_insert (e);
+            do_insert (throwToken, e);
         report.elapsed = std::chrono::duration_cast <
             std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - start);
@@ -230,7 +230,7 @@ public:
     }
 
     void
-    for_each (std::function <void(std::shared_ptr<NodeObject>)> f) override
+    for_each (ThrowToken throwToken, std::function <void(std::shared_ptr<NodeObject>)> f) override
     {
         auto const dp = db_.dat_path();
         auto const kp = db_.key_path();
@@ -239,7 +239,7 @@ public:
         nudb::error_code ec;
         db_.close(ec);
         if(ec)
-            Throw<nudb::system_error>(ec);
+            Throw<nudb::system_error>(throwToken, ec);
         nudb::visit(dp,
             [&](
                 void const* key, std::size_t key_bytes,
@@ -248,7 +248,7 @@ public:
             {
                 nudb::detail::buffer bf;
                 auto const result =
-                    nodeobject_decompress(data, size, bf);
+                        nodeobject_decompress(throwToken, data, size, bf);
                 DecodedBlob decoded (key, result.first, result.second);
                 if (! decoded.wasOk ())
                 {
@@ -258,10 +258,10 @@ public:
                 f (decoded.createObject());
             }, nudb::no_progress{}, ec);
         if(ec)
-            Throw<nudb::system_error>(ec);
+            Throw<nudb::system_error>(throwToken, ec);
         db_.open(dp, kp, lp, ec);
         if(ec)
-            Throw<nudb::system_error>(ec);
+            Throw<nudb::system_error>(throwToken, ec);
     }
 
     int
@@ -277,7 +277,7 @@ public:
     }
 
     void
-    verify() override
+    verify(ThrowToken throwToken) override
     {
         auto const dp = db_.dat_path();
         auto const kp = db_.key_path();
@@ -285,15 +285,15 @@ public:
         nudb::error_code ec;
         db_.close(ec);
         if(ec)
-            Throw<nudb::system_error>(ec);
+            Throw<nudb::system_error>(throwToken, ec);
         nudb::verify_info vi;
         nudb::verify<nudb::xxhasher>(
             vi, dp, kp, 0, nudb::no_progress{}, ec);
         if(ec)
-            Throw<nudb::system_error>(ec);
+            Throw<nudb::system_error>(throwToken, ec);
         db_.open (dp, kp, lp, ec);
         if(ec)
-            Throw<nudb::system_error>(ec);
+            Throw<nudb::system_error>(throwToken, ec);
     }
 
     int

@@ -184,7 +184,7 @@ public:
             Json::Reader ().parse (test.txt, req);
             if (RPC::contains_error (req))
             {
-                Throw<std::runtime_error> (
+                Throw<std::runtime_error> (ThrowToken{false},
                     "Internal InnerObjectFormatsParsedJSON error.  Bad JSON.");
             }
             STParsedJSONObject parsed ("request", req);

@@ -125,14 +125,14 @@ public:
     bool isInBounds (SHAMapNodeID const &id) const;
 
     virtual bool updateHash () = 0;
-    virtual void addRaw (Serializer&, SHANodeFormat format) const = 0;
+    virtual void addRaw (ThrowToken throwToken, Serializer&, SHANodeFormat format) const = 0;
     virtual std::string getString (SHAMapNodeID const&) const;
     virtual std::shared_ptr<SHAMapAbstractNode> clone(std::uint32_t seq) const = 0;
     virtual uint256 const& key() const = 0;
     virtual void invariants(bool is_root = false) const = 0;
 
     static std::shared_ptr<SHAMapAbstractNode>
-        make(Slice const& rawNode, std::uint32_t seq, SHANodeFormat format,
+    make(ThrowToken throwToken, Slice const& rawNode, std::uint32_t seq, SHANodeFormat format,
              SHAMapHash const& hash, bool hashValid, beast::Journal j,
              SHAMapNodeID const& id = SHAMapNodeID{});
 };
@@ -168,13 +168,13 @@ public:
 
     bool updateHash () override;
     void updateHashDeep();
-    void addRaw (Serializer&, SHANodeFormat format) const override;
+    void addRaw (ThrowToken throwToken, Serializer&, SHANodeFormat format) const override;
     std::string getString (SHAMapNodeID const&) const override;
     uint256 const& key() const override;
     void invariants(bool is_root = false) const override;
 
     friend std::shared_ptr<SHAMapAbstractNode>
-        SHAMapAbstractNode::make(Slice const& rawNode, std::uint32_t seq,
+    SHAMapAbstractNode::make(ThrowToken throwToken, Slice const& rawNode, std::uint32_t seq,
              SHANodeFormat format, SHAMapHash const& hash, bool hashValid,
                  beast::Journal j, SHAMapNodeID const& id);
 };
@@ -196,7 +196,7 @@ public:
                    std::uint32_t seq, SHAMapHash const& hash);
     std::shared_ptr<SHAMapAbstractNode> clone(std::uint32_t seq) const override;
 
-    void addRaw (Serializer&, SHANodeFormat format) const override;
+    void addRaw (ThrowToken throwToken, Serializer&, SHANodeFormat format) const override;
     uint256 const& key() const override;
     void invariants(bool is_root = false) const override;
 

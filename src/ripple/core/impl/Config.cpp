@@ -210,7 +210,7 @@ void Config::setupControl(bool bQuiet,
     RUN_STANDALONE = bStandalone;
 }
 
-void Config::setup (std::string const& strConf, bool bQuiet,
+void Config::setup (ThrowToken throwToken, std::string const& strConf, bool bQuiet,
     bool bSilent, bool bStandalone)
 {
     boost::filesystem::path dataDir;
@@ -301,7 +301,7 @@ void Config::setup (std::string const& strConf, bool bQuiet,
         boost::filesystem::create_directories(dataDir, ec);
 
         if (ec)
-            Throw<std::runtime_error>(
+            Throw<std::runtime_error>(throwToken,
                 boost::str(boost::format("Can not create %s") % dataDir));
 
         legacy("database_path", boost::filesystem::absolute(dataDir).string());
@@ -334,7 +334,7 @@ void Config::load ()
     loadFromString (fileContents);
 }
 
-void Config::loadFromString (std::string const& fileContents)
+void Config::loadFromString (ThrowToken throwToken, std::string const& fileContents)
 {
     IniFileSections secConfig = parseIniFile (fileContents, true);
 
@@ -400,7 +400,7 @@ void Config::loadFromString (std::string const& fileContents)
         SSL_VERIFY          = beast::lexicalCastThrow <bool> (strTemp);
 
     if (exists(SECTION_VALIDATION_SEED) && exists(SECTION_VALIDATOR_TOKEN))
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken,
             "Cannot have both [" SECTION_VALIDATION_SEED "] "
             "and [" SECTION_VALIDATOR_TOKEN "] config sections");
 
@@ -475,20 +475,20 @@ void Config::loadFromString (std::string const& fileContents)
             validatorsFile = strTemp;
 
             if (validatorsFile.empty ())
-                Throw<std::runtime_error> (
+                Throw<std::runtime_error> (throwToken,
                     "Invalid path specified in [" SECTION_VALIDATORS_FILE "]");
 
             if (!validatorsFile.is_absolute() && !CONFIG_DIR.empty())
                 validatorsFile = CONFIG_DIR / validatorsFile;
 
             if (!boost::filesystem::exists (validatorsFile))
-                Throw<std::runtime_error> (
+                Throw<std::runtime_error> (throwToken,
                     "The file specified in [" SECTION_VALIDATORS_FILE "] "
                     "does not exist: " + validatorsFile.string());
 
             else if (!boost::filesystem::is_regular_file (validatorsFile) &&
                     !boost::filesystem::is_symlink (validatorsFile))
-                Throw<std::runtime_error> (
+                Throw<std::runtime_error> (throwToken,
                     "Invalid file specified in [" SECTION_VALIDATORS_FILE "]: " +
                     validatorsFile.string());
         }
@@ -515,7 +515,7 @@ void Config::loadFromString (std::string const& fileContents)
             auto const data = getFileContents(ec, validatorsFile);
             if (ec)
             {
-                Throw<std::runtime_error>("Failed to read '" +
+                Throw<std::runtime_error>(throwToken, "Failed to read '" +
                     validatorsFile.string() + "'." +
                     std::to_string(ec.value()) + ": " + ec.message());
             }
@@ -551,7 +551,7 @@ void Config::loadFromString (std::string const& fileContents)
                 section (SECTION_VALIDATOR_LIST_KEYS).append (*valListKeys);
 
             if (!entries && !valKeyEntries && !valListKeys)
-                Throw<std::runtime_error> (
+                Throw<std::runtime_error> (throwToken,
                     "The file specified in [" SECTION_VALIDATORS_FILE "] "
                     "does not contain a [" SECTION_VALIDATORS "], "
                     "[" SECTION_VALIDATOR_KEYS "] or "
@@ -567,7 +567,7 @@ void Config::loadFromString (std::string const& fileContents)
         if (! section (SECTION_VALIDATOR_LIST_SITES).lines().empty() &&
             section (SECTION_VALIDATOR_LIST_KEYS).lines().empty())
         {
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (throwToken,
                 "[" + std::string(SECTION_VALIDATOR_LIST_KEYS) +
                 "] config section is missing");
         }
@@ -580,7 +580,7 @@ void Config::loadFromString (std::string const& fileContents)
             if (auto const f = getRegisteredFeature(s))
                 features.insert(*f);
             else
-                Throw<std::runtime_error>(
+                Throw<std::runtime_error>(throwToken,
                     "Unknown feature: " + s + "  in config file.");
         }
     }
@@ -597,7 +597,7 @@ void Config::loadFromString (std::string const& fileContents)
 
         if (NETWORK_QUORUM > pm)
         {
-            Throw<std::runtime_error>(
+            Throw<std::runtime_error>(throwToken,
                 "The minimum number of required peers (network_quorum) exceeds "
                 "the maximum number of allowed peers (peers_max)");
         }

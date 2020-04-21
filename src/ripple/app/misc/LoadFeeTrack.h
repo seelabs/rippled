@@ -142,7 +142,7 @@ private:
 
 // Scale using load as well as base rate
 XRPAmount
-scaleFeeLoad(FeeUnit64 fee, LoadFeeTrack const& feeTrack,
+scaleFeeLoad(ThrowToken throwToken, FeeUnit64 fee, LoadFeeTrack const& feeTrack,
     Fees const& fees, bool bUnlimited);
 
 } // ripple

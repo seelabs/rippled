@@ -45,7 +45,7 @@ ec_key::ec_key (const ec_key& that)
     ptr = (pointer_t) EC_KEY_dup (get_EC_KEY (that));
 
     if (ptr == nullptr)
-        Throw<std::runtime_error> ("ec_key::ec_key() : EC_KEY_dup failed");
+        Throw<std::runtime_error> (ThrowToken{false}, "ec_key::ec_key() : EC_KEY_dup failed");
 
     EC_KEY_set_conv_form (get_EC_KEY (*this), POINT_CONVERSION_COMPRESSED);
 }

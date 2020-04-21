@@ -45,7 +45,7 @@ getSociSqliteInit (std::string const& name,
 {
     if (name.empty ())
     {
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (ThrowToken{false},
             "Sqlite databases must specify a dir and a name. Name: " +
                 name + " Dir: " + dir);
     }
@@ -63,7 +63,7 @@ getSociInit (BasicConfig const& config,
     auto const backendName = get(section, "backend", "sqlite");
 
     if (backendName != "sqlite")
-        Throw<std::runtime_error> ("Unsupported soci backend: " + backendName);
+        Throw<std::runtime_error> (ThrowToken{false}, "Unsupported soci backend: " + backendName);
 
     auto const path = config.legacy ("database_path");
     auto const ext = dbName == "validators" || dbName == "peerfinder"
@@ -109,7 +109,7 @@ void open (soci::session& s,
     if (beName == "sqlite")
         s.open(soci::sqlite3, connectionString);
     else
-        Throw<std::runtime_error> ("Unsupported soci backend: " + beName);
+        Throw<std::runtime_error> (ThrowToken{false}, "Unsupported soci backend: " + beName);
 }
 
 static
@@ -121,7 +121,7 @@ sqlite_api::sqlite3* getConnection (soci::session& s)
         result = b->conn_;
 
     if (! result)
-        Throw<std::logic_error> ("Didn't get a database connection.");
+        Throw<std::logic_error> (ThrowToken{false}, "Didn't get a database connection.");
 
     return result;
 }
@@ -129,7 +129,7 @@ sqlite_api::sqlite3* getConnection (soci::session& s)
 size_t getKBUsedAll (soci::session& s)
 {
     if (! getConnection (s))
-        Throw<std::logic_error> ("No connection found.");
+        Throw<std::logic_error> (ThrowToken{false}, "No connection found.");
     return static_cast <size_t> (sqlite_api::sqlite3_memory_used () / kilobytes(1));
 }
 
@@ -143,7 +143,7 @@ size_t getKBUsedDB (soci::session& s)
             conn, SQLITE_DBSTATUS_CACHE_USED, &cur, &hiw, 0);
         return cur / kilobytes(1);
     }
-    Throw<std::logic_error> ("");
+    Throw<std::logic_error> (ThrowToken{false}, "");
     return 0; // Silence compiler warning.
 }
 
@@ -216,7 +216,7 @@ private:
             if (auto checkpointer = reinterpret_cast <WALCheckpointer*> (cp))
                 checkpointer->scheduleCheckpoint();
             else
-                Throw<std::logic_error> ("Didn't get a WALCheckpointer");
+                Throw<std::logic_error> (ThrowToken{false}, "Didn't get a WALCheckpointer");
         }
         return SQLITE_OK;
     }

@@ -115,13 +115,13 @@ public:
     void
     missing_node (std::uint32_t refNum) override
     {
-        Throw<std::runtime_error> ("missing node");
+        Throw<std::runtime_error> (ThrowToken{false}, "missing node");
     }
 
     void
     missing_node (uint256 const& refHash, std::uint32_t refNum) override
     {
-        Throw<std::runtime_error> ("missing node");
+        Throw<std::runtime_error> (ThrowToken{false}, "missing node");
     }
 
     void

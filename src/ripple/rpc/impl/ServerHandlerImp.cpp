@@ -992,19 +992,19 @@ to_Port(ParsedPort const& parsed, std::ostream& log)
     if (! parsed.ip)
     {
         log << "Missing 'ip' in [" << p.name << "]";
-        Throw<std::exception> ();
+        Throw<std::exception> (ThrowToken{false});
     }
     p.ip = *parsed.ip;
 
     if (! parsed.port)
     {
         log << "Missing 'port' in [" << p.name << "]";
-        Throw<std::exception> ();
+        Throw<std::exception> (ThrowToken{false});
     }
     else if (*parsed.port == 0)
     {
         log << "Port " << *parsed.port << "in [" << p.name << "] is invalid";
-        Throw<std::exception> ();
+        Throw<std::exception> (ThrowToken{false});
     }
     p.port = *parsed.port;
     if (parsed.admin_ip)
@@ -1015,7 +1015,7 @@ to_Port(ParsedPort const& parsed, std::ostream& log)
     if (parsed.protocol.empty())
     {
         log << "Missing 'protocol' in [" << p.name << "]";
-        Throw<std::exception> ();
+        Throw<std::exception> (ThrowToken{false});
     }
     p.protocol = parsed.protocol;
 
@@ -1046,7 +1046,7 @@ parse_Ports (
     {
         log <<
             "Required section [server] is missing";
-        Throw<std::exception> ();
+        Throw<std::exception> (ThrowToken{false});
     }
 
     ParsedPort common;
@@ -1060,7 +1060,7 @@ parse_Ports (
         {
             log <<
                 "Missing section: [" << name << "]";
-            Throw<std::exception> ();
+            Throw<std::exception> (ThrowToken{false});
         }
         ParsedPort parsed = common;
         parsed.name = name;
@@ -1096,7 +1096,7 @@ parse_Ports (
         if (count > 1)
         {
             log << "Error: More than one peer protocol configured in [server]";
-            Throw<std::exception> ();
+            Throw<std::exception> (ThrowToken{false});
         }
 
         if (count == 0)

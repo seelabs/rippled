@@ -45,7 +45,7 @@ private:
     stream_type stream_;
 
 public:
-    WorkSSL(
+    WorkSSL(ThrowToken throwToken,
         std::string const& host,
         std::string const& path,
         std::string const& port,
@@ -71,7 +71,7 @@ private:
 
 //------------------------------------------------------------------------------
 
-WorkSSL::WorkSSL(
+WorkSSL::WorkSSL(ThrowToken throwToken,
     std::string const& host,
     std::string const& path,
     std::string const& port,
@@ -85,7 +85,7 @@ WorkSSL::WorkSSL(
 {
     auto ec = context_.preConnectVerify(stream_, host_);
     if (ec)
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken,
             boost::str (boost::format ("preConnectVerify: %s") % ec.message ()));
 }
 

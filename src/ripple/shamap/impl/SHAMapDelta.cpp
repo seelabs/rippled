@@ -113,7 +113,7 @@ bool SHAMap::walkBranch (SHAMapAbstractNode* node,
 }
 
 bool
-SHAMap::compare (SHAMap const& otherMap,
+SHAMap::compare (ThrowToken throwToken, SHAMap const& otherMap,
                  Delta& differences, int maxCount) const
 {
     // compare two hash trees, add up to maxCount differences to the difference table
@@ -138,7 +138,7 @@ SHAMap::compare (SHAMap const& otherMap,
         if (!ourNode || !otherNode)
         {
             assert (false);
-            Throw<SHAMapMissingNode> (type_, uint256 ());
+            Throw<SHAMapMissingNode> (throwToken, type_, uint256 ());
         }
 
         if (ourNode->isLeaf () && otherNode->isLeaf ())

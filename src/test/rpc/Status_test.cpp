@@ -184,7 +184,7 @@ private:
         testcase ("throw");
         try
         {
-            Throw<Status> (Status(temBAD_PATH, { "path=sdcdfd" }));
+            Throw<Status> (ThrowToken{false}, Status(temBAD_PATH, { "path=sdcdfd" }));
         }
         catch (Status const& s)
         {

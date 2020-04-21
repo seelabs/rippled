@@ -39,17 +39,17 @@ public:
     }
 
     void
-    open(bool createIfMissing) override
+    open(ThrowToken throwToken, bool createIfMissing) override
     {
     }
 
     void
-    close() override
+    close(ThrowToken throwToken) override
     {
     }
 
     Status
-    fetch (void const*, std::shared_ptr<NodeObject>*) override
+    fetch (ThrowToken throwToken, void const*, std::shared_ptr<NodeObject>*) override
     {
         return notFound;
     }
@@ -63,12 +63,12 @@ public:
     std::vector<std::shared_ptr<NodeObject>>
     fetchBatch (std::size_t n, void const* const* keys) override
     {
-        Throw<std::runtime_error> ("pure virtual called");
+        Throw<std::runtime_error> (ThrowToken{false}, "pure virtual called");
         return {};
     }
 
     void
-    store (std::shared_ptr<NodeObject> const& object) override
+    store (ThrowToken throwToken, std::shared_ptr<NodeObject> const& object) override
     {
     }
 
@@ -78,7 +78,7 @@ public:
     }
 
     void
-    for_each (std::function <void(std::shared_ptr<NodeObject>)> f) override
+    for_each (ThrowToken throwToken, std::function <void(std::shared_ptr<NodeObject>)> f) override
     {
     }
 
@@ -94,7 +94,7 @@ public:
     }
 
     void
-    verify() override
+    verify(ThrowToken throwToken) override
     {
     }
 

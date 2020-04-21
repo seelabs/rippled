@@ -41,7 +41,7 @@ public:
 
     /** Create an empty object with the given key and type. */
     explicit
-    STLedgerEntry (Keylet const& k);
+    STLedgerEntry (ThrowToken throwToken, Keylet const& k);
 
     STLedgerEntry (LedgerEntryType type,
             uint256 const& key)
@@ -49,11 +49,11 @@ public:
     {
     }
 
-    STLedgerEntry (SerialIter & sit, uint256 const& index);
+    STLedgerEntry (ThrowToken throwToken, SerialIter & sit, uint256 const& index);
     STLedgerEntry(SerialIter&& sit, uint256 const& index)
         : STLedgerEntry(sit, index) {}
 
-    STLedgerEntry (STObject const& object, uint256 const& index);
+    STLedgerEntry (ThrowToken throwToken, STObject const& object, uint256 const& index);
 
     STBase*
     copy (std::size_t n, void* buf) const override
@@ -72,7 +72,7 @@ public:
         return STI_LEDGERENTRY;
     }
 
-    std::string getFullText () const override;
+    std::string getFullText (ThrowToken throwToken) const override;
 
     std::string getText () const override;
 
@@ -106,7 +106,7 @@ private:
     /*  Make STObject comply with the template for this SLE type
         Can throw
     */
-    void setSLEType ();
+    void setSLEType (ThrowToken throwToken);
 
 private:
     uint256 key_;

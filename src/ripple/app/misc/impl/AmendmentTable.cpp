@@ -51,14 +51,14 @@ parseSection (Section const& section)
         boost::smatch match;
 
         if (!boost::regex_match (line, match, re1))
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (ThrowToken{false},
                 "Invalid entry '" + line +
                 "' in [" + section.name () + "]");
 
         uint256 id;
 
         if (!id.SetHexExact (match[1]))
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (ThrowToken{false},
                 "Invalid amendment ID '" + match[1] +
                 "' in [" + section.name () + "]");
 

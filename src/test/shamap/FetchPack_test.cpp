@@ -50,7 +50,7 @@ public:
     {
         void operator()(std::uint32_t refNum) const
         {
-            Throw<std::runtime_error> ("missing node");
+            Throw<std::runtime_error> (ThrowToken{false}, "missing node");
         }
     };
 

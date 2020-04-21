@@ -321,7 +321,7 @@ public:
         #if NODESTORE_TIMING_DO_VERIFY
             backend->verify();
         #endif
-            Rethrow();
+            Rethrow(ThrowToken{false});
         }
         backend->close();
     }
@@ -383,7 +383,7 @@ public:
         #if NODESTORE_TIMING_DO_VERIFY
             backend->verify();
         #endif
-            Rethrow();
+            Rethrow(ThrowToken{false});
         }
         backend->close();
     }
@@ -447,7 +447,7 @@ public:
         #if NODESTORE_TIMING_DO_VERIFY
             backend->verify();
         #endif
-            Rethrow();
+            Rethrow(ThrowToken{false});
         }
         backend->close();
     }
@@ -526,7 +526,7 @@ public:
         #if NODESTORE_TIMING_DO_VERIFY
             backend->verify();
         #endif
-            Rethrow();
+            Rethrow(ThrowToken{false});
         }
         backend->close();
     }
@@ -637,7 +637,7 @@ public:
         #if NODESTORE_TIMING_DO_VERIFY
             backend->verify();
         #endif
-            Rethrow();
+            Rethrow(ThrowToken{false});
         }
         backend->close();
     }

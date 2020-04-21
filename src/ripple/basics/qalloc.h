@@ -276,7 +276,7 @@ qalloc_impl<_>::allocate(
     block* const b =
         new(std::malloc(n)) block(n);
     if (! b)
-        Throw<std::bad_alloc> ();
+        Throw<std::bad_alloc> (ThrowToken{false});
     used_ = b;
     // VFALCO This has to succeed
     return used_->allocate(bytes, align);
@@ -323,7 +323,7 @@ qalloc_type<T, ShareOnCopy>::alloc (std::size_t n)
 {
     if (n > std::numeric_limits<
             std::size_t>::max() / sizeof(U))
-        Throw<std::bad_alloc> ();
+        Throw<std::bad_alloc> (ThrowToken{false});
     auto const bytes = n * sizeof(U);
     return static_cast<U*>(
         impl_->allocate(bytes,

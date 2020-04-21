@@ -72,9 +72,9 @@ public:
         p_ = t.copy(max_size, &d_);
     }
 
-    STVar (defaultObject_t, SField const& name);
-    STVar (nonPresentObject_t, SField const& name);
-    STVar (SerialIter& sit, SField const& name, int depth = 0);
+    STVar (ThrowToken throwToken, defaultObject_t, SField const& name);
+    STVar (ThrowToken throwToken, nonPresentObject_t, SField const& name);
+    STVar (ThrowToken throwToken, SerialIter& sit, SField const& name, int depth = 0);
 
     STBase& get() { return *p_; }
     STBase& operator*() { return get(); }
@@ -91,7 +91,7 @@ public:
 private:
     STVar() = default;
 
-    STVar (SerializedTypeID id, SField const& name);
+    STVar (ThrowToken throwToken, SerializedTypeID id, SField const& name);
 
     void destroy();
 

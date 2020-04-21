@@ -106,14 +106,14 @@ public:
 
     /** Adjusts the offer to indicate that we consumed some (or all) of it. */
     void
-    consume (ApplyView& view,
+    consume (ThrowToken throwToken, ApplyView& view,
         TAmounts<TIn, TOut> const& consumed)
     {
         if (consumed.in > m_amounts.in)
-            Throw<std::logic_error> ("can't consume more than is available.");
+            Throw<std::logic_error> (throwToken, "can't consume more than is available.");
 
         if (consumed.out > m_amounts.out)
-            Throw<std::logic_error> ("can't produce more than is available.");
+            Throw<std::logic_error> (throwToken, "can't produce more than is available.");
 
         m_amounts -= consumed;
         setFieldAmounts ();

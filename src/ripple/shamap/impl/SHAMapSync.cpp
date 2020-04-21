@@ -102,7 +102,7 @@ SHAMap::visitNodes(std::function<bool (
 }
 
 void
-SHAMap::visitDifferences(SHAMap const* have,
+SHAMap::visitDifferences(ThrowToken throwToken, SHAMap const* have,
     std::function<bool (SHAMapAbstractNode&)> function) const
 {
     // Visit every node in this SHAMap that is not present
@@ -147,7 +147,7 @@ SHAMap::visitDifferences(SHAMap const* have,
             {
                 auto const& childHash = node->getChildHash (i);
                 SHAMapNodeID childID = nodeID.getChildNodeID (i);
-                auto next = descendThrow(node, i);
+                auto next = descendThrow(throwToken, node, i);
 
                 if (next->isInner ())
                 {
@@ -425,7 +425,7 @@ std::vector<uint256> SHAMap::getNeededHashes (int max, SHAMapSyncFilter* filter)
     return hashes;
 }
 
-bool SHAMap::getNodeFat (SHAMapNodeID wanted,
+bool SHAMap::getNodeFat (ThrowToken throwToken, SHAMapNodeID wanted,
     std::vector<SHAMapNodeID>& nodeIDs,
         std::vector<Blob>& rawNodes, bool fatLeaves,
             std::uint32_t depth) const
@@ -443,7 +443,7 @@ bool SHAMap::getNodeFat (SHAMapNodeID wanted,
         if (inner->isEmptyBranch (branch))
             return false;
 
-        node = descendThrow(inner, branch);
+        node = descendThrow(throwToken, inner, branch);
         nodeID = nodeID.getChildNodeID (branch);
     }
 
@@ -488,7 +488,7 @@ bool SHAMap::getNodeFat (SHAMapNodeID wanted,
                 {
                     if (! inner->isEmptyBranch (i))
                     {
-                        auto const childNode = descendThrow (inner, i);
+                        auto const childNode = descendThrow (throwToken, inner, i);
                         SHAMapNodeID const childID = nodeID.getChildNodeID (i);
 
                         if (childNode->isInner () &&
@@ -715,7 +715,7 @@ bool SHAMap::deepCompare (SHAMap& other) const
 /** Does this map have this inner node?
 */
 bool
-SHAMap::hasInnerNode (SHAMapNodeID const& targetNodeID,
+SHAMap::hasInnerNode (ThrowToken throwToken, SHAMapNodeID const& targetNodeID,
                       SHAMapHash const& targetNodeHash) const
 {
     auto node = root_.get();
@@ -728,7 +728,7 @@ SHAMap::hasInnerNode (SHAMapNodeID const& targetNodeID,
         if (inner->isEmptyBranch (branch))
             return false;
 
-        node = descendThrow (inner, branch);
+        node = descendThrow (throwToken, inner, branch);
         nodeID = nodeID.getChildNodeID (branch);
     }
 
@@ -738,7 +738,7 @@ SHAMap::hasInnerNode (SHAMapNodeID const& targetNodeID,
 /** Does this map have this leaf node?
 */
 bool
-SHAMap::hasLeafNode (uint256 const& tag, SHAMapHash const& targetNodeHash) const
+SHAMap::hasLeafNode (ThrowToken throwToken, uint256 const& tag, SHAMapHash const& targetNodeHash) const
 {
     auto node = root_.get();
     SHAMapNodeID nodeID;
@@ -756,7 +756,7 @@ SHAMap::hasLeafNode (uint256 const& tag, SHAMapHash const& targetNodeHash) const
         if (inner->getChildHash (branch) == targetNodeHash) // Matching leaf, no need to retrieve it
             return true;
 
-        node = descendThrow(inner, branch);
+        node = descendThrow(throwToken, inner, branch);
         nodeID = nodeID.getChildNodeID (branch);
     }
     while (node->isInner());

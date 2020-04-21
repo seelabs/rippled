@@ -40,7 +40,7 @@ accessViolation() noexcept
 } // detail
 
 void
-LogThrow (std::string const& title)
+LogThrow (ThrowToken t, std::string const& title)
 {
     JLOG(debugLog().warn()) << title;
 }

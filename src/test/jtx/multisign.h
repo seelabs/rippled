@@ -103,7 +103,7 @@ public:
     }
 
     void
-    operator()(Env&, JTx& jt) const;
+    operator()(ThrowToken throwToken, Env&, JTx& jt) const;
 };
 
 //------------------------------------------------------------------------------

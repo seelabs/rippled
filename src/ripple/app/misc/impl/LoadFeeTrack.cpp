@@ -86,7 +86,7 @@ LoadFeeTrack::lowerLocalFee ()
 
 // Scale using load as well as base rate
 XRPAmount
-scaleFeeLoad(FeeUnit64 fee, LoadFeeTrack const& feeTrack,
+scaleFeeLoad(ThrowToken throwToken, FeeUnit64 fee, LoadFeeTrack const& feeTrack,
     Fees const& fees, bool bUnlimited)
 {
     if (fee == 0)
@@ -153,13 +153,13 @@ scaleFeeLoad(FeeUnit64 fee, LoadFeeTrack const& feeTrack,
         std::numeric_limits<XRPAmount::value_type>::max() / feeFactor};
     if (baseFee > baseFeeOverflow)
     {
-        Throw<std::overflow_error>("scaleFeeLoad");
+        Throw<std::overflow_error>(throwToken, "scaleFeeLoad");
     }
     baseFee *= feeFactor;
 
     auto const result = mulDiv(fee, baseFee, den);
     if (!result.first)
-        Throw<std::overflow_error> ("scaleFeeLoad");
+        Throw<std::overflow_error> (throwToken, "scaleFeeLoad");
     return result.second;
 }
 

@@ -187,7 +187,7 @@ public:
 
     /* Be very careful to make sure these bool params
         are in the right order. */
-    void setup (std::string const& strConf, bool bQuiet,
+    void setup (ThrowToken throwToken, std::string const& strConf, bool bQuiet,
         bool bSilent, bool bStandalone);
     void setupControl (bool bQuiet,
         bool bSilent, bool bStandalone);
@@ -197,7 +197,7 @@ public:
      *
      *  @param fileContents String representing the config contents.
      */
-    void loadFromString (std::string const& fileContents);
+    void loadFromString (ThrowToken throwToken, std::string const& fileContents);
 
     bool quiet() const { return QUIET; }
     bool silent() const { return SILENT; }

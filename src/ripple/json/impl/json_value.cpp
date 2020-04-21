@@ -479,7 +479,7 @@ Value::asCString () const
 
 
 std::string
-Value::asString () const
+Value::asString (ripple::ThrowToken throwToken) const
 {
     switch ( type_ )
     {
@@ -513,7 +513,7 @@ Value::asString () const
 }
 
 Value::Int
-Value::asInt () const
+Value::asInt (ripple::ThrowToken throwToken) const
 {
     switch ( type_ )
     {
@@ -552,7 +552,7 @@ Value::asInt () const
 }
 
 Value::UInt
-Value::asUInt () const
+Value::asUInt (ripple::ThrowToken throwToken) const
 {
     switch ( type_ )
     {
@@ -591,7 +591,7 @@ Value::asUInt () const
 }
 
 double
-Value::asDouble () const
+Value::asDouble (ripple::ThrowToken throwToken) const
 {
     switch ( type_ )
     {

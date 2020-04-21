@@ -114,7 +114,7 @@ public:
     }
 
     Endpoints
-    ports (std::vector<Port> const& ports) override;
+    ports (ThrowToken throwToken, std::vector<Port> const& ports) override;
 
     void
     close() override;
@@ -165,10 +165,10 @@ ServerImpl<Handler>::
 template<class Handler>
 Endpoints
 ServerImpl<Handler>::
-ports (std::vector<Port> const& ports)
+ports (ThrowToken throwToken, std::vector<Port> const& ports)
 {
     if (closed())
-        Throw<std::logic_error> ("ports() on closed Server");
+        Throw<std::logic_error> (throwToken, "ports() on closed Server");
     ports_.reserve(ports.size());
     Endpoints eps;
     eps.reserve(ports.size());

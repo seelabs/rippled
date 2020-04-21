@@ -32,7 +32,7 @@ namespace ripple {
     @throws runtime_error
 */
 void
-extractTarLz4(
+extractTarLz4(ThrowToken throwToken,
     boost::filesystem::path const& src,
     boost::filesystem::path const& dst);
 

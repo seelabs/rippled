@@ -32,7 +32,8 @@ class RPCSubImp
     : public RPCSub
 {
 public:
-    RPCSubImp (InfoSub::Source& source, boost::asio::io_service& io_service,
+    RPCSubImp (ThrowToken throwToken,
+        InfoSub::Source& source, boost::asio::io_service& io_service,
         JobQueue& jobQueue, std::string const& strUrl, std::string const& strUsername,
              std::string const& strPassword, Logs& logs)
         : RPCSub (source)
@@ -49,11 +50,11 @@ public:
         parsedURL pUrl;
 
         if (!parseUrl (pUrl, strUrl))
-            Throw<std::runtime_error> ("Failed to parse url.");
+            Throw<std::runtime_error> (throwToken, "Failed to parse url.");
         else if (pUrl.scheme == "https")
             mSSL = true;
         else if (pUrl.scheme != "http")
-            Throw<std::runtime_error> ("Only http and https is supported.");
+            Throw<std::runtime_error> (throwToken, "Only http and https is supported.");
 
         mSeq = 1;
 

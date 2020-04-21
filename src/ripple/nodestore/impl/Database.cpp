@@ -27,6 +27,7 @@ namespace ripple {
 namespace NodeStore {
 
 Database::Database(
+    ThrowToken throwToken,
     std::string name,
     Stoppable& parent,
     Scheduler& scheduler,
@@ -42,7 +43,7 @@ Database::Database(
         XRP_LEDGER_EARLIEST_SEQ))
 {
     if (earliestLedgerSeq_ < 1)
-        Throw<std::runtime_error>("Invalid earliest_seq");
+        Throw<std::runtime_error>(throwToken, "Invalid earliest_seq");
 
     while (readThreads-- > 0)
         readThreads_.emplace_back(&Database::threadEntry, this);

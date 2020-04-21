@@ -53,7 +53,7 @@ private:
         that are too small to be represented normalize to 0.
     */
     void
-    normalize ();
+    normalize (ThrowToken throwToken);
 
 public:
     IOUAmount () = default;
@@ -144,7 +144,7 @@ to_string (IOUAmount const& amount);
    dividing by den.
 */
 IOUAmount
-mulRatio (
+mulRatio (ThrowToken throwToken,
     IOUAmount const& amt,
     std::uint32_t num,
     std::uint32_t den,

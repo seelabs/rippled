@@ -59,14 +59,14 @@ public:
         beast::Journal journal) override;
 
     MemoryDB&
-    open (std::string const& path)
+    open (ThrowToken throwToken, std::string const& path)
     {
         std::lock_guard _(mutex_);
         auto const result = map_.emplace (std::piecewise_construct,
             std::make_tuple(path), std::make_tuple());
         MemoryDB& db = result.first->second;
         if (db.open)
-            Throw<std::runtime_error> ("already open");
+            Throw<std::runtime_error> (throwToken, "already open");
         return db;
     }
 };
@@ -85,14 +85,14 @@ private:
     MemoryDB* db_ {nullptr};
 
 public:
-    MemoryBackend (size_t keyBytes, Section const& keyValues,
+    MemoryBackend (ThrowToken throwToken, size_t keyBytes, Section const& keyValues,
         Scheduler& scheduler, beast::Journal journal)
         : name_ (get<std::string>(keyValues, "path"))
         , journal_ (journal)
     {
         boost::ignore_unused (journal_); // Keep unused journal_ just in case.
         if (name_.empty())
-            Throw<std::runtime_error> ("Missing path in Memory backend");
+            Throw<std::runtime_error> (throwToken, "Missing path in Memory backend");
     }
 
     ~MemoryBackend () override
@@ -107,9 +107,9 @@ public:
     }
 
     void
-    open(bool createIfMissing) override
+    open(ThrowToken throwToken, bool createIfMissing) override
     {
-        db_ = &memoryFactory.open(name_);
+        db_ = &memoryFactory.open(throwToken, name_);
     }
 
     void
@@ -147,7 +147,7 @@ public:
     std::vector<std::shared_ptr<NodeObject>>
     fetchBatch (std::size_t n, void const* const* keys) override
     {
-        Throw<std::runtime_error> ("pure virtual called");
+        Throw<std::runtime_error> (ThrowToken{false}, "pure virtual called");
         return {};
     }
 

@@ -746,7 +746,7 @@ Transactor::operator()()
         // *never* trigger but if it, somehow, happens, don't allow a tx
         // that charges a negative fee.
         if (fee < beast::zero)
-            Throw<std::logic_error> ("fee charged is negative!");
+            Throw<std::logic_error> (ThrowToken{false}, "fee charged is negative!");
 
         // Charge whatever fee they specified. The fee has already been
         // deducted from the balance of the account that issued the

@@ -74,7 +74,7 @@ public:
         {
             // Cannot run the test. Someone created a file where we want to
             // put our directory
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (ThrowToken{false},
                 "Cannot create directory: " + subDir_.string ());
         }
     }
@@ -131,7 +131,7 @@ public:
         }
         else
         {
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (ThrowToken{false},
                 "Refusing to overwrite existing file: " +
                 file_.string ());
         }

@@ -655,7 +655,7 @@ static Json::Value transactionFormatResultImpl (Transaction::pointer tpTrans)
 
 //------------------------------------------------------------------------------
 
-Json::Value checkFee (
+Json::Value checkFee (ThrowToken throwToken,
     Json::Value& request,
     Role const role,
     bool doAutoFill,
@@ -731,10 +731,10 @@ Json::Value checkFee (
         auto const drops = mulDiv (feeDefault,
             ledger->fees().base, ledger->fees().units);
         if (!drops.first)
-            Throw<std::overflow_error>("mulDiv");
+            Throw<std::overflow_error>(throwToken, "mulDiv");
         auto const result = mulDiv (drops.second, mult, div);
         if (!result.first)
-            Throw<std::overflow_error>("mulDiv");
+            Throw<std::overflow_error>(throwToken, "mulDiv");
         return result.second;
     }();
 

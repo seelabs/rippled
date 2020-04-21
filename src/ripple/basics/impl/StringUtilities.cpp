@@ -30,19 +30,19 @@
 
 namespace ripple {
 
-uint64_t uintFromHex (std::string const& strSrc)
+uint64_t uintFromHex (ThrowToken throwToken, std::string const& strSrc)
 {
     uint64_t uValue (0);
 
     if (strSrc.size () > 16)
-        Throw<std::invalid_argument> ("overlong 64-bit value");
+        Throw<std::invalid_argument> (throwToken, "overlong 64-bit value");
 
     for (auto c : strSrc)
     {
         int ret = charUnHex (c);
 
         if (ret == -1)
-            Throw<std::invalid_argument> ("invalid hex digit");
+            Throw<std::invalid_argument> (throwToken, "invalid hex digit");
 
         uValue = (uValue << 4) | ret;
     }

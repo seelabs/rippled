@@ -112,11 +112,11 @@ public:
     int addRaw (const Serializer& s);
     int addZeros (size_t uBytes);
 
-    int addVL (Blob const& vector);
-    int addVL (Slice const& slice);
+    int addVL (ThrowToken throwToken, Blob const& vector);
+    int addVL (ThrowToken throwToken, Slice const& slice);
     template<class Iter>
-    int addVL (Iter begin, Iter end, int len);
-    int addVL (const void* ptr, int len);
+    int addVL (ThrowToken throwToken, Iter begin, Iter end, int len);
+    int addVL (ThrowToken throwToken, const void* ptr, int len);
 
     // disassemble functions
     bool get8 (int&, int offset) const;
@@ -157,8 +157,8 @@ public:
     bool getRaw (Blob&, int offset, int length) const;
     Blob getRaw (int offset, int length) const;
 
-    bool getVL (Blob& objectVL, int offset, int& length) const;
-    bool getVLLength (int& length, int offset) const;
+    bool getVL (ThrowToken throwToken, Blob& objectVL, int offset, int& length) const;
+    bool getVLLength (ThrowToken throwToken, int& length, int offset) const;
 
     int addFieldID (int type, int name);
     int addFieldID (SerializedTypeID type, int name)
@@ -276,23 +276,23 @@ public:
         return h.str ();
     }
 
-    static int decodeLengthLength (int b1);
-    static int decodeVLLength (int b1);
-    static int decodeVLLength (int b1, int b2);
-    static int decodeVLLength (int b1, int b2, int b3);
+    static int decodeLengthLength (ThrowToken throwToken, int b1);
+    static int decodeVLLength (ThrowToken throwToken, int b1);
+    static int decodeVLLength (ThrowToken throwToken, int b1, int b2);
+    static int decodeVLLength (ThrowToken throwToken, int b1, int b2, int b3);
 private:
-    static int lengthVL (int length)
+    static int lengthVL (ThrowToken throwToken, int length)
     {
-        return length + encodeLengthLength (length);
+        return length + encodeLengthLength (throwToken, length);
     }
-    static int encodeLengthLength (int length); // length to encode length
-    int addEncoded (int length);
+    static int encodeLengthLength (ThrowToken throwToken, int length); // length to encode length
+    int addEncoded (ThrowToken throwToken, int length);
 };
 
 template<class Iter>
-int Serializer::addVL(Iter begin, Iter end, int len)
+int Serializer::addVL(ThrowToken throwToken, Iter begin, Iter end, int len)
 {
-    int ret = addEncoded(len);
+    int ret = addEncoded(throwToken, len);
     for (; begin != end; ++begin)
     {
         addRaw(begin->data(), begin->size());
@@ -349,77 +349,77 @@ public:
 
     // get functions throw on error
     unsigned char
-    get8();
+    get8(ThrowToken throwToken);
 
     std::uint16_t
-    get16();
+    get16(ThrowToken throwToken);
 
     std::uint32_t
-    get32();
+    get32(ThrowToken throwToken);
 
     std::uint64_t
-    get64();
+    get64(ThrowToken throwToken);
 
     template <int Bits, class Tag = void>
     base_uint<Bits, Tag>
-    getBitString();
+    getBitString(ThrowToken throwToken);
 
     uint128
-    get128()
+    get128(ThrowToken throwToken)
     {
-        return getBitString<128>();
+        return getBitString<128>(throwToken);
     }
 
     uint160
-    get160()
+    get160(ThrowToken throwToken)
     {
-        return getBitString<160>();
+        return getBitString<160>(throwToken);
     }
 
     uint256
-    get256()
+    get256(ThrowToken throwToken)
     {
-        return getBitString<256>();
+        return getBitString<256>(throwToken);
     }
 
     void
-    getFieldID (int& type, int& name);
+    getFieldID (ThrowToken throwToken, int& type, int& name);
 
     // Returns the size of the VL if the
     // next object is a VL. Advances the iterator
     // to the beginning of the VL.
     int
-    getVLDataLength ();
+    getVLDataLength (ThrowToken throwToken);
 
     Slice
-    getSlice (std::size_t bytes);
+    getSlice (ThrowToken throwToken, std::size_t bytes);
 
     // VFALCO DEPRECATED Returns a copy
     Blob
-    getRaw (int size);
+    getRaw (ThrowToken throwToken, int size);
 
     // VFALCO DEPRECATED Returns a copy
     Blob
-    getVL();
+    getVL(ThrowToken throwToken);
 
     void
-    skip (int num);
+    skip (ThrowToken throwToken, int num);
 
     Buffer
-    getVLBuffer();
+    getVLBuffer(ThrowToken throwToken);
 
     template<class T>
-    T getRawHelper (int size);
+    T getRawHelper (ThrowToken throwToken, int size);
 };
 
 template <int Bits, class Tag>
 base_uint<Bits, Tag>
-SerialIter::getBitString()
+SerialIter::getBitString(ThrowToken throwToken)
 {
     base_uint<Bits, Tag> u;
     auto const n = Bits/8;
     if (remain_ < n)
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken,
             "invalid SerialIter getBitString");
     std::memcpy (u.begin(), p_, n);
     p_ += n;

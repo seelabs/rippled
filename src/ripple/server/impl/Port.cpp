@@ -72,7 +72,7 @@ operator<< (std::ostream& os, Port const& p)
 
 static
 void
-populate (Section const& section, std::string const& field, std::ostream& log,
+populate (ThrowToken throwToken, Section const& section, std::string const& field, std::ostream& log,
     boost::optional<std::vector<beast::IP::Address>>& ips,
     bool allowAllIps, std::vector<beast::IP::Address> const& admin_ip)
 {
@@ -91,7 +91,7 @@ populate (Section const& section, std::string const& field, std::ostream& log,
             {
                 log << "Invalid value '" << ip << "' for key '" << field <<
                     "' in [" << section.name () << "]";
-                Throw<std::exception> ();
+                Throw<std::exception> (throwToken);
             }
 
             if (is_unspecified (*addr))
@@ -101,7 +101,7 @@ populate (Section const& section, std::string const& field, std::ostream& log,
                     log << addr->address() << " not allowed'" <<
                         "' for key '" << field << "' in [" <<
                         section.name () << "]";
-                    Throw<std::exception> ();
+                    Throw<std::exception> (throwToken);
                 }
                 else
                 {
@@ -114,7 +114,7 @@ populate (Section const& section, std::string const& field, std::ostream& log,
                 log << "IP specified along with " << addr->address() <<
                     " '" << ip << "' for key '" << field << "' in [" <<
                     section.name () << "]";
-                Throw<std::exception> ();
+                Throw<std::exception> (throwToken);
             }
 
             auto const& address = addr->address();
@@ -127,7 +127,7 @@ populate (Section const& section, std::string const& field, std::ostream& log,
             {
                 log << "IP specified for " << field << " is also for " <<
                     "admin: " << ip << " in [" << section.name() << "]";
-                Throw<std::exception> ();
+                Throw<std::exception> (throwToken);
             }
 
             ips->emplace_back (addr->address ());
@@ -150,7 +150,7 @@ parse_Port (ParsedPort& port, Section const& section, std::ostream& log)
             {
                 log << "Invalid value '" << result.first <<
                     "' for key 'ip' in [" << section.name() << "]";
-                Rethrow();
+                Rethrow(ThrowToken{false});
             }
         }
     }
@@ -166,14 +166,14 @@ parse_Port (ParsedPort& port, Section const& section, std::ostream& log)
 
                 // Port 0 is not supported
                 if (*port.port == 0)
-                    Throw<std::exception> ();
+                    Throw<std::exception> (ThrowToken{false});
             }
             catch (std::exception const&)
             {
                 log <<
                     "Invalid value '" << result.first << "' for key " <<
                     "'port' in [" << section.name() << "]";
-                Rethrow();
+                Rethrow(ThrowToken{false});
             }
         }
     }
@@ -203,7 +203,7 @@ parse_Port (ParsedPort& port, Section const& section, std::ostream& log)
                 log <<
                     "Invalid value '" << lim << "' for key " <<
                     "'limit' in [" << section.name() << "]";
-                Rethrow();
+                Rethrow(ThrowToken{false});
             }
         }
     }
@@ -219,14 +219,14 @@ parse_Port (ParsedPort& port, Section const& section, std::ostream& log)
 
                 // Queue must be greater than 0
                 if (port.ws_queue_limit == 0)
-                    Throw<std::exception>();
+                    Throw<std::exception>(ThrowToken{false});
             }
             catch (std::exception const&)
             {
                 log <<
                     "Invalid value '" << result.first << "' for key " <<
                     "'send_queue_limit' in [" << section.name() << "]";
-                Rethrow();
+                Rethrow(ThrowToken{false});
             }
         }
         else

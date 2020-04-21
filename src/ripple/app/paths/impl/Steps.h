@@ -353,7 +353,7 @@ normalizePath(AccountID const& src,
    @return Error code and constructed Strand
 */
 std::pair<TER, Strand>
-toStrand (
+toStrand (ThrowToken throwToken,
     ReadView const& sb,
     AccountID const& src,
     AccountID const& dst,
@@ -389,7 +389,8 @@ toStrand (
    @return error code and collection of strands
 */
 std::pair<TER, std::vector<Strand>>
-toStrands (ReadView const& sb,
+toStrands (ThrowToken throwToken,
+    ReadView const& sb,
     AccountID const& src,
     AccountID const& dst,
     Issue const& deliver,

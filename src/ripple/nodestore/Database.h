@@ -64,7 +64,7 @@ public:
         @param config The configuration settings
         @param journal Destination for logging output.
     */
-    Database(std::string name, Stoppable& parent, Scheduler& scheduler,
+    Database(ThrowToken throwToken, std::string name, Stoppable& parent, Scheduler& scheduler,
         int readThreads, Section const& config, beast::Journal j);
 
     /** Destroy the node store.

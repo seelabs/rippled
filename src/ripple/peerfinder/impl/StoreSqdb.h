@@ -135,7 +135,7 @@ public:
 
     // Convert any existing entries from an older schema to the
     // current one, if appropriate.
-    void update ()
+    void update (ThrowToken throwToken)
     {
         soci::transaction tr (m_session);
         // get version
@@ -164,7 +164,7 @@ public:
             }
             else if (version > currentSchemaVersion)
             {
-                Throw<std::runtime_error> (
+                Throw<std::runtime_error> (throwToken,
                     "The PeerFinder database version is higher than expected");
             }
         }

@@ -35,7 +35,7 @@ static int const minExponent = -96;
 static int const maxExponent = 80;
 
 void
-IOUAmount::normalize ()
+IOUAmount::normalize (ThrowToken throwToken)
 {
     if (mantissa_ == 0)
     {
@@ -57,7 +57,7 @@ IOUAmount::normalize ()
     while (mantissa_ > maxMantissa)
     {
         if (exponent_ >= maxExponent)
-            Throw<std::overflow_error> ("IOUAmount::normalize");
+            Throw<std::overflow_error> (throwToken, "IOUAmount::normalize");
 
         mantissa_ /= 10;
         ++exponent_;
@@ -70,7 +70,7 @@ IOUAmount::normalize ()
     }
 
     if (exponent_ > maxExponent)
-        Throw<std::overflow_error> ("value overflow");
+        Throw<std::overflow_error> (throwToken, "value overflow");
 
     if (negative)
         mantissa_ = -mantissa_;
@@ -113,7 +113,8 @@ IOUAmount::operator+= (IOUAmount const& other)
         return *this;
     }
 
-    normalize ();
+    // Can't add a token to the move constructor
+    normalize (ThrowToken{false});
 
     return *this;
 }
@@ -245,7 +246,7 @@ to_string (IOUAmount const& amount)
 }
 
 IOUAmount
-mulRatio (
+mulRatio (ThrowToken throwToken,
     IOUAmount const& amt,
     std::uint32_t num,
     std::uint32_t den,
@@ -254,7 +255,7 @@ mulRatio (
     using namespace boost::multiprecision;
 
     if (!den)
-        Throw<std::runtime_error> ("division by zero");
+        Throw<std::runtime_error> (throwToken, "division by zero");
 
     // A vector with the value 10^index for indexes from 0 to 29
     // The largest intermediate value we expect is 2^96, which

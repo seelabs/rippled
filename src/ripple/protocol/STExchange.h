@@ -131,7 +131,8 @@ struct STExchange<STBlob, Buffer>
 /** @{ */
 template <class T, class U>
 boost::optional<T>
-get (STObject const& st,
+get (ThrowToken throwToken,
+     STObject const& st,
     TypedField<U> const& f)
 {
     boost::optional<T> t;
@@ -146,7 +147,7 @@ get (STObject const& st,
         dynamic_cast<U const*>(b);
     // This should never happen
     if (! u)
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken,
             "Wrong field type");
     STExchange<U, T>::get(t, *u);
     return t;

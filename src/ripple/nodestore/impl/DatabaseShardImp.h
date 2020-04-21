@@ -251,7 +251,7 @@ private:
     void
     for_each(std::function <void(std::shared_ptr<NodeObject>)> f) override
     {
-        Throw<std::runtime_error>("Shard store import not supported");
+        Throw<std::runtime_error>(ThrowToken{false}, "Shard store import not supported");
     }
 
     // Randomly select a shard index not stored

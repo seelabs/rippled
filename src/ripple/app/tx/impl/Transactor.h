@@ -162,14 +162,14 @@ public:
 
 protected:
     TER
-    apply();
+    apply(ThrowToken throwToken);
 
     explicit
     Transactor (ApplyContext& ctx);
 
     virtual void preCompute();
 
-    virtual TER doApply () = 0;
+    virtual TER doApply (ThrowToken throwToken) = 0;
 
     /** Compute the minimum fee required to process a transaction
         with a given baseFee based on the current server load.

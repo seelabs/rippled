@@ -25,7 +25,7 @@
 
 namespace ripple {
 
-DatabaseCon::Setup setup_DatabaseCon (Config const& c)
+DatabaseCon::Setup setup_DatabaseCon (ThrowToken throwToken, Config const& c)
 {
     DatabaseCon::Setup setup;
 
@@ -34,17 +34,17 @@ DatabaseCon::Setup setup_DatabaseCon (Config const& c)
     setup.dataDir = c.legacy ("database_path");
     if (!setup.standAlone && setup.dataDir.empty())
     {
-        Throw<std::runtime_error>(
+        Throw<std::runtime_error>(throwToken,
             "database_path must be set.");
     }
 
     return setup;
 }
 
-void DatabaseCon::setupCheckpointing (JobQueue* q, Logs& l)
+void DatabaseCon::setupCheckpointing (ThrowToken throwToken, JobQueue* q, Logs& l)
 {
     if (! q)
-        Throw<std::logic_error> ("No JobQueue");
+        Throw<std::logic_error> (throwToken, "No JobQueue");
     checkpointer_ = makeCheckpointer (session_, *q, l);
 }
 

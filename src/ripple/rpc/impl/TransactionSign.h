@@ -61,7 +61,7 @@ namespace RPC {
 
     @return         A JSON object containing the error results, if any
 */
-Json::Value checkFee (
+Json::Value checkFee (ThrowToken throwToken,
     Json::Value& request,
     Role const role,
     bool doAutoFill,

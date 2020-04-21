@@ -207,13 +207,13 @@ public:
         @return an `Amounts` describing the flow achieved during cross
     */
     BasicTaker::Flow
-    do_cross (Amounts offer, Quality quality, AccountID const& owner);
+    do_cross (ThrowToken throwToken, Amounts offer, Quality quality, AccountID const& owner);
 
     /** Perform bridged crossing through given offers.
         @return a pair of `Amounts` describing the flow achieved during cross
     */
     std::pair<BasicTaker::Flow, BasicTaker::Flow>
-    do_cross (
+    do_cross (ThrowToken throwToken,
         Amounts offer1, Quality quality1, AccountID const& owner1,
         Amounts offer2, Quality quality2, AccountID const& owner2);
 
@@ -238,7 +238,7 @@ public:
     ~Taker () = default;
 
     void
-    consume_offer (Offer& offer, Amounts const& order);
+    consume_offer (ThrowToken throwToken, Offer& offer, Amounts const& order);
 
     STAmount
     get_funds (AccountID const& account, STAmount const& funds) const override;
@@ -267,10 +267,10 @@ public:
     */
     /** @{ */
     TER
-    cross (Offer& offer);
+    cross (ThrowToken throwToken, Offer& offer);
 
     TER
-    cross (Offer& leg1, Offer& leg2);
+    cross (ThrowToken throwToken, Offer& leg1, Offer& leg2);
     /** @} */
 
 private:
@@ -281,21 +281,21 @@ private:
             AccountID const& account);
 
     TER
-    fill (BasicTaker::Flow const& flow, Offer& offer);
+    fill (ThrowToken throwToken, BasicTaker::Flow const& flow, Offer& offer);
 
     TER
-    fill (
+    fill (ThrowToken throwToken,
         BasicTaker::Flow const& flow1, Offer& leg1,
         BasicTaker::Flow const& flow2, Offer& leg2);
 
     TER
-    transferXRP (AccountID const& from, AccountID const& to, STAmount const& amount);
+    transferXRP (ThrowToken throwToken, AccountID const& from, AccountID const& to, STAmount const& amount);
 
     TER
-    redeemIOU (AccountID const& account, STAmount const& amount, Issue const& issue);
+    redeemIOU (ThrowToken throwToken, AccountID const& account, STAmount const& amount, Issue const& issue);
 
     TER
-    issueIOU (AccountID const& account, STAmount const& amount, Issue const& issue);
+    issueIOU (ThrowToken throwToken, AccountID const& account, STAmount const& amount, Issue const& issue);
 
 private:
     // The underlying ledger entry we are dealing with

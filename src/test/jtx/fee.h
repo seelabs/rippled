@@ -50,17 +50,17 @@ public:
     }
 
     explicit
-    fee (STAmount const& amount)
+    fee (ThrowToken throwToken, STAmount const& amount)
         : amount_(amount)
     {
         if (! isXRP(*amount_))
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (throwToken,
                 "fee: not XRP");
     }
 
     explicit
-    fee(std::uint64_t amount)
-        : fee{STAmount{amount}}
+    fee(ThrowToken throwToken, std::uint64_t amount)
+        : fee{throwToken, STAmount{amount}}
     {
     }
 

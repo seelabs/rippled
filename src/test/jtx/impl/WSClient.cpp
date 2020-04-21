@@ -129,7 +129,8 @@ class WSClientImpl : public WSClient
     }
 
 public:
-    WSClientImpl(Config const& cfg, bool v2, unsigned rpc_version,
+    WSClientImpl(ThrowToken throwToken,
+        Config const& cfg, bool v2, unsigned rpc_version,
         std::unordered_map<std::string, std::string> const& headers = {})
         : work_(ios_)
         , strand_(ios_)
@@ -156,7 +157,7 @@ public:
         catch(std::exception&)
         {
             cleanup();
-            Rethrow();
+            Rethrow(throwToken);
         }
     }
 

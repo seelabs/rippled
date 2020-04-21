@@ -37,7 +37,7 @@ STAccount::STAccount (SField const& n)
 {
 }
 
-STAccount::STAccount (SField const& n, Buffer&& v)
+STAccount::STAccount (ThrowToken throwToken, SField const& n, Buffer&& v)
     : STAccount (n)
 {
     if (v.empty())
@@ -49,14 +49,14 @@ STAccount::STAccount (SField const& n, Buffer&& v)
     // which throws.  If STVar can throw in its constructor, then so can
     // STAccount.
     if (v.size() != uint160::bytes)
-        Throw<std::runtime_error> ("Invalid STAccount size");
+        Throw<std::runtime_error> (throwToken, "Invalid STAccount size");
 
     default_ = false;
     memcpy (value_.begin(), v.data (), uint160::bytes);
 }
 
-STAccount::STAccount (SerialIter& sit, SField const& name)
-    : STAccount(name, sit.getVLBuffer())
+STAccount::STAccount (ThrowToken throwToken, SerialIter& sit, SField const& name)
+    : STAccount(throwToken, name, sit.getVLBuffer(throwToken))
 {
 }
 

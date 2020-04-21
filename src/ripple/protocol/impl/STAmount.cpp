@@ -42,10 +42,10 @@ static const std::uint64_t tenTo17 = tenTo14 * 1000;
 //------------------------------------------------------------------------------
 static
 std::int64_t
-getSNValue (STAmount const& amount)
+getSNValue (ThrowToken throwToken, STAmount const& amount)
 {
     if (!amount.native ())
-        Throw<std::runtime_error> ("amount is not native!");
+        Throw<std::runtime_error> (throwToken, "amount is not native!");
 
     auto ret = static_cast<std::int64_t>(amount.mantissa ());
 
@@ -65,10 +65,10 @@ areComparable (STAmount const& v1, STAmount const& v2)
         v1.issue().currency == v2.issue().currency;
 }
 
-STAmount::STAmount(SerialIter& sit, SField const& name)
+STAmount::STAmount(ThrowToken throwToken, SerialIter& sit, SField const& name)
     : STBase(name)
 {
-    std::uint64_t value = sit.get64 ();
+    std::uint64_t value = sit.get64 (throwToken);
 
     // native
     if ((value & cNotNative) == 0)
@@ -85,7 +85,7 @@ STAmount::STAmount(SerialIter& sit, SField const& name)
 
         // negative
         if (value == 0)
-            Throw<std::runtime_error> ("negative zero is not canonical");
+            Throw<std::runtime_error> (throwToken, "negative zero is not canonical");
 
         mValue = value;
         mOffset = 0;
@@ -95,15 +95,15 @@ STAmount::STAmount(SerialIter& sit, SField const& name)
     }
 
     Issue issue;
-    issue.currency = sit.get160();
+    issue.currency = sit.get160(throwToken);
 
     if (isXRP (issue.currency))
-        Throw<std::runtime_error> ("invalid native currency");
+        Throw<std::runtime_error> (throwToken, "invalid native currency");
 
-    issue.account = sit.get160();
+    issue.account = sit.get160(throwToken);
 
     if (isXRP (issue.account))
-        Throw<std::runtime_error> ("invalid native account");
+        Throw<std::runtime_error> (throwToken, "invalid native account");
 
     // 10 bits for the offset, sign and "not native" flag
     int offset = static_cast<int>(value >> (64 - 10));
@@ -120,25 +120,25 @@ STAmount::STAmount(SerialIter& sit, SField const& name)
             offset < cMinOffset ||
             offset > cMaxOffset)
         {
-            Throw<std::runtime_error> ("invalid currency value");
+            Throw<std::runtime_error> (throwToken, "invalid currency value");
         }
 
         mIssue = issue;
         mValue = value;
         mOffset = offset;
         mIsNegative = isNegative;
-        canonicalize();
+        canonicalize(throwToken);
         return;
     }
 
     if (offset != 512)
-        Throw<std::runtime_error> ("invalid currency value");
+        Throw<std::runtime_error> (throwToken, "invalid currency value");
 
     mIssue = issue;
     mValue = 0;
     mOffset = 0;
     mIsNegative = false;
-    canonicalize();
+    canonicalize(throwToken);
 }
 
 STAmount::STAmount (SField const& name, Issue const& issue,
@@ -165,7 +165,7 @@ STAmount::STAmount (Issue const& issue,
 }
 
 
-STAmount::STAmount (SField const& name, Issue const& issue,
+STAmount::STAmount (ThrowToken throwToken, SField const& name, Issue const& issue,
         mantissa_type mantissa, exponent_type exponent,
             bool native, bool negative)
     : STBase (name)
@@ -175,7 +175,7 @@ STAmount::STAmount (SField const& name, Issue const& issue,
     , mIsNative (native)
     , mIsNegative (negative)
 {
-    canonicalize();
+    canonicalize(throwToken);
 }
 
 STAmount::STAmount (SField const& name, std::int64_t mantissa)
@@ -197,7 +197,7 @@ STAmount::STAmount (SField const& name,
     assert(mValue <= std::numeric_limits<std::int64_t>::max());
 }
 
-STAmount::STAmount (SField const& name, Issue const& issue,
+STAmount::STAmount (ThrowToken throwToken, SField const& name, Issue const& issue,
         std::uint64_t mantissa, int exponent, bool negative)
     : STBase (name)
     , mIssue (issue)
@@ -206,7 +206,7 @@ STAmount::STAmount (SField const& name, Issue const& issue,
     , mIsNegative (negative)
 {
     assert(mValue <= std::numeric_limits<std::int64_t>::max());
-    canonicalize ();
+    canonicalize (throwToken);
 }
 
 //------------------------------------------------------------------------------
@@ -220,23 +220,23 @@ STAmount::STAmount (std::uint64_t mantissa, bool negative)
     assert(mValue <= std::numeric_limits<std::int64_t>::max());
 }
 
-STAmount::STAmount (Issue const& issue,
+STAmount::STAmount (ThrowToken throwToken, Issue const& issue,
     std::uint64_t mantissa, int exponent, bool negative)
     : mIssue (issue)
     , mValue (mantissa)
     , mOffset (exponent)
     , mIsNegative (negative)
 {
-    canonicalize ();
+    canonicalize (throwToken);
 }
 
-STAmount::STAmount (Issue const& issue,
+STAmount::STAmount (ThrowToken throwToken, Issue const& issue,
         std::int64_t mantissa, int exponent)
     : mIssue (issue)
     , mOffset (exponent)
 {
     set (mantissa);
-    canonicalize ();
+    canonicalize (throwToken);
 }
 
 STAmount::STAmount (Issue const& issue,
@@ -245,14 +245,14 @@ STAmount::STAmount (Issue const& issue,
 {
 }
 
-STAmount::STAmount (Issue const& issue,
+STAmount::STAmount (ThrowToken throwToken, Issue const& issue,
         int mantissa, int exponent)
-    : STAmount (issue, safe_cast<std::int64_t>(mantissa), exponent)
+    : STAmount (throwToken, issue, safe_cast<std::int64_t>(mantissa), exponent)
 {
 }
 
 // Legacy support for new-style amounts
-STAmount::STAmount (IOUAmount const& amount, Issue const& issue)
+STAmount::STAmount (ThrowToken throwToken, IOUAmount const& amount, Issue const& issue)
     : mIssue (issue)
     , mOffset (amount.exponent ())
     , mIsNative (false)
@@ -263,10 +263,10 @@ STAmount::STAmount (IOUAmount const& amount, Issue const& issue)
     else
         mValue = static_cast<std::uint64_t> (amount.mantissa ());
 
-    canonicalize ();
+    canonicalize (throwToken);
 }
 
-STAmount::STAmount (XRPAmount const& amount)
+STAmount::STAmount (ThrowToken throwToken, XRPAmount const& amount)
     : mOffset (0)
     , mIsNative (true)
     , mIsNegative (amount < beast::zero)
@@ -276,7 +276,7 @@ STAmount::STAmount (XRPAmount const& amount)
     else
         mValue = unsafe_cast<std::uint64_t> (amount.drops ());
 
-    canonicalize ();
+    canonicalize (throwToken);
 }
 
 std::unique_ptr<STAmount>
@@ -291,10 +291,10 @@ STAmount::construct (SerialIter& sit, SField const& name)
 //
 //------------------------------------------------------------------------------
 XRPAmount
-STAmount::xrp () const
+STAmount::xrp (ThrowToken throwToken) const
 {
     if (!mIsNative)
-        Throw<std::logic_error> (
+        Throw<std::logic_error> (throwToken,
             "Cannot return non-native STAmount as XRPAmount");
 
     auto drops = static_cast<XRPAmount::value_type> (mValue);
@@ -306,10 +306,10 @@ STAmount::xrp () const
 }
 
 IOUAmount
-STAmount::iou () const
+STAmount::iou (ThrowToken throwToken) const
 {
     if (mIsNative)
-        Throw<std::logic_error> ("Cannot return native STAmount as IOUAmount");
+        Throw<std::logic_error> (throwToken, "Cannot return native STAmount as IOUAmount");
 
     auto mantissa = static_cast<std::int64_t> (mValue);
     auto exponent = mOffset;
@@ -341,7 +341,8 @@ STAmount& STAmount::operator-= (STAmount const& a)
 STAmount operator+ (STAmount const& v1, STAmount const& v2)
 {
     if (!areComparable (v1, v2))
-        Throw<std::runtime_error> ("Can't add amounts that are't comparable!");
+        // Can't add token to operator
+        Throw<std::runtime_error> (ThrowToken{false}, "Can't add amounts that are't comparable!");
 
     if (v2 == beast::zero)
         return v1;
@@ -637,7 +638,7 @@ STAmount::isEquivalent (const STBase& t) const
 // mValue is zero if the amount is zero, otherwise it's within the range
 //    10^15 to (10^16 - 1) inclusive.
 // mOffset is in the range -96 to +80.
-void STAmount::canonicalize ()
+void STAmount::canonicalize (ThrowToken throwToken)
 {
     if (isXRP (*this))
     {
@@ -664,7 +665,7 @@ void STAmount::canonicalize ()
         }
 
         if (mValue > cMaxNativeN)
-            Throw<std::runtime_error> ("Native currency amount out of range");
+            Throw<std::runtime_error> (throwToken, "Native currency amount out of range");
 
         return;
     }
@@ -687,7 +688,7 @@ void STAmount::canonicalize ()
     while (mValue > cMaxValue)
     {
         if (mOffset >= cMaxOffset)
-            Throw<std::runtime_error> ("value overflow");
+            Throw<std::runtime_error> (throwToken, "value overflow");
 
         mValue /= 10;
         ++mOffset;
@@ -702,7 +703,7 @@ void STAmount::canonicalize ()
     }
 
     if (mOffset > cMaxOffset)
-        Throw<std::runtime_error> ("value overflow");
+        Throw<std::runtime_error> (throwToken, "value overflow");
 
     assert ((mValue == 0) || ((mValue >= cMinValue) && (mValue <= cMaxValue)));
     assert ((mValue == 0) || ((mOffset >= cMinOffset) && (mOffset <= cMaxOffset)));
@@ -729,7 +730,7 @@ STAmount
 amountFromQuality (std::uint64_t rate)
 {
     if (rate == 0)
-        return STAmount (noIssue());
+        return STAmount (ThrowToken{false}, noIssue());
 
     std::uint64_t mantissa = rate & ~ (255ull << (64 - 8));
     int exponent = static_cast<int>(rate >> (64 - 8)) - 100;
@@ -738,7 +739,7 @@ amountFromQuality (std::uint64_t rate)
 }
 
 STAmount
-amountFromString (Issue const& issue, std::string const& amount)
+amountFromString (ThrowToken throwToken, Issue const& issue, std::string const& amount)
 {
     static boost::regex const reNumber (
         "^"                       // the beginning of the string
@@ -752,7 +753,7 @@ amountFromString (Issue const& issue, std::string const& amount)
     boost::smatch match;
 
     if (!boost::regex_match (amount, match, reNumber))
-        Throw<std::runtime_error> ("Number '" + amount + "' is not valid");
+        Throw<std::runtime_error> (throwToken, "Number '" + amount + "' is not valid");
 
     // Match fields:
     //   0 = whole input
@@ -766,13 +767,13 @@ amountFromString (Issue const& issue, std::string const& amount)
 
     // CHECKME: Why 32? Shouldn't this be 16?
     if ((match[2].length () + match[4].length ()) > 32)
-        Throw<std::runtime_error> ("Number '" + amount + "' is overlong");
+        Throw<std::runtime_error> (throwToken, "Number '" + amount + "' is overlong");
 
     bool negative = (match[1].matched && (match[1] == "-"));
 
     // Can't specify XRP using fractional representation
     if (isXRP(issue) && match[3].matched)
-        Throw<std::runtime_error> ("XRP must be specified in integral drops.");
+        Throw<std::runtime_error> (throwToken, "XRP must be specified in integral drops.");
 
     std::uint64_t mantissa;
     int exponent;
@@ -798,11 +799,11 @@ amountFromString (Issue const& issue, std::string const& amount)
             exponent += beast::lexicalCastThrow <int> (std::string (match[7]));
     }
 
-    return { issue, mantissa, exponent, negative };
+    return { throwToken, issue, mantissa, exponent, negative };
 }
 
 STAmount
-amountFromJson (SField const& name, Json::Value const& v)
+amountFromJson (ThrowToken throwToken, SField const& name, Json::Value const& v)
 {
     STAmount::mantissa_type mantissa = 0;
     STAmount::exponent_type exponent = 0;
@@ -815,7 +816,7 @@ amountFromJson (SField const& name, Json::Value const& v)
 
     if (v.isNull())
     {
-        Throw<std::runtime_error> ("XRP may not be specified with a null Json value");
+        Throw<std::runtime_error> (throwToken, "XRP may not be specified with a null Json value");
     }
     else if (v.isObject())
     {
@@ -831,12 +832,12 @@ amountFromJson (SField const& name, Json::Value const& v)
     }
     else if (v.isString ())
     {
-        std::string val = v.asString ();
+        std::string val = v.asString (throwToken);
         std::vector<std::string> elements;
         boost::split (elements, val, boost::is_any_of ("\t\n\r ,/"));
 
         if (elements.size () > 3)
-            Throw<std::runtime_error> ("invalid amount string");
+            Throw<std::runtime_error> (throwToken, "invalid amount string");
 
         value = elements[0];
 
@@ -852,48 +853,48 @@ amountFromJson (SField const& name, Json::Value const& v)
     }
 
     bool const native = ! currency.isString () ||
-        currency.asString ().empty () ||
-        (currency.asString () == systemCurrencyCode());
+            currency.asString (throwToken).empty () ||
+            (currency.asString (throwToken) == systemCurrencyCode());
 
     if (native)
     {
         if (v.isObjectOrNull ())
-            Throw<std::runtime_error> ("XRP may not be specified as an object");
+            Throw<std::runtime_error> (throwToken, "XRP may not be specified as an object");
         issue = xrpIssue ();
     }
     else
     {
         // non-XRP
-        if (! to_currency (issue.currency, currency.asString ()))
-            Throw<std::runtime_error> ("invalid currency");
+        if (! to_currency (issue.currency, currency.asString (throwToken)))
+            Throw<std::runtime_error> (throwToken, "invalid currency");
 
         if (! issuer.isString ()
-                || !to_issuer (issue.account, issuer.asString ()))
-            Throw<std::runtime_error> ("invalid issuer");
+            || !to_issuer (issue.account, issuer.asString (throwToken)))
+            Throw<std::runtime_error> (throwToken, "invalid issuer");
 
         if (isXRP (issue.currency))
-            Throw<std::runtime_error> ("invalid issuer");
+            Throw<std::runtime_error> (throwToken, "invalid issuer");
     }
 
     if (value.isInt ())
     {
-        if (value.asInt () >= 0)
+        if (value.asInt (throwToken) >= 0)
         {
-            mantissa = value.asInt ();
+            mantissa = value.asInt (throwToken);
         }
         else
         {
-            mantissa = -value.asInt ();
+            mantissa = -value.asInt (throwToken);
             negative = true;
         }
     }
     else if (value.isUInt ())
     {
-        mantissa = v.asUInt ();
+        mantissa = v.asUInt (throwToken);
     }
     else if (value.isString ())
     {
-        auto const ret = amountFromString (issue, value.asString ());
+        auto const ret = amountFromString (throwToken, issue, value.asString (throwToken));
 
         mantissa = ret.mantissa ();
         exponent = ret.exponent ();
@@ -901,10 +902,10 @@ amountFromJson (SField const& name, Json::Value const& v)
     }
     else
     {
-        Throw<std::runtime_error> ("invalid amount type");
+        Throw<std::runtime_error> (throwToken, "invalid amount type");
     }
 
-    return { name, issue, mantissa, exponent, native, negative };
+    return {throwToken, name, issue, mantissa, exponent, native, negative };
 }
 
 bool
@@ -942,7 +943,8 @@ bool
 operator< (STAmount const& lhs, STAmount const& rhs)
 {
     if (!areComparable (lhs, rhs))
-        Throw<std::runtime_error> ("Can't compare amounts that are't comparable!");
+        // Can't add token to operator
+        Throw<std::runtime_error> (ThrowToken{false}, "Can't compare amounts that are't comparable!");
 
     if (lhs.negative() != rhs.negative())
         return lhs.negative();
@@ -987,7 +989,7 @@ operator- (STAmount const& value)
 // without loss of precision:
 static
 std::uint64_t
-muldiv(
+muldiv(ThrowToken throwToken,
     std::uint64_t multiplier,
     std::uint64_t multiplicand,
     std::uint64_t divisor)
@@ -999,7 +1001,7 @@ muldiv(
 
     if (ret > std::numeric_limits<std::uint64_t>::max())
     {
-        Throw<std::overflow_error> ("overflow: (" +
+        Throw<std::overflow_error> (throwToken, "overflow: (" +
             std::to_string (multiplier) + " * " +
             std::to_string (multiplicand) + ") / " +
             std::to_string (divisor));
@@ -1010,7 +1012,7 @@ muldiv(
 
 static
 std::uint64_t
-muldiv_round(
+muldiv_round(ThrowToken throwToken,
     std::uint64_t multiplier,
     std::uint64_t multiplicand,
     std::uint64_t divisor,
@@ -1024,7 +1026,7 @@ muldiv_round(
 
     if (ret > std::numeric_limits<std::uint64_t>::max())
     {
-        Throw<std::overflow_error> ("overflow: ((" +
+        Throw<std::overflow_error> (throwToken, "overflow: ((" +
             std::to_string (multiplier) + " * " +
             std::to_string (multiplicand) + ") + " +
             std::to_string (rounding) + ") / " +
@@ -1035,13 +1037,13 @@ muldiv_round(
 }
 
 STAmount
-divide (STAmount const& num, STAmount const& den, Issue const& issue)
+divide (ThrowToken throwToken, STAmount const& num, STAmount const& den, Issue const& issue)
 {
     if (den == beast::zero)
-        Throw<std::runtime_error> ("division by zero");
+        Throw<std::runtime_error> (throwToken, "division by zero");
 
     if (num == beast::zero)
-        return {issue};
+        return {throwToken, issue};
 
     std::uint64_t numVal = num.mantissa();
     std::uint64_t denVal = den.mantissa();
@@ -1073,29 +1075,29 @@ divide (STAmount const& num, STAmount const& den, Issue const& issue)
     // 10^32 to 10^33) followed by a division, so the result
     // is in the range of 10^16 to 10^15.
     return STAmount (issue,
-        muldiv(numVal, tenTo17, denVal) + 5,
+        muldiv(throwToken, numVal, tenTo17, denVal) + 5,
         numOffset - denOffset - 17,
         num.negative() != den.negative());
 }
 
 STAmount
-multiply (STAmount const& v1, STAmount const& v2, Issue const& issue)
+multiply (ThrowToken throwToken, STAmount const& v1, STAmount const& v2, Issue const& issue)
 {
     if (v1 == beast::zero || v2 == beast::zero)
-        return STAmount (issue);
+        return STAmount (ThrowToken{false}, issue);
 
     if (v1.native() && v2.native() && isXRP (issue))
     {
-        std::uint64_t const minV = getSNValue (v1) < getSNValue (v2)
-                ? getSNValue (v1) : getSNValue (v2);
-        std::uint64_t const maxV = getSNValue (v1) < getSNValue (v2)
-                ? getSNValue (v2) : getSNValue (v1);
+        std::uint64_t const minV = getSNValue (throwToken, v1) < getSNValue (throwToken, v2)
+                ? getSNValue (throwToken, v1) : getSNValue (throwToken, v2);
+        std::uint64_t const maxV = getSNValue (throwToken, v1) < getSNValue (throwToken, v2)
+                ? getSNValue (throwToken, v2) : getSNValue (throwToken, v1);
 
         if (minV > 3000000000ull) // sqrt(cMaxNative)
-            Throw<std::runtime_error> ("Native value overflow");
+            Throw<std::runtime_error> (throwToken, "Native value overflow");
 
         if (((maxV >> 32) * minV) > 2095475792ull) // cMaxNative / 2^32
-            Throw<std::runtime_error> ("Native value overflow");
+            Throw<std::runtime_error> (throwToken, "Native value overflow");
 
         return STAmount (v1.getFName (), minV * maxV);
     }
@@ -1127,8 +1129,8 @@ multiply (STAmount const& v1, STAmount const& v2, Issue const& issue)
     // and 10^16), so their product is in the 10^30 to 10^32
     // range. Dividing their product by 10^14 maintains the
     // precision, by scaling the result to 10^16 to 10^18.
-    return STAmount (issue,
-        muldiv(value1, value2, tenTo14) + 7,
+    return STAmount (throwToken, issue,
+        muldiv(throwToken, value1, value2, tenTo14) + 7,
         offset1 + offset2 + 14,
         v1.negative() != v2.negative());
 }
@@ -1170,26 +1172,26 @@ canonicalizeRound (bool native, std::uint64_t& value, int& offset)
 }
 
 STAmount
-mulRound (STAmount const& v1, STAmount const& v2, Issue const& issue,
+mulRound (ThrowToken throwToken, STAmount const& v1, STAmount const& v2, Issue const& issue,
     bool roundUp)
 {
     if (v1 == beast::zero || v2 == beast::zero)
-        return {issue};
+        return {ThrowToken{false}, issue};
 
     bool const xrp = isXRP (issue);
 
     if (v1.native() && v2.native() && xrp)
     {
-        std::uint64_t minV = (getSNValue (v1) < getSNValue (v2)) ?
-                getSNValue (v1) : getSNValue (v2);
-        std::uint64_t maxV = (getSNValue (v1) < getSNValue (v2)) ?
-                getSNValue (v2) : getSNValue (v1);
+        std::uint64_t minV = (getSNValue (throwToken, v1) < getSNValue (throwToken, v2)) ?
+                getSNValue (throwToken, v1) : getSNValue (throwToken, v2);
+        std::uint64_t maxV = (getSNValue (throwToken, v1) < getSNValue (throwToken, v2)) ?
+                getSNValue (throwToken, v2) : getSNValue (throwToken, v1);
 
         if (minV > 3000000000ull) // sqrt(cMaxNative)
-            Throw<std::runtime_error> ("Native value overflow");
+            Throw<std::runtime_error> (throwToken, "Native value overflow");
 
         if (((maxV >> 32) * minV) > 2095475792ull) // cMaxNative / 2^32
-            Throw<std::runtime_error> ("Native value overflow");
+            Throw<std::runtime_error> (throwToken, "Native value overflow");
 
         return STAmount (v1.getFName (), minV * maxV);
     }
@@ -1225,7 +1227,7 @@ mulRound (STAmount const& v1, STAmount const& v2, Issue const& issue,
     // If the we're rounding up, we want to round up away
     // from zero, and if we're rounding down, truncation
     // is implicit.
-    std::uint64_t amount = muldiv_round (
+    std::uint64_t amount = muldiv_round (throwToken,
         value1, value2, tenTo14,
         (resultNegative != roundUp) ? tenTo14m1 : 0);
 
@@ -1254,14 +1256,14 @@ mulRound (STAmount const& v1, STAmount const& v2, Issue const& issue,
 }
 
 STAmount
-divRound (STAmount const& num, STAmount const& den,
+divRound (ThrowToken throwToken, STAmount const& num, STAmount const& den,
     Issue const& issue, bool roundUp)
 {
     if (den == beast::zero)
-        Throw<std::runtime_error> ("division by zero");
+        Throw<std::runtime_error> (throwToken, "division by zero");
 
     if (num == beast::zero)
-        return {issue};
+        return {throwToken, issue};
 
     std::uint64_t numVal = num.mantissa(), denVal = den.mantissa();
     int numOffset = num.exponent(), denOffset = den.exponent();
@@ -1295,7 +1297,7 @@ divRound (STAmount const& num, STAmount const& den,
     //
     // We round away from zero if we're rounding up or
     // truncate if we're rounding down.
-    std::uint64_t amount = muldiv_round (
+    std::uint64_t amount = muldiv_round (throwToken,
         numVal, tenTo17, denVal,
         (resultNegative != roundUp) ? denVal - 1 : 0);
 

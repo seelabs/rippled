@@ -35,7 +35,7 @@ ManagerImp::instance()
 void
 ManagerImp::missing_backend()
 {
-    Throw<std::runtime_error> (
+    Throw<std::runtime_error> (ThrowToken{false},
         "Your rippled.cfg is missing a [node_db] entry, "
         "please see the rippled-example.cfg file!"
         );
@@ -60,7 +60,7 @@ ManagerImp::make_Backend (
 }
 
 std::unique_ptr <Database>
-ManagerImp::make_Database (
+ManagerImp::make_Database (ThrowToken throwToken,
     std::string const& name,
     Scheduler& scheduler,
     int readThreads,
@@ -69,7 +69,7 @@ ManagerImp::make_Database (
     beast::Journal journal)
 {
     auto backend {make_Backend(config, scheduler, journal)};
-    backend->open();
+    backend->open(throwToken);
     return std::make_unique <DatabaseNodeImp>(
         name,
         scheduler,

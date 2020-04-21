@@ -415,7 +415,7 @@ Env::autofill (JTx& jt)
     {
         test.log << "parse failed:\n" <<
             pretty(jv) << std::endl;
-        Rethrow();
+        Rethrow(ThrowToken{false});
     }
 }
 
@@ -433,7 +433,7 @@ Env::st (JTx const& jt)
     {
         test.log << "Exception: parse_error\n" <<
             pretty(jt.jv) << std::endl;
-        Rethrow();
+        Rethrow(ThrowToken{false});
     }
 
     try

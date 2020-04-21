@@ -949,7 +949,8 @@ std::istream& operator>> ( std::istream& sin, Value& root )
 
     //JSON_ASSERT( ok );
     if (! ok)
-        ripple::Throw<std::runtime_error> (reader.getFormatedErrorMessages ());
+        // Can't easily pass a token to this operator
+        ripple::Throw<std::runtime_error> (ripple::ThrowToken{false}, reader.getFormatedErrorMessages ());
 
     return sin;
 }

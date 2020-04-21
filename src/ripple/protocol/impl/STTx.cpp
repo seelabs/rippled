@@ -42,13 +42,13 @@
 namespace ripple {
 
 static
-auto getTxFormat (TxType type)
+auto getTxFormat (ThrowToken throwToken, TxType type)
 {
     auto format = TxFormats::getInstance().findByType (type);
 
     if (format == nullptr)
     {
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken,
             "Invalid transaction type " +
             std::to_string (
                 safe_cast<std::underlying_type_t<TxType>>(type)));
@@ -61,33 +61,34 @@ STTx::STTx (STObject&& object) noexcept (false)
     : STObject (std::move (object))
 {
     tx_type_ = safe_cast<TxType> (getFieldU16 (sfTransactionType));
-    applyTemplate (getTxFormat (tx_type_)->getSOTemplate());  //  may throw
+    // Can't add throwToken as a parameter or it's no longer a move constructor
+    applyTemplate (ThrowToken{false}, getTxFormat (ThrowToken{false}, tx_type_)->getSOTemplate());  //  may throw
     tid_ = getHash(HashPrefix::transactionID);
 }
 
-STTx::STTx (SerialIter& sit) noexcept (false)
+STTx::STTx (ThrowToken throwToken, SerialIter& sit) noexcept (false)
     : STObject (sfTransaction)
 {
     int length = sit.getBytesLeft ();
 
     if ((length < txMinSizeBytes) || (length > txMaxSizeBytes))
-        Throw<std::runtime_error> ("Transaction length invalid");
+        Throw<std::runtime_error> (throwToken, "Transaction length invalid");
 
-    if (set (sit))
-        Throw<std::runtime_error> ("Transaction contains an object terminator");
+    if (set (throwToken, sit))
+        Throw<std::runtime_error> (throwToken, "Transaction contains an object terminator");
 
     tx_type_ = safe_cast<TxType> (getFieldU16 (sfTransactionType));
 
-    applyTemplate (getTxFormat (tx_type_)->getSOTemplate());  // May throw
+    applyTemplate (throwToken, getTxFormat (throwToken, tx_type_)->getSOTemplate());  // May throw
     tid_ = getHash(HashPrefix::transactionID);
 }
 
-STTx::STTx (
+STTx::STTx (ThrowToken throwToken,
         TxType type,
         std::function<void(STObject&)> assembler)
     : STObject (sfTransaction)
 {
-    auto format = getTxFormat (type);
+    auto format = getTxFormat (throwToken, type);
 
     set (format->getSOTemplate());
     setFieldU16 (sfTransactionType, format->getType ());

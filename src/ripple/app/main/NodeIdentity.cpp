@@ -29,7 +29,7 @@
 namespace ripple {
 
 std::pair<PublicKey, SecretKey>
-loadNodeIdentity (Application& app)
+loadNodeIdentity (ThrowToken throwToken, Application& app)
 {
     // If a seed is specified in the configuration file use that directly.
     if (app.config().exists(SECTION_NODE_SEED))
@@ -38,7 +38,7 @@ loadNodeIdentity (Application& app)
             app.config().section(SECTION_NODE_SEED).lines().front());
 
         if (!seed)
-            Throw<std::runtime_error>(
+            Throw<std::runtime_error>(throwToken,
                 "NodeIdentity: Bad [" SECTION_NODE_SEED "] specified");
 
         auto secretKey =

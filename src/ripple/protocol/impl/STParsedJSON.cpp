@@ -46,20 +46,20 @@ namespace STParsedJSONDetail
 template <typename U, typename S>
 constexpr
 std::enable_if_t<std::is_unsigned<U>::value && std::is_signed<S>::value, U>
-to_unsigned (S value)
+to_unsigned (ThrowToken throwToken, S value)
 {
     if (value < 0 || std::numeric_limits<U>::max () < value)
-        Throw<std::runtime_error> ("Value out of range");
+        Throw<std::runtime_error> (throwToken, "Value out of range");
     return static_cast<U> (value);
 }
 
 template <typename U1, typename U2>
 constexpr
 std::enable_if_t<std::is_unsigned<U1>::value && std::is_unsigned<U2>::value, U1>
-to_unsigned (U2 value)
+to_unsigned (ThrowToken throwToken, U2 value)
 {
     if (std::numeric_limits<U1>::max () < value)
-        Throw<std::runtime_error> ("Value out of range");
+        Throw<std::runtime_error> (throwToken, "Value out of range");
     return static_cast<U1> (value);
 }
 
@@ -168,7 +168,7 @@ non_object_in_array (std::string const& item, Json::UInt index)
 
 // This function is used by parseObject to parse any JSON type that doesn't
 // recurse.  Everything represented here is a leaf-type.
-static boost::optional<detail::STVar> parseLeaf (
+static boost::optional<detail::STVar> parseLeaf (ThrowToken throwToken,
     std::string const& json_name,
     std::string const& fieldName,
     SField const* name,
@@ -194,7 +194,7 @@ static boost::optional<detail::STVar> parseLeaf (
             constexpr auto maxValue = std::numeric_limits<std::uint8_t>::max();
             if (value.isString ())
             {
-                std::string const strValue = value.asString();
+                std::string const strValue = value.asString(throwToken);
 
                 if (!strValue.empty() &&
                     ((strValue[0] < '0') || (strValue[0] > '9')))
@@ -228,25 +228,25 @@ static boost::optional<detail::STVar> parseLeaf (
             }
             else if (value.isInt ())
             {
-                if (value.asInt () < minValue || value.asInt () > maxValue)
+                if (value.asInt (throwToken) < minValue || value.asInt (throwToken) > maxValue)
                 {
                     error = out_of_range (json_name, fieldName);
                     return ret;
                 }
 
                 ret = detail::make_stvar <STUInt8> (field,
-                    static_cast <std::uint8_t> (value.asInt ()));
+                    static_cast <std::uint8_t> (value.asInt (throwToken)));
             }
             else if (value.isUInt ())
             {
-                if (value.asUInt () > maxValue)
+                if (value.asUInt (throwToken) > maxValue)
                 {
                     error = out_of_range (json_name, fieldName);
                     return ret;
                 }
 
                 ret = detail::make_stvar <STUInt8> (field,
-                    static_cast <std::uint8_t> (value.asUInt ()));
+                    static_cast <std::uint8_t> (value.asUInt (throwToken)));
             }
             else
             {
@@ -266,7 +266,7 @@ static boost::optional<detail::STVar> parseLeaf (
         {
             if (value.isString ())
             {
-                std::string const strValue = value.asString ();
+                std::string const strValue = value.asString (throwToken);
 
                 if (! strValue.empty () &&
                     ((strValue[0] < '0') || (strValue[0] > '9')))
@@ -274,10 +274,10 @@ static boost::optional<detail::STVar> parseLeaf (
                     if (field == sfTransactionType)
                     {
                         TxType const txType (TxFormats::getInstance().
-                            findTypeByName (strValue));
+                            findTypeByName (throwToken, strValue));
 
                         if (txType == ttINVALID)
-                             Throw<std::runtime_error>(
+                            Throw<std::runtime_error>(throwToken,
                                 "Invalid transaction format name");
                         ret = detail::make_stvar <STUInt16> (field,
                             static_cast <std::uint16_t> (txType));
@@ -287,16 +287,16 @@ static boost::optional<detail::STVar> parseLeaf (
                     }
                     else if (field == sfLedgerEntryType)
                     {
-                        LedgerEntryType const type (
-                            LedgerFormats::getInstance().
-                                findTypeByName (strValue));
+                        LedgerEntryType const type(
+                            LedgerFormats::getInstance().findTypeByName(
+                                throwToken, strValue));
 
                         if (!(0u <= type &&
                             type <= std::min<unsigned>(
                                      std::numeric_limits<std::uint16_t>::max(),
                                      std::numeric_limits<std::underlying_type_t
                                            <LedgerEntryType>>::max())))
-                                 Throw<std::runtime_error>(
+                            Throw<std::runtime_error>(throwToken,
                                      "Invalid ledger entry type: out of range");
                         ret = detail::make_stvar <STUInt16> (field,
                             static_cast <std::uint16_t> (type));
@@ -318,13 +318,13 @@ static boost::optional<detail::STVar> parseLeaf (
             }
             else if (value.isInt ())
             {
-                ret = detail::make_stvar <STUInt16> (field,
-                    to_unsigned <std::uint16_t> (value.asInt ()));
+                ret = detail::make_stvar<STUInt16>(
+                    field, to_unsigned<std::uint16_t>(value.asInt(throwToken)));
             }
             else if (value.isUInt ())
             {
-                ret = detail::make_stvar <STUInt16> (field,
-                    to_unsigned <std::uint16_t> (value.asUInt ()));
+                ret = detail::make_stvar<STUInt16>(field,
+                    to_unsigned<std::uint16_t>(value.asUInt(throwToken)));
             }
             else
             {
@@ -347,17 +347,17 @@ static boost::optional<detail::STVar> parseLeaf (
             {
                 ret = detail::make_stvar <STUInt32> (field,
                     beast::lexicalCastThrow <std::uint32_t> (
-                        value.asString ()));
+                        value.asString (throwToken)));
             }
             else if (value.isInt ())
             {
-                ret = detail::make_stvar <STUInt32> (field,
-                    to_unsigned <std::uint32_t> (value.asInt ()));
+                ret = detail::make_stvar<STUInt32>(
+                    field, to_unsigned<std::uint32_t>(value.asInt(throwToken)));
             }
             else if (value.isUInt ())
             {
-                ret = detail::make_stvar <STUInt32> (field,
-                    safe_cast <std::uint32_t> (value.asUInt ()));
+                ret = detail::make_stvar<STUInt32>(
+                    field, safe_cast<std::uint32_t>(value.asUInt(throwToken)));
             }
             else
             {
@@ -378,18 +378,18 @@ static boost::optional<detail::STVar> parseLeaf (
         {
             if (value.isString ())
             {
-                ret = detail::make_stvar <STUInt64> (field,
-                    uintFromHex (value.asString ()));
+                ret = detail::make_stvar<STUInt64>(
+                    field, uintFromHex(value.asString(throwToken)));
             }
             else if (value.isInt ())
             {
-                ret = detail::make_stvar <STUInt64> (field,
-                    to_unsigned<std::uint64_t> (value.asInt ()));
+                ret = detail::make_stvar<STUInt64>(
+                    field, to_unsigned<std::uint64_t>(value.asInt(throwToken)));
             }
             else if (value.isUInt ())
             {
-                ret = detail::make_stvar <STUInt64> (field,
-                    safe_cast <std::uint64_t> (value.asUInt ()));
+                ret = detail::make_stvar<STUInt64>(
+                    field, safe_cast<std::uint64_t>(value.asUInt(throwToken)));
             }
             else
             {
@@ -410,7 +410,7 @@ static boost::optional<detail::STVar> parseLeaf (
         {
             if (value.isString ())
             {
-                ret = detail::make_stvar <STHash128> (field, value.asString ());
+                ret = detail::make_stvar <STHash128> (field, value.asString (throwToken));
             }
             else
             {
@@ -431,7 +431,7 @@ static boost::optional<detail::STVar> parseLeaf (
         {
             if (value.isString ())
             {
-                ret = detail::make_stvar <STHash160> (field, value.asString ());
+                ret = detail::make_stvar <STHash160> (field, value.asString (throwToken));
             }
             else
             {
@@ -452,7 +452,7 @@ static boost::optional<detail::STVar> parseLeaf (
         {
             if (value.isString ())
             {
-                ret = detail::make_stvar <STHash256> (field, value.asString ());
+                ret = detail::make_stvar <STHash256> (field, value.asString (throwToken));
             }
             else
             {
@@ -477,14 +477,14 @@ static boost::optional<detail::STVar> parseLeaf (
 
         try
         {
-            if (auto vBlob = strUnHex(value.asString()))
+            if (auto vBlob = strUnHex(value.asString(throwToken)))
             {
                 ret = detail::make_stvar<STBlob>(
                     field, vBlob->data(), vBlob->size());
             }
             else
             {
-                Throw<std::invalid_argument> ("invalid data");
+                Throw<std::invalid_argument> (throwToken, "invalid data");
             }
         }
         catch (std::exception const&)
@@ -521,7 +521,7 @@ static boost::optional<detail::STVar> parseLeaf (
             for (Json::UInt i = 0; value.isValidIndex (i); ++i)
             {
                 uint256 s;
-                s.SetHex (value[i].asString ());
+                s.SetHex (value[i].asString (throwToken));
                 tail.push_back (s);
             }
             ret = detail::make_stvar <STVector256> (std::move (tail));
@@ -593,10 +593,10 @@ static boost::optional<detail::STVar> parseLeaf (
 
                         // If we have what looks like a 160-bit hex value, we
                         // set it, otherwise, we assume it's an AccountID
-                        if (!uAccount.SetHexExact (account.asString ()))
+                        if (!uAccount.SetHexExact (account.asString (throwToken)))
                         {
                             auto const a = parseBase58<AccountID>(
-                                account.asString());
+                                account.asString(throwToken));
                             if (! a)
                             {
                                 error = invalid_data (element_name, "account");
@@ -617,9 +617,9 @@ static boost::optional<detail::STVar> parseLeaf (
 
                         hasCurrency = true;
 
-                        if (!uCurrency.SetHexExact (currency.asString ()))
+                        if (!uCurrency.SetHexExact (currency.asString (throwToken)))
                         {
-                            if (!to_currency (uCurrency, currency.asString ()))
+                            if (!to_currency (uCurrency, currency.asString (throwToken)))
                             {
                                 error = invalid_data (element_name, "currency");
                                 return ret;
@@ -636,10 +636,10 @@ static boost::optional<detail::STVar> parseLeaf (
                             return ret;
                         }
 
-                        if (!uIssuer.SetHexExact (issuer.asString ()))
+                        if (!uIssuer.SetHexExact (issuer.asString (throwToken)))
                         {
                             auto const a = parseBase58<AccountID>(
-                                issuer.asString());
+                                issuer.asString(throwToken));
                             if (! a)
                             {
                                 error = invalid_data (element_name, "issuer");
@@ -672,7 +672,7 @@ static boost::optional<detail::STVar> parseLeaf (
                 return ret;
             }
 
-            std::string const strValue = value.asString ();
+            std::string const strValue = value.asString (throwToken);
 
             try
             {

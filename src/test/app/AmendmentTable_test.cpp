@@ -427,27 +427,27 @@ public:
                 case 0:
                 // amendment goes from majority to enabled
                     if (enabled.find (hash) != enabled.end ())
-                        Throw<std::runtime_error> ("enabling already enabled");
+                        Throw<std::runtime_error> (ThrowToken{false}, "enabling already enabled");
                     if (majority.find (hash) == majority.end ())
-                        Throw<std::runtime_error> ("enabling without majority");
+                        Throw<std::runtime_error> (ThrowToken{false}, "enabling without majority");
                     enabled.insert (hash);
                     majority.erase (hash);
                     break;
 
                 case tfGotMajority:
                     if (majority.find (hash) != majority.end ())
-                        Throw<std::runtime_error> ("got majority while having majority");
+                        Throw<std::runtime_error> (ThrowToken{false}, "got majority while having majority");
                     majority[hash] = roundTime;
                     break;
 
                 case tfLostMajority:
                     if (majority.find (hash) == majority.end ())
-                        Throw<std::runtime_error> ("lost majority without majority");
+                        Throw<std::runtime_error> (ThrowToken{false}, "lost majority without majority");
                     majority.erase (hash);
                     break;
 
                 default:
-                    Throw<std::runtime_error> ("unknown action");
+                    Throw<std::runtime_error> (ThrowToken{false}, "unknown action");
             }
         }
     }

@@ -60,12 +60,12 @@ Collection::Collection (Collection&& that) noexcept
     *this = std::move (that);
 }
 
-void Collection::checkWritable (std::string const& label)
+void Collection::checkWritable (ripple::ThrowToken throwToken, std::string const& label)
 {
     if (! enabled_)
-        ripple::Throw<std::logic_error> (label + ": not enabled");
+        ripple::Throw<std::logic_error> (throwToken, label + ": not enabled");
     if (! writer_)
-        ripple::Throw<std::logic_error> (label + ": not writable");
+        ripple::Throw<std::logic_error> (throwToken, label + ": not writable");
 }
 
 //------------------------------------------------------------------------------

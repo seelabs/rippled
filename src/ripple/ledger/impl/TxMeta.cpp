@@ -181,7 +181,7 @@ STObject& TxMeta::getAffectedNode (SLE::ref node, SField const& type)
     return obj;
 }
 
-STObject& TxMeta::getAffectedNode (uint256 const& node)
+STObject& TxMeta::getAffectedNode (ThrowToken throwToken, uint256 const& node)
 {
     for (auto& n : mNodes)
     {
@@ -189,11 +189,11 @@ STObject& TxMeta::getAffectedNode (uint256 const& node)
             return n;
     }
     assert (false);
-    Throw<std::runtime_error> ("Affected node not found");
+    Throw<std::runtime_error> (throwToken, "Affected node not found");
     return *(mNodes.begin()); // Silence compiler warning.
 }
 
-const STObject& TxMeta::peekAffectedNode (uint256 const& node) const
+const STObject& TxMeta::peekAffectedNode (ThrowToken throwToken, uint256 const& node) const
 {
     for (auto const& n : mNodes)
     {
@@ -201,7 +201,7 @@ const STObject& TxMeta::peekAffectedNode (uint256 const& node) const
             return n;
     }
 
-    Throw<std::runtime_error> ("Affected node not found");
+    Throw<std::runtime_error> (throwToken, "Affected node not found");
     return *(mNodes.begin()); // Silence compiler warning.
 }
 

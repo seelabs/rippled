@@ -57,23 +57,23 @@ STObject::STObject (SOTemplate const& type,
     set (type);
 }
 
-STObject::STObject (SOTemplate const& type,
+STObject::STObject (ThrowToken throwToken, SOTemplate const& type,
         SerialIter & sit, SField const& name) noexcept (false)
     : STBase (name)
 {
     v_.reserve(type.size());
-    set (sit);
-    applyTemplate (type);  // May throw
+    set (throwToken, sit);
+    applyTemplate (throwToken, type);  // May throw
 }
 
-STObject::STObject (
+STObject::STObject (ThrowToken throwToken,
     SerialIter& sit, SField const& name, int depth) noexcept (false)
     : STBase(name)
     , mType(nullptr)
 {
     if (depth > 10)
-        Throw<std::runtime_error> ("Maximum nesting depth of STObject exceeded");
-    set(sit, depth);
+        Throw<std::runtime_error> (throwToken, "Maximum nesting depth of STObject exceeded");
+    set(throwToken, sit, depth);
 }
 
 STObject&
@@ -100,7 +100,7 @@ void STObject::set (const SOTemplate& type)
     }
 }
 
-void STObject::applyTemplate (const SOTemplate& type) noexcept (false)
+void STObject::applyTemplate (ThrowToken throwToken, const SOTemplate& type) noexcept (false)
 {
     auto throwFieldErr = [] (std::string const& field, char const* description)
     {
@@ -108,7 +108,7 @@ void STObject::applyTemplate (const SOTemplate& type) noexcept (false)
         ss << "Field '" << field << "' " << description;
         std::string text {ss.str()};
         JLOG (debugLog().error()) << "STObject::applyTemplate failed: " << text;
-        Throw<FieldErr> (text);
+        Throw<FieldErr> (throwToken, text);
     };
 
     mType = &type;
@@ -162,7 +162,7 @@ void STObject::applyTemplateFromSField (SField const& sField) noexcept (false)
 }
 
 // return true = terminated with end-of-object
-bool STObject::set (SerialIter& sit, int depth) noexcept (false)
+bool STObject::set (ThrowToken throwToken, SerialIter& sit, int depth) noexcept (false)
 {
     bool reachedEndOfObject = false;
 
@@ -175,7 +175,7 @@ bool STObject::set (SerialIter& sit, int depth) noexcept (false)
         int field;
 
         // Get the metadata for the next field
-        sit.getFieldID(type, field);
+        sit.getFieldID(throwToken, type, field);
 
         // The object termination marker has been found and the termination
         // marker has been consumed. Done deserializing.
@@ -189,7 +189,7 @@ bool STObject::set (SerialIter& sit, int depth) noexcept (false)
         {
             JLOG (debugLog().error())
                 << "Encountered object with embedded end-of-array marker";
-            Throw<std::runtime_error>("Illegal end-of-array marker in object");
+            Throw<std::runtime_error>(throwToken, "Illegal end-of-array marker in object");
         }
 
         auto const& fn = SField::getField(type, field);
@@ -199,7 +199,7 @@ bool STObject::set (SerialIter& sit, int depth) noexcept (false)
             JLOG (debugLog().error())
                 << "Unknown field: field_type=" << type
                 << ", field_name=" << field;
-            Throw<std::runtime_error> ("Unknown field");
+            Throw<std::runtime_error> (throwToken, "Unknown field");
         }
 
         // Unflatten the field
@@ -219,7 +219,7 @@ bool STObject::set (SerialIter& sit, int depth) noexcept (false)
         { return lhs->getFName() == rhs->getFName(); });
 
     if (dup != sf.cend())
-        Throw<std::runtime_error> ("Duplicate field detected");
+        Throw<std::runtime_error> (throwToken, "Duplicate field detected");
 
     return reachedEndOfObject;
 }
@@ -571,7 +571,7 @@ const STArray& STObject::getFieldArray (SField const& field) const
 }
 
 void
-STObject::set (std::unique_ptr<STBase> v)
+STObject::set (ThrowToken throwToken, std::unique_ptr<STBase> v)
 {
     auto const i =
         getFieldIndex(v->getFName());
@@ -582,7 +582,7 @@ STObject::set (std::unique_ptr<STBase> v)
     else
     {
         if (! isFree())
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (throwToken,
                 "missing field in templated STObject");
         v_.emplace_back(std::move(*v));
     }

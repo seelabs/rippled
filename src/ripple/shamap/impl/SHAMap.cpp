@@ -231,33 +231,33 @@ std::shared_ptr<SHAMapAbstractNode> SHAMap::fetchNodeNT (SHAMapHash const& hash)
 }
 
 // Throw if the node is missing
-std::shared_ptr<SHAMapAbstractNode> SHAMap::fetchNode (SHAMapHash const& hash) const
+std::shared_ptr<SHAMapAbstractNode> SHAMap::fetchNode (ThrowToken throwToken, SHAMapHash const& hash) const
 {
     auto node = fetchNodeNT (hash);
 
     if (!node)
-        Throw<SHAMapMissingNode> (type_, hash);
+        Throw<SHAMapMissingNode> (throwToken, type_, hash);
 
     return node;
 }
 
-SHAMapAbstractNode* SHAMap::descendThrow (SHAMapInnerNode* parent, int branch) const
+SHAMapAbstractNode* SHAMap::descendThrow (ThrowToken throwToken, SHAMapInnerNode* parent, int branch) const
 {
     SHAMapAbstractNode* ret = descend (parent, branch);
 
     if (! ret && ! parent->isEmptyBranch (branch))
-        Throw<SHAMapMissingNode> (type_, parent->getChildHash (branch));
+        Throw<SHAMapMissingNode> (throwToken, type_, parent->getChildHash (branch));
 
     return ret;
 }
 
 std::shared_ptr<SHAMapAbstractNode>
-SHAMap::descendThrow (std::shared_ptr<SHAMapInnerNode> const& parent, int branch) const
+SHAMap::descendThrow (ThrowToken throwToken, std::shared_ptr<SHAMapInnerNode> const& parent, int branch) const
 {
     std::shared_ptr<SHAMapAbstractNode> ret = descend (parent, branch);
 
     if (! ret && ! parent->isEmptyBranch (branch))
-        Throw<SHAMapMissingNode> (type_, parent->getChildHash (branch));
+        Throw<SHAMapMissingNode> (throwToken, type_, parent->getChildHash (branch));
 
     return ret;
 }
@@ -389,7 +389,7 @@ SHAMap::unshareNode (std::shared_ptr<Node> node, SHAMapNodeID const& nodeID)
 }
 
 SHAMapTreeNode*
-SHAMap::firstBelow(std::shared_ptr<SHAMapAbstractNode> node,
+SHAMap::firstBelow(ThrowToken throwToken, std::shared_ptr<SHAMapAbstractNode> node,
                    SharedPtrNodeStack& stack, int branch) const
 {
     // Return the first item at or below this node
@@ -408,7 +408,7 @@ SHAMap::firstBelow(std::shared_ptr<SHAMapAbstractNode> node,
     {
         if (!inner->isEmptyBranch(i))
         {
-            node = descendThrow(inner, i);
+            node = descendThrow(throwToken, inner, i);
             assert(!stack.empty());
             if (node->isLeaf())
             {
@@ -429,7 +429,7 @@ SHAMap::firstBelow(std::shared_ptr<SHAMapAbstractNode> node,
 static const std::shared_ptr<SHAMapItem const> no_item;
 
 std::shared_ptr<SHAMapItem const> const&
-SHAMap::onlyBelow (SHAMapAbstractNode* node) const
+SHAMap::onlyBelow (ThrowToken throwToken, SHAMapAbstractNode* node) const
 {
     // If there is only one item below this node, return it
 
@@ -444,7 +444,7 @@ SHAMap::onlyBelow (SHAMapAbstractNode* node) const
                 if (nextNode)
                     return no_item;
 
-                nextNode = descendThrow (inner, i);
+                nextNode = descendThrow (throwToken, inner, i);
             }
         }
 
@@ -469,10 +469,10 @@ static std::shared_ptr<
     SHAMapItem const> const nullConstSHAMapItem;
 
 SHAMapTreeNode const*
-SHAMap::peekFirstItem(SharedPtrNodeStack& stack) const
+SHAMap::peekFirstItem(ThrowToken throwToken, SharedPtrNodeStack& stack) const
 {
     assert(stack.empty());
-    SHAMapTreeNode* node = firstBelow(root_, stack);
+    SHAMapTreeNode* node = firstBelow(throwToken, root_, stack);
     if (!node)
     {
         while (!stack.empty())
@@ -483,7 +483,7 @@ SHAMap::peekFirstItem(SharedPtrNodeStack& stack) const
 }
 
 SHAMapTreeNode const*
-SHAMap::peekNextItem(uint256 const& id, SharedPtrNodeStack& stack) const
+SHAMap::peekNextItem(ThrowToken throwToken, uint256 const& id, SharedPtrNodeStack& stack) const
 {
     assert(!stack.empty());
     assert(stack.top().first->isLeaf());
@@ -497,10 +497,10 @@ SHAMap::peekNextItem(uint256 const& id, SharedPtrNodeStack& stack) const
         {
             if (!inner->isEmptyBranch(i))
             {
-                node = descendThrow(inner, i);
-                auto leaf = firstBelow(node, stack, i);
+                node = descendThrow(throwToken, inner, i);
+                auto leaf = firstBelow(throwToken, node, stack, i);
                 if (!leaf)
-                    Throw<SHAMapMissingNode> (type_, id);
+                    Throw<SHAMapMissingNode> (throwToken, type_, id);
                 assert(leaf->isLeaf());
                 return leaf;
             }
@@ -547,7 +547,7 @@ SHAMap::peekItem (uint256 const& id, SHAMapHash& hash) const
 }
 
 SHAMap::const_iterator
-SHAMap::upper_bound(uint256 const& id) const
+SHAMap::upper_bound(ThrowToken throwToken, uint256 const& id) const
 {
     // Get a const_iterator to the next item in the tree after a given item
     // item need not be in tree
@@ -569,10 +569,10 @@ SHAMap::upper_bound(uint256 const& id) const
             {
                 if (!inner->isEmptyBranch(branch))
                 {
-                    node = descendThrow(inner, branch);
-                    auto leaf = firstBelow(node, stack, branch);
+                    node = descendThrow(throwToken, inner, branch);
+                    auto leaf = firstBelow(throwToken, node, stack, branch);
                     if (!leaf)
-                        Throw<SHAMapMissingNode> (type_, id);
+                        Throw<SHAMapMissingNode> (throwToken, type_, id);
                     return const_iterator(this, leaf->peekItem().get(),
                                           std::move(stack));
                 }
@@ -590,7 +590,7 @@ bool SHAMap::hasItem (uint256 const& id) const
     return (leaf != nullptr);
 }
 
-bool SHAMap::delItem (uint256 const& id)
+bool SHAMap::delItem (ThrowToken throwToken, uint256 const& id)
 {
     // delete the item with this ID
     assert (state_ != SHAMapState::Immutable);
@@ -599,7 +599,7 @@ bool SHAMap::delItem (uint256 const& id)
     walkTowardsKey(id, &stack);
 
     if (stack.empty ())
-        Throw<SHAMapMissingNode> (type_, id);
+        Throw<SHAMapMissingNode> (throwToken, type_, id);
 
     auto leaf = std::dynamic_pointer_cast<SHAMapTreeNode>(stack.top ().first);
     stack.pop ();
@@ -635,7 +635,7 @@ bool SHAMap::delItem (uint256 const& id)
             else if (bc == 1)
             {
                 // If there's only one item, pull up on the thread
-                auto item = onlyBelow (node.get ());
+                auto item = onlyBelow (throwToken, node.get ());
 
                 if (item)
                 {
@@ -666,7 +666,7 @@ bool SHAMap::delItem (uint256 const& id)
 }
 
 bool
-SHAMap::addGiveItem (std::shared_ptr<SHAMapItem const> const& item,
+SHAMap::addGiveItem (ThrowToken throwToken, std::shared_ptr<SHAMapItem const> const& item,
                      bool isTransaction, bool hasMeta)
 {
     // add the specified item, does not update
@@ -680,7 +680,7 @@ SHAMap::addGiveItem (std::shared_ptr<SHAMapItem const> const& item,
     walkTowardsKey(tag, &stack);
 
     if (stack.empty ())
-        Throw<SHAMapMissingNode> (type_, tag);
+        Throw<SHAMapMissingNode> (throwToken, type_, tag);
 
     auto [node, nodeID] = stack.top();
     stack.pop ();
@@ -741,9 +741,9 @@ SHAMap::addGiveItem (std::shared_ptr<SHAMapItem const> const& item,
 }
 
 bool
-SHAMap::addItem(SHAMapItem&& i, bool isTransaction, bool hasMetaData)
+SHAMap::addItem(ThrowToken throwToken, SHAMapItem&& i, bool isTransaction, bool hasMetaData)
 {
-    return addGiveItem(std::make_shared<SHAMapItem const>(std::move(i)),
+    return addGiveItem(throwToken, std::make_shared<SHAMapItem const>(std::move(i)),
                                                           isTransaction, hasMetaData);
 }
 
@@ -760,7 +760,7 @@ SHAMap::getHash () const
 }
 
 bool
-SHAMap::updateGiveItem (std::shared_ptr<SHAMapItem const> const& item,
+SHAMap::updateGiveItem (ThrowToken throwToken, std::shared_ptr<SHAMapItem const> const& item,
                         bool isTransaction, bool hasMeta)
 {
     // can't change the tag but can change the hash
@@ -772,7 +772,7 @@ SHAMap::updateGiveItem (std::shared_ptr<SHAMapItem const> const& item,
     walkTowardsKey(tag, &stack);
 
     if (stack.empty ())
-        Throw<SHAMapMissingNode> (type_, tag);
+        Throw<SHAMapMissingNode> (throwToken, type_, tag);
 
     auto node = std::dynamic_pointer_cast<SHAMapTreeNode>(stack.top().first);
     auto nodeID = stack.top ().second;

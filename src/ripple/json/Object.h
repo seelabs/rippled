@@ -161,7 +161,7 @@ protected:
     // A null parent means "no parent at all".
     // Writers cannot be null.
     Collection (Collection* parent, Writer*);
-    void checkWritable (std::string const& label);
+    void checkWritable (ripple::ThrowToken throwToken, std::string const& label);
 
     Collection* parent_;
     Writer* writer_;

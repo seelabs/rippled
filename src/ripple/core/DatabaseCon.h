@@ -125,7 +125,7 @@ public:
         return LockedSociSession (&session_, lock_);
     }
 
-    void setupCheckpointing (JobQueue*, Logs&);
+    void setupCheckpointing (ThrowToken throwToken, JobQueue*, Logs&);
 
 private:
 
@@ -156,7 +156,7 @@ private:
 };
 
 DatabaseCon::Setup
-setup_DatabaseCon (Config const& c);
+setup_DatabaseCon (ThrowToken throwToken, Config const& c);
 
 } // ripple
 

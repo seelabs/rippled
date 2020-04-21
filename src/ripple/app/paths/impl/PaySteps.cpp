@@ -131,7 +131,7 @@ toStep (
 }
 
 std::pair<TER, Strand>
-toStrand (
+toStrand (ThrowToken throwToken,
     ReadView const& view,
     AccountID const& src,
     AccountID const& dst,
@@ -386,7 +386,7 @@ toStrand (
                 return *r;
             if (auto const r = s.bookStepBook())
                 return std::make_pair(r->in.account, r->out.account);
-            Throw<FlowException>(
+            Throw<FlowException>(throwToken,
                 tefEXCEPTION, "Step should be either a direct or book step");
             return std::make_pair(xrpAccount(), xrpAccount());
         };
@@ -440,7 +440,7 @@ toStrand (
 }
 
 std::pair<TER, std::vector<Strand>>
-toStrands (
+toStrands (ThrowToken throwToken,
     ReadView const& view,
     AccountID const& src,
     AccountID const& dst,
@@ -467,7 +467,7 @@ toStrands (
 
     if (addDefaultPath)
     {
-        auto sp = toStrand (view, src, dst, deliver, limitQuality,
+        auto sp = toStrand (throwToken, view, src, dst, deliver, limitQuality,
             sendMax, STPath(), ownerPaysTransferFee, offerCrossing, j);
         auto const ter = sp.first;
         auto& strand = sp.second;
@@ -482,7 +482,7 @@ toStrands (
         else if (strand.empty ())
         {
             JLOG (j.trace()) << "toStrand failed";
-            Throw<FlowException> (tefEXCEPTION, "toStrand returned tes & empty strand");
+            Throw<FlowException> (throwToken, tefEXCEPTION, "toStrand returned tes & empty strand");
         }
         else
         {
@@ -499,7 +499,7 @@ toStrands (
     TER lastFailTer = tesSUCCESS;
     for (auto const& p : paths)
     {
-        auto sp = toStrand (view, src, dst, deliver,
+        auto sp = toStrand (throwToken, view, src, dst, deliver,
             limitQuality, sendMax, p, ownerPaysTransferFee, offerCrossing, j);
         auto ter = sp.first;
         auto& strand = sp.second;
@@ -516,7 +516,7 @@ toStrands (
         else if (strand.empty ())
         {
             JLOG (j.trace()) << "toStrand failed";
-            Throw<FlowException> (tefEXCEPTION, "toStrand returned tes & empty strand");
+            Throw<FlowException> (throwToken, tefEXCEPTION, "toStrand returned tes & empty strand");
         }
         else
         {

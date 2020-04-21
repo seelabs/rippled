@@ -100,20 +100,21 @@ public:
     /** Advance the buffer. */
     /** @{ */
     Slice&
-    operator+= (std::size_t n)
+    operator+= (std::pair<ThrowToken, std::size_t> const& inParam)
     {
+        auto const& [ThrowToken, n] = inParam;
         if (n > size_)
-            Throw<std::domain_error> ("too small");
+            Throw<std::domain_error> (ThrowToken, "too small");
         data_ += n;
         size_ -= n;
         return *this;
     }
 
     Slice
-    operator+ (std::size_t n) const
+    operator+ (std::pair<ThrowToken, std::size_t> const& inParam) const
     {
         Slice temp = *this;
-        return temp += n;
+        return temp += inParam;
     }
     /** @} */
 

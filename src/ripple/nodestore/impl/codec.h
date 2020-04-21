@@ -40,7 +40,8 @@ namespace NodeStore {
 
 template <class BufferFactory>
 std::pair<void const*, std::size_t>
-lz4_decompress (void const* in,
+lz4_decompress (ThrowToken throwToken,
+    void const* in,
     std::size_t in_size, BufferFactory&& bf)
 {
     using std::runtime_error;
@@ -51,7 +52,7 @@ lz4_decompress (void const* in,
     auto const n = read_varint(
         p, in_size, result.second);
     if (n == 0)
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken,
             "lz4 decompress: n == 0");
     void* const out = bf(result.second);
     result.first = out;
@@ -59,14 +60,14 @@ lz4_decompress (void const* in,
         reinterpret_cast<char const*>(in) + n,
             reinterpret_cast<char*>(out),
                 result.second) + n != in_size)
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken,
             "lz4 decompress: LZ4_decompress_fast");
     return result;
 }
 
 template <class BufferFactory>
 std::pair<void const*, std::size_t>
-lz4_compress (void const* in,
+lz4_compress (ThrowToken throwToken, void const* in,
     std::size_t in_size, BufferFactory&& bf)
 {
     using std::runtime_error;
@@ -87,7 +88,7 @@ lz4_compress (void const* in,
             reinterpret_cast<char*>(out + n),
                 in_size, out_max);
     if (out_size == 0)
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken,
             "lz4 compress");
     result.second = n + out_size;
     return result;
@@ -106,7 +107,7 @@ lz4_compress (void const* in,
 
 template <class BufferFactory>
 std::pair<void const*, std::size_t>
-nodeobject_decompress (void const* in,
+nodeobject_decompress (ThrowToken throwToken, void const* in,
     std::size_t in_size, BufferFactory&& bf)
 {
     using namespace nudb::detail;
@@ -117,7 +118,7 @@ nodeobject_decompress (void const* in,
     auto const vn = read_varint(
         p, in_size, type);
     if (vn == 0)
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken,
             "nodeobject decompress");
     p += vn;
     in_size -= vn;
@@ -142,7 +143,7 @@ nodeobject_decompress (void const* in,
         auto const hs =
             field<std::uint16_t>::size; // Mask
         if (in_size < hs + 32)
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (throwToken,
                 "nodeobject codec v1: short inner node size: "
                 + std::string("in_size = ") + std::to_string(in_size)
                 + " hs = " + std::to_string(hs));
@@ -160,7 +161,7 @@ nodeobject_decompress (void const* in,
         write<std::uint32_t>(os,
             static_cast<std::uint32_t>(HashPrefix::innerNode));
         if (mask == 0)
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (throwToken,
                 "nodeobject codec v1: empty inner node");
         std::uint16_t bit = 0x8000;
         for (int i = 16; i--; bit >>= 1)
@@ -168,7 +169,7 @@ nodeobject_decompress (void const* in,
             if (mask & bit)
             {
                 if (in_size < 32)
-                    Throw<std::runtime_error> (
+                    Throw<std::runtime_error> (throwToken,
                         "nodeobject codec v1: short inner node subsize: "
                         + std::string("in_size = ") + std::to_string(in_size)
                         + " i = " + std::to_string(i));
@@ -181,7 +182,7 @@ nodeobject_decompress (void const* in,
             }
         }
         if (in_size > 0)
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (throwToken,
                 "nodeobject codec v1: long inner node, in_size = "
                 + std::to_string(in_size));
         break;
@@ -189,7 +190,7 @@ nodeobject_decompress (void const* in,
     case 3: // full v1 inner node
     {
         if (in_size != 16 * 32) // hashes
-            Throw<std::runtime_error> (
+            Throw<std::runtime_error> (throwToken,
                 "nodeobject codec v1: short full inner node, in_size = "
                 + std::to_string(in_size));
         istream is(p, in_size);
@@ -206,7 +207,7 @@ nodeobject_decompress (void const* in,
         break;
     }
     default:
-        Throw<std::runtime_error> (
+        Throw<std::runtime_error> (throwToken,
             "nodeobject codec: bad type=" +
                 std::to_string(type));
     };
@@ -223,7 +224,7 @@ zero32()
 
 template <class BufferFactory>
 std::pair<void const*, std::size_t>
-nodeobject_compress (void const* in,
+nodeobject_compress (ThrowToken throwToken, void const* in,
     std::size_t in_size, BufferFactory&& bf)
 {
     using std::runtime_error;
@@ -322,7 +323,7 @@ nodeobject_compress (void const* in,
         break;
     }
     default:
-        Throw<std::logic_error> (
+        Throw<std::logic_error> (throwToken,
             "nodeobject codec: unknown=" +
                 std::to_string(codecType));
     };

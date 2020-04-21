@@ -51,7 +51,7 @@ class DatabaseShard;
 class Shard final
 {
 public:
-    Shard(
+    Shard(ThrowToken throwToken,
         Application& app,
         DatabaseShard const& db,
         std::uint32_t index,

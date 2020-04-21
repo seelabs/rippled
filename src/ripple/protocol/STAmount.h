@@ -73,7 +73,7 @@ public:
     static std::uint64_t const uRateOne;
 
     //--------------------------------------------------------------------------
-    STAmount(SerialIter& sit, SField const& name);
+    STAmount(ThrowToken throwToken, SerialIter& sit, SField const& name);
 
     struct unchecked
     {
@@ -90,7 +90,7 @@ public:
             bool native, bool negative, unchecked);
 
     // Call canonicalize
-    STAmount (SField const& name, Issue const& issue,
+    STAmount (ThrowToken throwToken, SField const& name, Issue const& issue,
         mantissa_type mantissa, exponent_type exponent,
             bool native, bool negative);
 
@@ -99,26 +99,26 @@ public:
     STAmount (SField const& name,
         std::uint64_t mantissa = 0, bool negative = false);
 
-    STAmount (SField const& name, Issue const& issue,
+    STAmount (ThrowToken throwToken, SField const& name, Issue const& issue,
         std::uint64_t mantissa = 0, int exponent = 0, bool negative = false);
 
     explicit
     STAmount (std::uint64_t mantissa = 0, bool negative = false);
 
-    STAmount (Issue const& issue, std::uint64_t mantissa = 0, int exponent = 0,
+    STAmount (ThrowToken throwToken, Issue const& issue, std::uint64_t mantissa = 0, int exponent = 0,
         bool negative = false);
 
     // VFALCO Is this needed when we have the previous signature?
     STAmount (Issue const& issue, std::uint32_t mantissa, int exponent = 0,
         bool negative = false);
 
-    STAmount (Issue const& issue, std::int64_t mantissa, int exponent = 0);
+    STAmount (ThrowToken throwToken, Issue const& issue, std::int64_t mantissa, int exponent = 0);
 
-    STAmount (Issue const& issue, int mantissa, int exponent = 0);
+    STAmount (ThrowToken throwToken, Issue const& issue, int mantissa, int exponent = 0);
 
     // Legacy support for new-style amounts
-    STAmount (IOUAmount const& amount, Issue const& issue);
-    STAmount (XRPAmount const& amount);
+    STAmount (ThrowToken throwToken, IOUAmount const& amount, Issue const& issue);
+    STAmount (ThrowToken throwToken, XRPAmount const& amount);
 
     STBase*
     copy (std::size_t n, void* buf) const override
@@ -140,7 +140,7 @@ private:
     construct (SerialIter&, SField const& name);
 
     void set (std::int64_t v);
-    void canonicalize();
+    void canonicalize(ThrowToken throwToken);
 
 public:
     //--------------------------------------------------------------------------
@@ -282,8 +282,8 @@ public:
         return (mValue == 0) && mIsNative;
     }
 
-    XRPAmount xrp () const;
-    IOUAmount iou () const;
+    XRPAmount xrp (ThrowToken throwToken) const;
+    IOUAmount iou (ThrowToken throwToken) const;
 };
 
 //------------------------------------------------------------------------------
@@ -297,7 +297,7 @@ STAmount
 amountFromQuality (std::uint64_t rate);
 
 STAmount
-amountFromString (Issue const& issue, std::string const& amount);
+amountFromString (ThrowToken throwToken, Issue const& issue, std::string const& amount);
 
 STAmount
 amountFromJson (SField const& name, Json::Value const& v);
@@ -383,11 +383,11 @@ multiply (STAmount const& v1, STAmount const& v2, Issue const& issue);
 
 // multiply, or divide rounding result in specified direction
 STAmount
-mulRound (STAmount const& v1, STAmount const& v2,
+mulRound (ThrowToken throwToken, STAmount const& v1, STAmount const& v2,
     Issue const& issue, bool roundUp);
 
 STAmount
-divRound (STAmount const& v1, STAmount const& v2,
+divRound (ThrowToken throwToken, STAmount const& v1, STAmount const& v2,
     Issue const& issue, bool roundUp);
 
 // Someone is offering X for Y, what is the rate?

@@ -102,7 +102,7 @@ public:
     int fdRequired_ = 2048;
     rocksdb::Options m_options;
 
-    RocksDBBackend (int keyBytes, Section const& keyValues,
+    RocksDBBackend (ThrowToken throwToken, int keyBytes, Section const& keyValues,
         Scheduler& scheduler, beast::Journal journal, RocksDBEnv* env)
         : m_deletePath (false)
         , m_journal (journal)
@@ -111,7 +111,7 @@ public:
         , m_batch (*this, scheduler)
     {
         if (! get_if_exists(keyValues, "path", m_name))
-            Throw<std::runtime_error> ("Missing path in RocksDBFactory backend");
+            Throw<std::runtime_error> (throwToken, "Missing path in RocksDBFactory backend");
 
         rocksdb::BlockBasedTableOptions table_options;
         m_options.env = env;
@@ -176,7 +176,7 @@ public:
                 get<std::string>(keyValues, "bbt_options"),
                 &table_options);
             if (! s.ok())
-                Throw<std::runtime_error> (
+                Throw<std::runtime_error> (throwToken,
                     std::string("Unable to set RocksDB bbt_options: ") + s.ToString());
         }
 
@@ -187,7 +187,7 @@ public:
             auto const s = rocksdb::GetOptionsFromString(
                 m_options, get<std::string>(keyValues, "options"), &m_options);
             if (! s.ok())
-                Throw<std::runtime_error> (
+                Throw<std::runtime_error> (throwToken,
                     std::string("Unable to set RocksDB options: ") + s.ToString());
         }
 
@@ -204,7 +204,7 @@ public:
     }
 
     void
-    open(bool createIfMissing) override
+    open(ThrowToken throwToken, bool createIfMissing) override
     {
         if (m_db)
         {
@@ -217,7 +217,7 @@ public:
         m_options.create_if_missing = createIfMissing;
         rocksdb::Status status = rocksdb::DB::Open(m_options, m_name, &db);
         if (!status.ok() || !db)
-            Throw<std::runtime_error>(
+            Throw<std::runtime_error>(throwToken,
                 std::string("Unable to open/create RocksDB: ") +
                 status.ToString());
         m_db.reset(db);
@@ -305,7 +305,7 @@ public:
     std::vector<std::shared_ptr<NodeObject>>
     fetchBatch (std::size_t n, void const* const* keys) override
     {
-        Throw<std::runtime_error> ("pure virtual called");
+        Throw<std::runtime_error> (ThrowToken{false}, "pure virtual called");
         return {};
     }
 
@@ -339,7 +339,8 @@ public:
         auto ret = m_db->Write (options, &wb);
 
         if (! ret.ok ())
-            Throw<std::runtime_error> ("storeBatch failed: " + ret.ToString());
+            // NuBD doesn't throw on store batch, so don't change interface
+            Throw<std::runtime_error> (ThrowToken{false}, "storeBatch failed: " + ret.ToString());
     }
 
     void

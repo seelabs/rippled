@@ -56,8 +56,8 @@ public:
 
     STTx (STTx const& other) = default;
 
-    explicit STTx (SerialIter& sit) noexcept (false);
-    explicit STTx (SerialIter&& sit) noexcept (false) : STTx(sit) {}
+    explicit STTx (ThrowToken throwToken, SerialIter& sit) noexcept (false);
+    explicit STTx (ThrowToken throwToken, SerialIter&& sit) noexcept (false) : STTx(throwToken, sit) {}
 
     explicit STTx (STObject&& object) noexcept (false);
 
@@ -67,7 +67,7 @@ public:
         any fields that the callback function adds to the object
         that's passed in.
     */
-    STTx (
+    STTx (ThrowToken throwToken,
         TxType type,
         std::function<void(STObject&)> assembler);
 

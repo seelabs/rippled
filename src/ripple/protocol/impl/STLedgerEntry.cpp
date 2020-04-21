@@ -28,7 +28,7 @@
 
 namespace ripple {
 
-STLedgerEntry::STLedgerEntry (Keylet const& k)
+STLedgerEntry::STLedgerEntry (ThrowToken throwToken, Keylet const& k)
     :  STObject(sfLedgerEntry)
     , key_ (k.key)
     , type_ (k.type)
@@ -36,12 +36,12 @@ STLedgerEntry::STLedgerEntry (Keylet const& k)
     if (!(0u <= type_ &&
         type_ <= std::min<unsigned>(std::numeric_limits<std::uint16_t>::max(),
         std::numeric_limits<std::underlying_type_t<LedgerEntryType>>::max())))
-            Throw<std::runtime_error> ("invalid ledger entry type: out of range");
+        Throw<std::runtime_error> (throwToken, "invalid ledger entry type: out of range");
     auto const format =
         LedgerFormats::getInstance().findByType (type_);
 
     if (format == nullptr)
-        Throw<std::runtime_error> ("invalid ledger entry type");
+        Throw<std::runtime_error> (throwToken, "invalid ledger entry type");
 
     set (format->getSOTemplate());
 
@@ -49,45 +49,45 @@ STLedgerEntry::STLedgerEntry (Keylet const& k)
         static_cast <std::uint16_t> (type_));
 }
 
-STLedgerEntry::STLedgerEntry (
+STLedgerEntry::STLedgerEntry (ThrowToken throwToken,
         SerialIter& sit,
         uint256 const& index)
     : STObject (sfLedgerEntry)
     , key_ (index)
 {
     set (sit);
-    setSLEType ();
+    setSLEType (throwToken);
 }
 
-STLedgerEntry::STLedgerEntry (
+STLedgerEntry::STLedgerEntry (ThrowToken throwToken,
         STObject const& object,
         uint256 const& index)
     : STObject (object)
     , key_ (index)
 {
-    setSLEType ();
+    setSLEType (throwToken);
 }
 
-void STLedgerEntry::setSLEType ()
+void STLedgerEntry::setSLEType (ThrowToken throwToken)
 {
     auto format = LedgerFormats::getInstance().findByType (
         safe_cast <LedgerEntryType> (
             getFieldU16 (sfLedgerEntryType)));
 
     if (format == nullptr)
-        Throw<std::runtime_error> ("invalid ledger entry type");
+        Throw<std::runtime_error> (throwToken, "invalid ledger entry type");
 
     type_ = format->getType ();
     applyTemplate (format->getSOTemplate());  // May throw
 }
 
-std::string STLedgerEntry::getFullText () const
+std::string STLedgerEntry::getFullText (ThrowToken throwToken) const
 {
     auto const format =
         LedgerFormats::getInstance().findByType (type_);
 
     if (format == nullptr)
-        Throw<std::runtime_error> ("invalid ledger entry type");
+        Throw<std::runtime_error> (throwToken, "invalid ledger entry type");
 
     std::string ret = "\"";
     ret += to_string (key_);

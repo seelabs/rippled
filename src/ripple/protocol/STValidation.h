@@ -67,6 +67,7 @@ public:
     */
     template <class LookupNodeID>
     STValidation(
+        ThrowToken throwToken,
         SerialIter& sit,
         LookupNodeID&& lookupNodeID,
         bool checkSignature)
@@ -79,7 +80,7 @@ public:
             JLOG (debugLog().error())
                 << "Invalid public key in validation"
                 << getJson (JsonOptions::none);
-            Throw<std::runtime_error> ("Invalid public key in validation");
+            Throw<std::runtime_error> (throwToken, "Invalid public key in validation");
         }
 
         if  (checkSignature && !isValid ())
@@ -87,7 +88,7 @@ public:
             JLOG (debugLog().error())
                 << "Invalid signature in validation"
                 << getJson (JsonOptions::none);
-            Throw<std::runtime_error> ("Invalid signature in validation");
+            Throw<std::runtime_error> (throwToken, "Invalid signature in validation");
         }
 
         mNodeID = lookupNodeID(PublicKey(makeSlice(spk)));
