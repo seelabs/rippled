@@ -632,8 +632,15 @@ ReportingETL::doWork()
         totalMetrics = {};
         roundMetrics = {};
 
+        size_t numLoops = 0;
+
         while (not stopping_)
+        {
             doETL();
+            numLoops++;
+            if(numLoops == 10)
+                totalMetrics = {};
+        }
     });
 }
 }  // namespace ripple

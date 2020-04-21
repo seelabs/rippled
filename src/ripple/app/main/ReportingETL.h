@@ -208,7 +208,7 @@ private:
         printMetrics(beast::Journal& j)
         {
             auto totalTime = updateTime + flushTime + storeTime;
-            auto kvTime = updateTime + storeTime;
+            auto kvTime = updateTime + flushTime;
             JLOG(j.info()) << " Metrics: "
                            << " txnCount = " << txnCount
                            << " objectCount = " << objectCount
