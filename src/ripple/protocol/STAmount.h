@@ -169,7 +169,7 @@ public:
     STAmount
     zeroed() const
     {
-        return STAmount (mIssue);
+        return STAmount (ThrowToken{false}, mIssue);
     }
 
     void
@@ -203,7 +203,8 @@ public:
 
     STAmount& operator= (XRPAmount const& amount)
     {
-        *this = STAmount (amount);
+        // Can't add a param to this interface
+        *this = STAmount (ThrowToken{false}, amount);
         return *this;
     }
 

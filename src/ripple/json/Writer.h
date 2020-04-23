@@ -231,10 +231,10 @@ private:
     void implOutput (std::string const&);
 };
 
-inline void check (ThrowToken throwToken, bool condition, std::string const& message)
+inline void check (bool condition, std::string const& message)
 {
     if (! condition)
-        ripple::Throw<std::logic_error> (throwToken, message);
+        ripple::Throw<std::logic_error> (ripple::ThrowToken{false}, message);
 }
 
 } // Json

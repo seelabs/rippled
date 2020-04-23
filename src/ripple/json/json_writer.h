@@ -20,6 +20,7 @@
 #ifndef RIPPLE_JSON_JSON_WRITER_H_INCLUDED
 #define RIPPLE_JSON_JSON_WRITER_H_INCLUDED
 
+#include <ripple/basics/contract.h>
 #include <ripple/json/json_forwards.h>
 #include <ripple/json/json_value.h>
 #include <ostream>
@@ -195,15 +196,15 @@ write_value(Write const& write, Value const& value)
             break;
 
         case intValue:
-            write_string(write, valueToString(value.asInt()));
+            write_string(write, valueToString(value.asInt(ripple::ThrowToken{false})));
             break;
 
         case uintValue:
-            write_string(write, valueToString(value.asUInt()));
+            write_string(write, valueToString(value.asUInt(ripple::ThrowToken{false})));
             break;
 
         case realValue:
-            write_string(write, valueToString(value.asDouble()));
+            write_string(write, valueToString(value.asDouble(ripple::ThrowToken{false})));
             break;
 
         case stringValue:

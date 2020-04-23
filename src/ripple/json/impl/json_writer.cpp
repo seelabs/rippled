@@ -201,15 +201,15 @@ FastWriter::writeValue ( const Value& value )
         break;
 
     case intValue:
-        document_ += valueToString ( value.asInt () );
+        document_ += valueToString ( value.asInt (ripple::ThrowToken{false}) );
         break;
 
     case uintValue:
-        document_ += valueToString ( value.asUInt () );
+        document_ += valueToString ( value.asUInt (ripple::ThrowToken{false}) );
         break;
 
     case realValue:
-        document_ += valueToString ( value.asDouble () );
+        document_ += valueToString ( value.asDouble (ripple::ThrowToken{false}) );
         break;
 
     case stringValue:
@@ -295,15 +295,15 @@ StyledWriter::writeValue ( const Value& value )
         break;
 
     case intValue:
-        pushValue ( valueToString ( value.asInt () ) );
+        pushValue ( valueToString ( value.asInt (ripple::ThrowToken{false})) );
         break;
 
     case uintValue:
-        pushValue ( valueToString ( value.asUInt () ) );
+        pushValue ( valueToString ( value.asUInt (ripple::ThrowToken{false}) ) );
         break;
 
     case realValue:
-        pushValue ( valueToString ( value.asDouble () ) );
+        pushValue ( valueToString ( value.asDouble (ripple::ThrowToken{false}) ) );
         break;
 
     case stringValue:
@@ -529,15 +529,15 @@ StyledStreamWriter::writeValue ( const Value& value )
         break;
 
     case intValue:
-        pushValue ( valueToString ( value.asInt () ) );
+        pushValue ( valueToString ( value.asInt (ripple::ThrowToken{false}) ) );
         break;
 
     case uintValue:
-        pushValue ( valueToString ( value.asUInt () ) );
+        pushValue ( valueToString ( value.asUInt (ripple::ThrowToken{false}) ) );
         break;
 
     case realValue:
-        pushValue ( valueToString ( value.asDouble () ) );
+        pushValue ( valueToString ( value.asDouble (ripple::ThrowToken{false}) ) );
         break;
 
     case stringValue:

@@ -47,12 +47,12 @@ class SOElement
     SOEStyle                             style_;
 
 public:
-    SOElement (ThrowToken throwToken, SField const& fieldName, SOEStyle style)
+    SOElement (SField const& fieldName, SOEStyle style)
         : sField_ (fieldName)
         , style_ (style)
     {
         if (! sField_.get().isUseful())
-            Throw<std::runtime_error> (throwToken, "SField in SOElement must be useful.");
+            Throw<std::runtime_error> (ThrowToken{false}, "SField in SOElement must be useful.");
     }
 
     SField const& sField () const

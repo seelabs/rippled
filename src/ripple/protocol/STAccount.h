@@ -75,7 +75,7 @@ public:
         //  o If we are default (all zeros) serialize as an empty blob.
         //  o Otherwise serialize 160 bits.
         int const size = isDefault() ? 0 : uint160::bytes;
-        s.addVL (value_.data(), size);
+        s.addVL (ThrowToken{false}, value_.data(), size);
     }
 
     bool

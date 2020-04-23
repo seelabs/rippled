@@ -20,6 +20,7 @@
 #ifndef RIPPLE_JSON_JSON_VALUE_H_INCLUDED
 #define RIPPLE_JSON_JSON_VALUE_H_INCLUDED
 
+#include <ripple/basics/contract.h>
 #include <ripple/json/json_forwards.h>
 #include <cstring>
 #include <map>

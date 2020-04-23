@@ -60,12 +60,12 @@ Collection::Collection (Collection&& that) noexcept
     *this = std::move (that);
 }
 
-void Collection::checkWritable (ripple::ThrowToken throwToken, std::string const& label)
+void Collection::checkWritable (std::string const& label)
 {
     if (! enabled_)
-        ripple::Throw<std::logic_error> (throwToken, label + ": not enabled");
+        ripple::Throw<std::logic_error> (ripple::ThrowToken{false}, label + ": not enabled");
     if (! writer_)
-        ripple::Throw<std::logic_error> (throwToken, label + ": not writable");
+        ripple::Throw<std::logic_error> (ripple::ThrowToken{false}, label + ": not writable");
 }
 
 //------------------------------------------------------------------------------
@@ -134,10 +134,10 @@ void Array::append (Json::Value const& v)
     switch (t)
     {
     case Json::nullValue:    return append (nullptr);
-    case Json::intValue:     return append (v.asInt());
-    case Json::uintValue:    return append (v.asUInt());
-    case Json::realValue:    return append (v.asDouble());
-    case Json::stringValue:  return append (v.asString());
+    case Json::intValue:     return append (v.asInt(ripple::ThrowToken{false}));
+    case Json::uintValue:    return append (v.asUInt(ripple::ThrowToken{false}));
+    case Json::realValue:    return append (v.asDouble(ripple::ThrowToken{false}));
+    case Json::stringValue:  return append (v.asString(ripple::ThrowToken{false}));
     case Json::booleanValue: return append (v.asBool());
 
     case Json::objectValue:
@@ -164,10 +164,10 @@ void Object::set (std::string const& k, Json::Value const& v)
     switch (t)
     {
     case Json::nullValue:    return set (k, nullptr);
-    case Json::intValue:     return set (k, v.asInt());
-    case Json::uintValue:    return set (k, v.asUInt());
-    case Json::realValue:    return set (k, v.asDouble());
-    case Json::stringValue:  return set (k, v.asString());
+    case Json::intValue:     return set (k, v.asInt(ripple::ThrowToken{false}));
+    case Json::uintValue:    return set (k, v.asUInt(ripple::ThrowToken{false}));
+    case Json::realValue:    return set (k, v.asDouble(ripple::ThrowToken{false}));
+    case Json::stringValue:  return set (k, v.asString(ripple::ThrowToken{false}));
     case Json::booleanValue: return set (k, v.asBool());
 
     case Json::objectValue:

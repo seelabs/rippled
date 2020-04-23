@@ -20,6 +20,7 @@
 #ifndef RIPPLE_BASICS_IOUAMOUNT_H_INCLUDED
 #define RIPPLE_BASICS_IOUAMOUNT_H_INCLUDED
 
+#include <ripple/basics/contract.h>
 #include <ripple/beast/utility/Zero.h>
 #include <boost/operators.hpp>
 #include <cstdint>
@@ -65,11 +66,11 @@ public:
         *this = beast::zero;
     }
 
-    IOUAmount (std::int64_t mantissa, int exponent)
+    IOUAmount (ThrowToken throwToken, std::int64_t mantissa, int exponent)
         : mantissa_ (mantissa)
         , exponent_ (exponent)
     {
-        normalize ();
+        normalize (throwToken);
     }
 
     IOUAmount&
@@ -95,7 +96,7 @@ public:
     IOUAmount
     operator- () const
     {
-        return { -mantissa_, exponent_ };
+        return { ThrowToken{false}, -mantissa_, exponent_ };
     }
 
     bool

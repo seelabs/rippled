@@ -205,8 +205,8 @@ bool contains_error (Json::Value const& json)
 std::string rpcErrorString(Json::Value const& jv)
 {
     assert(RPC::contains_error(jv));
-    return jv[jss::error].asString() +
-        jv[jss::error_message].asString();
+    return jv[jss::error].asString(ThrowToken{false}) +
+        jv[jss::error_message].asString(ThrowToken{false});
 }
 
 } // ripple

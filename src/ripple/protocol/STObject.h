@@ -507,7 +507,7 @@ public:
         if (auto cf = dynamic_cast<Bits*> (rf))
             cf->setValue (v);
         else
-            Throw<std::runtime_error> (throwToken, "Wrong field type");
+            Throw<std::runtime_error> (ThrowToken{false}, "Wrong field type");
     }
 
     STObject& peekFieldObject (ThrowToken throwToken, SField const& field);

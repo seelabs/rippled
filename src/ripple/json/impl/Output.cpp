@@ -36,25 +36,25 @@ void outputJson (Json::Value const& value, Writer& writer)
 
     case Json::intValue:
     {
-        writer.output (value.asInt());
+        writer.output (value.asInt(ripple::ThrowToken{false}));
         break;
     }
 
     case Json::uintValue:
     {
-        writer.output (value.asUInt());
+        writer.output (value.asUInt(ripple::ThrowToken{false}));
         break;
     }
 
     case Json::realValue:
     {
-        writer.output (value.asDouble());
+        writer.output (value.asDouble(ripple::ThrowToken{false}));
         break;
     }
 
     case Json::stringValue:
     {
-        writer.output (value.asString());
+        writer.output (value.asString(ripple::ThrowToken{false}));
         break;
     }
 

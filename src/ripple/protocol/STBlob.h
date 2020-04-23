@@ -101,7 +101,7 @@ public:
         assert (fName->isBinary ());
         assert ((fName->fieldType == STI_VL) ||
             (fName->fieldType == STI_ACCOUNT));
-        s.addVL (value_.data (), value_.size ());
+        s.addVL (ThrowToken{false}, value_.data (), value_.size ());
     }
 
     STBlob&

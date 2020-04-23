@@ -351,7 +351,7 @@ mulRatio (ThrowToken throwToken,
     if (neg)
         mantissa *= -1;
 
-    IOUAmount result (mantissa, exponent);
+    IOUAmount result (ThrowToken{false}, mantissa, exponent);
 
     if (hasRem)
     {
@@ -360,20 +360,20 @@ mulRatio (ThrowToken throwToken,
         {
             if (!result)
             {
-                return IOUAmount (minMantissa, minExponent);
+                return IOUAmount (ThrowToken{false}, minMantissa, minExponent);
             }
             // This addition cannot overflow because the mantissa is already normalized
-            return IOUAmount (result.mantissa () + 1, result.exponent ());
+            return IOUAmount (ThrowToken{false}, result.mantissa () + 1, result.exponent ());
         }
 
         if (!roundUp && neg)
         {
             if (!result)
             {
-                return IOUAmount (-minMantissa, minExponent);
+                return IOUAmount (ThrowToken{false}, -minMantissa, minExponent);
             }
             // This subtraction cannot underflow because `result` is not zero
-            return IOUAmount (result.mantissa () - 1, result.exponent ());
+            return IOUAmount (ThrowToken{false}, result.mantissa () - 1, result.exponent ());
         }
     }
 
