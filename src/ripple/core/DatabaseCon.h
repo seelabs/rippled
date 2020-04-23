@@ -83,6 +83,7 @@ public:
 
         Config::StartUpType startUp = Config::NORMAL;
         bool standAlone = false;
+        bool reporting = false;
         boost::filesystem::path dataDir;
     };
 
@@ -96,6 +97,7 @@ public:
         // Use temporary files or regular DB files?
         auto const useTempFiles =
             setup.standAlone &&
+            not setup.reporting &&
             setup.startUp != Config::LOAD &&
             setup.startUp != Config::LOAD_FILE &&
             setup.startUp != Config::REPLAY;
