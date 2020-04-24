@@ -106,6 +106,11 @@ const std::uint32_t tfRenew = 0x00010000;
 const std::uint32_t tfClose = 0x00020000;
 const std::uint32_t tfPayChanClaimMask = ~(tfUniversal | tfRenew | tfClose);
 
+// StableCoinRedeem flags:
+// redeem against account owner's CDP first
+const std::uint32_t tfOwnerCDP = 0x00010000;
+const std::uint32_t tfStableCoinRedeemMask = ~(tfUniversal | tfOwnerCDP);
+
 }  // namespace ripple
 
 #endif

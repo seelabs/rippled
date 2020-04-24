@@ -423,6 +423,7 @@ target_sources (rippled PRIVATE
   src/ripple/app/tx/impl/SetSignerList.cpp
   src/ripple/app/tx/impl/SetTrust.cpp
   src/ripple/app/tx/impl/SignerEntries.cpp
+  src/ripple/app/tx/impl/StableCoin.cpp
   src/ripple/app/tx/impl/Taker.cpp
   src/ripple/app/tx/impl/Transactor.cpp
   src/ripple/app/tx/impl/apply.cpp
@@ -677,9 +678,9 @@ target_sources (rippled PRIVATE
   src/test/app/RCLValidations_test.cpp
   src/test/app/Regression_test.cpp
   src/test/app/SHAMapStore_test.cpp
-  src/test/app/SetAuth_test.cpp
   src/test/app/SetRegularKey_test.cpp
   src/test/app/SetTrust_test.cpp
+  src/test/app/StableCoin_test.cpp
   src/test/app/Taker_test.cpp
   src/test/app/TheoreticalQuality_test.cpp
   src/test/app/Ticket_test.cpp

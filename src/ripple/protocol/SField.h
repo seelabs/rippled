@@ -392,6 +392,16 @@ extern SF_U32 const sfCancelAfter;
 extern SF_U32 const sfFinishAfter;
 extern SF_U32 const sfSignerListID;
 extern SF_U32 const sfSettleDelay;
+extern SF_U32 const sfIssuanceRatio;
+extern SF_U32 const sfLiquidationRatio;
+extern SF_U32 const sfLoanOriginationFee;
+extern SF_U32 const sfDepositFee;
+extern SF_U32 const sfLiquidationPenalty;
+extern SF_U32 const sfValidAfter;
+extern SF_U32 const sfOracleAssetCount;
+extern SF_U32 const sfIssuedCoins;
+extern SF_U32 const sfStableCoinBalance;
+extern SF_U32 const sfStableCoinCount;
 
 // 64-bit integers
 extern SF_U64 const sfIndexNext;
@@ -415,6 +425,9 @@ extern SF_U160 const sfTakerPaysIssuer;
 extern SF_U160 const sfTakerGetsCurrency;
 extern SF_U160 const sfTakerGetsIssuer;
 
+// 160-bit (uncommon)
+extern SF_U160 const sfAssetType;
+
 // 256-bit (common)
 extern SF_U256 const sfLedgerHash;
 extern SF_U256 const sfParentHash;
@@ -437,6 +450,8 @@ extern SF_U256 const sfPayChannel;
 extern SF_U256 const sfConsensusHash;
 extern SF_U256 const sfCheckID;
 extern SF_U256 const sfValidatedHash;
+extern SF_U256 const sfOracleID;
+extern SF_U256 const sfStableCoinID;
 
 // currency amount (common)
 extern SF_Amount const sfAmount;
@@ -454,6 +469,9 @@ extern SF_Amount const sfDeliverMin;
 extern SF_Amount const sfMinimumOffer;
 extern SF_Amount const sfRippleEscrow;
 extern SF_Amount const sfDeliveredAmount;
+extern SF_Amount const sfCDPBalance;
+extern SF_Amount const sfStabilityPoolBalance;
+extern SF_Amount const sfOracleXRPValue;
 
 // variable length (common)
 extern SF_Blob const sfPublicKey;
@@ -484,6 +502,7 @@ extern SF_Account const sfAuthorize;
 extern SF_Account const sfUnauthorize;
 extern SF_Account const sfTarget;
 extern SF_Account const sfRegularKey;
+extern SF_Account const sfStableCoinOwner;
 
 // path set
 extern SField const sfPaths;
@@ -492,6 +511,12 @@ extern SField const sfPaths;
 extern SF_Vec256 const sfIndexes;
 extern SF_Vec256 const sfHashes;
 extern SF_Vec256 const sfAmendments;
+// Temporarily an array
+extern SF_Vec256 const sfOracleUsers;
+// Temporarily an array
+extern SF_Vec256 const sfCDPs;
+// Temporarily an array
+extern SF_Vec64 const sfCDPAssetRatios;
 
 // inner object
 // OBJECT/1 is reserved for end of object

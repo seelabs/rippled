@@ -111,6 +111,7 @@ class FeatureCollections
         "RequireFullyCanonicalSig",
         "fix1781",  // XRPEndpointSteps should be included in the circular
                     // payment check
+        "StableCoin",
         "HardenedValidations"};
 
     std::vector<uint256> features;
@@ -134,7 +135,7 @@ public:
 
     uint256 const&
     bitsetIndexToFeature(size_t i) const;
-};
+};  // namespace detail
 
 /** Amendments that this server supports, but doesn't enable by default */
 std::vector<std::string> const&
@@ -367,6 +368,7 @@ extern uint256 const fixQualityUpperBound;
 extern uint256 const featureRequireFullyCanonicalSig;
 extern uint256 const fix1781;
 extern uint256 const featureHardenedValidations;
+extern uint256 const featureStableCoin;
 
 }  // namespace ripple
 

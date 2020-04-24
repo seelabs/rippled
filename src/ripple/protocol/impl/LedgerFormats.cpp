@@ -224,6 +224,79 @@ LedgerFormats::LedgerFormats()
             {sfPreviousTxnLgrSeq, soeREQUIRED},
         },
         commonFields);
+
+    add(jss::StableCoin,
+        ltSTABLE_COIN,
+        {
+            {sfAssetType, soeREQUIRED},
+            // Total XRP tied up in all user CDPs
+            {sfCDPBalance, soeREQUIRED},
+            // Total issued coins from all users
+            {sfIssuedCoins, soeREQUIRED},
+            {sfIssuanceRatio, soeREQUIRED},
+            {sfLiquidationRatio, soeREQUIRED},
+            {sfOracleID, soeREQUIRED},
+            {sfLoanOriginationFee, soeREQUIRED},
+            {sfDepositFee, soeREQUIRED},
+            {sfLiquidationPenalty, soeREQUIRED},
+            {sfStabilityPoolBalance, soeREQUIRED},
+            {sfCDPs, soeREQUIRED},
+            // This field is used for the prototype only
+            // Future milestones will keeps CDP sorted using
+            // a different mechanism (similar to order books)
+            // Stores the ratio as a rate (inverse of quality).
+            // CDPs with a debt of zero have the highest possible rate.
+            // This ratio is used for sorting only. The debt take the number
+            // of issued coins into account, but not the current oracle value.
+            // Note that this is not sorted.
+            {sfCDPAssetRatios, soeREQUIRED},
+
+            {sfOwnerNode, soeREQUIRED},
+            {sfPreviousTxnID, soeREQUIRED},
+            {sfPreviousTxnLgrSeq, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::Oracle,
+        ltORACLE,
+        {
+            {sfAssetType, soeREQUIRED},
+            {sfValidAfter, soeOPTIONAL},
+            {sfExpiration, soeOPTIONAL},
+            {sfOracleXRPValue, soeOPTIONAL},
+            {sfOracleAssetCount, soeOPTIONAL},
+            {sfOracleUsers, soeOPTIONAL},
+
+            {sfOwnerNode, soeREQUIRED},
+            {sfPreviousTxnID, soeREQUIRED},
+            {sfPreviousTxnLgrSeq, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::CDP,
+        ltCDP,
+        {
+            {sfStableCoinID, soeREQUIRED},
+            {sfBalance, soeREQUIRED},
+            {sfIssuedCoins, soeREQUIRED},
+
+            {sfOwnerNode, soeREQUIRED},
+            {sfPreviousTxnID, soeREQUIRED},
+            {sfPreviousTxnLgrSeq, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::StableCoinBalance,
+        ltSTABLE_COIN_BALANCE,
+        {
+            {sfStableCoinID, soeREQUIRED},
+            {sfStableCoinBalance, soeREQUIRED},
+
+            {sfOwnerNode, soeREQUIRED},
+            {sfPreviousTxnID, soeREQUIRED},
+            {sfPreviousTxnLgrSeq, soeREQUIRED},
+        },
+        commonFields);
 }
 
 LedgerFormats const&

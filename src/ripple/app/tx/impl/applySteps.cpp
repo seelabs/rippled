@@ -36,6 +36,7 @@
 #include <ripple/app/tx/impl/SetRegularKey.h>
 #include <ripple/app/tx/impl/SetSignerList.h>
 #include <ripple/app/tx/impl/SetTrust.h>
+#include <ripple/app/tx/impl/StableCoin.h>
 
 namespace ripple {
 
@@ -84,6 +85,30 @@ invoke_preflight(PreflightContext const& ctx)
             return SetTrust ::preflight(ctx);
         case ttACCOUNT_DELETE:
             return DeleteAccount ::preflight(ctx);
+        case ttSTABLE_COIN_CREATE:
+            return StableCoinCreate ::preflight(ctx);
+        case ttSTABLE_COIN_DELETE:
+            return StableCoinDelete ::preflight(ctx);
+        case ttORACLE_CREATE:
+            return OracleCreate ::preflight(ctx);
+        case ttORACLE_DELETE:
+            return OracleDelete ::preflight(ctx);
+        case ttORACLE_UPDATE:
+            return OracleUpdate ::preflight(ctx);
+        case ttCDP_CREATE:
+            return CDPCreate ::preflight(ctx);
+        case ttCDP_DELETE:
+            return CDPDelete ::preflight(ctx);
+        case ttCDP_DEPOSIT:
+            return CDPDeposit ::preflight(ctx);
+        case ttCDP_WITHDRAW:
+            return CDPWithdraw ::preflight(ctx);
+        case ttSTABLE_COIN_ISSUE:
+            return StableCoinIssue ::preflight(ctx);
+        case ttSTABLE_COIN_REDEEM:
+            return StableCoinRedeem ::preflight(ctx);
+        case ttSTABLE_COIN_TRANSFER:
+            return StableCoinTransfer::preflight(ctx);
         case ttAMENDMENT:
         case ttFEE:
             return Change ::preflight(ctx);
@@ -171,6 +196,30 @@ invoke_preclaim(PreclaimContext const& ctx)
             return invoke_preclaim<SetTrust>(ctx);
         case ttACCOUNT_DELETE:
             return invoke_preclaim<DeleteAccount>(ctx);
+        case ttSTABLE_COIN_CREATE:
+            return invoke_preclaim<StableCoinCreate>(ctx);
+        case ttSTABLE_COIN_DELETE:
+            return invoke_preclaim<StableCoinDelete>(ctx);
+        case ttORACLE_CREATE:
+            return invoke_preclaim<OracleCreate>(ctx);
+        case ttORACLE_DELETE:
+            return invoke_preclaim<OracleDelete>(ctx);
+        case ttORACLE_UPDATE:
+            return invoke_preclaim<OracleUpdate>(ctx);
+        case ttCDP_CREATE:
+            return invoke_preclaim<CDPCreate>(ctx);
+        case ttCDP_DELETE:
+            return invoke_preclaim<CDPDelete>(ctx);
+        case ttCDP_DEPOSIT:
+            return invoke_preclaim<CDPDeposit>(ctx);
+        case ttCDP_WITHDRAW:
+            return invoke_preclaim<CDPWithdraw>(ctx);
+        case ttSTABLE_COIN_ISSUE:
+            return invoke_preclaim<StableCoinIssue>(ctx);
+        case ttSTABLE_COIN_REDEEM:
+            return invoke_preclaim<StableCoinRedeem>(ctx);
+        case ttSTABLE_COIN_TRANSFER:
+            return invoke_preclaim<StableCoinTransfer>(ctx);
         case ttAMENDMENT:
         case ttFEE:
             return invoke_preclaim<Change>(ctx);
@@ -225,6 +274,30 @@ invoke_calculateBaseFee(ReadView const& view, STTx const& tx)
             return SetTrust::calculateBaseFee(view, tx);
         case ttACCOUNT_DELETE:
             return DeleteAccount::calculateBaseFee(view, tx);
+        case ttSTABLE_COIN_CREATE:
+            return StableCoinCreate::calculateBaseFee(view, tx);
+        case ttSTABLE_COIN_DELETE:
+            return StableCoinDelete::calculateBaseFee(view, tx);
+        case ttORACLE_CREATE:
+            return OracleCreate::calculateBaseFee(view, tx);
+        case ttORACLE_DELETE:
+            return OracleDelete::calculateBaseFee(view, tx);
+        case ttORACLE_UPDATE:
+            return OracleUpdate::calculateBaseFee(view, tx);
+        case ttCDP_CREATE:
+            return CDPCreate::calculateBaseFee(view, tx);
+        case ttCDP_DELETE:
+            return CDPDelete::calculateBaseFee(view, tx);
+        case ttCDP_DEPOSIT:
+            return CDPDeposit::calculateBaseFee(view, tx);
+        case ttCDP_WITHDRAW:
+            return CDPWithdraw::calculateBaseFee(view, tx);
+        case ttSTABLE_COIN_ISSUE:
+            return StableCoinIssue::calculateBaseFee(view, tx);
+        case ttSTABLE_COIN_REDEEM:
+            return StableCoinRedeem::calculateBaseFee(view, tx);
+        case ttSTABLE_COIN_TRANSFER:
+            return StableCoinTransfer::calculateBaseFee(view, tx);
         case ttAMENDMENT:
         case ttFEE:
             return Change::calculateBaseFee(view, tx);
@@ -292,6 +365,30 @@ invoke_calculateConsequences(STTx const& tx)
             return invoke_calculateConsequences<SetTrust>(tx);
         case ttACCOUNT_DELETE:
             return invoke_calculateConsequences<DeleteAccount>(tx);
+        case ttSTABLE_COIN_CREATE:
+            return invoke_calculateConsequences<StableCoinCreate>(tx);
+        case ttSTABLE_COIN_DELETE:
+            return invoke_calculateConsequences<StableCoinDelete>(tx);
+        case ttORACLE_CREATE:
+            return invoke_calculateConsequences<OracleCreate>(tx);
+        case ttORACLE_DELETE:
+            return invoke_calculateConsequences<OracleDelete>(tx);
+        case ttORACLE_UPDATE:
+            return invoke_calculateConsequences<OracleUpdate>(tx);
+        case ttCDP_CREATE:
+            return invoke_calculateConsequences<CDPCreate>(tx);
+        case ttCDP_DELETE:
+            return invoke_calculateConsequences<CDPDelete>(tx);
+        case ttCDP_DEPOSIT:
+            return invoke_calculateConsequences<CDPDeposit>(tx);
+        case ttCDP_WITHDRAW:
+            return invoke_calculateConsequences<CDPWithdraw>(tx);
+        case ttSTABLE_COIN_ISSUE:
+            return invoke_calculateConsequences<StableCoinIssue>(tx);
+        case ttSTABLE_COIN_REDEEM:
+            return invoke_calculateConsequences<StableCoinRedeem>(tx);
+        case ttSTABLE_COIN_TRANSFER:
+            return invoke_calculateConsequences<StableCoinTransfer>(tx);
         case ttAMENDMENT:
         case ttFEE:
             [[fallthrough]];
@@ -387,6 +484,54 @@ invoke_apply(ApplyContext& ctx)
         }
         case ttACCOUNT_DELETE: {
             DeleteAccount p(ctx);
+            return p();
+        }
+        case ttSTABLE_COIN_CREATE: {
+            StableCoinCreate p(ctx);
+            return p();
+        }
+        case ttSTABLE_COIN_DELETE: {
+            StableCoinDelete p(ctx);
+            return p();
+        }
+        case ttORACLE_CREATE: {
+            OracleCreate p(ctx);
+            return p();
+        }
+        case ttORACLE_DELETE: {
+            OracleDelete p(ctx);
+            return p();
+        }
+        case ttORACLE_UPDATE: {
+            OracleUpdate p(ctx);
+            return p();
+        }
+        case ttCDP_CREATE: {
+            CDPCreate p(ctx);
+            return p();
+        }
+        case ttCDP_DELETE: {
+            CDPDelete p(ctx);
+            return p();
+        }
+        case ttCDP_DEPOSIT: {
+            CDPDeposit p(ctx);
+            return p();
+        }
+        case ttCDP_WITHDRAW: {
+            CDPWithdraw p(ctx);
+            return p();
+        }
+        case ttSTABLE_COIN_ISSUE: {
+            StableCoinIssue p(ctx);
+            return p();
+        }
+        case ttSTABLE_COIN_REDEEM: {
+            StableCoinRedeem p(ctx);
+            return p();
+        }
+        case ttSTABLE_COIN_TRANSFER: {
+            StableCoinTransfer p(ctx);
             return p();
         }
         case ttAMENDMENT:

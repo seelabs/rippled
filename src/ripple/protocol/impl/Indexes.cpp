@@ -58,6 +58,10 @@ enum class LedgerNameSpace : std::uint16_t {
     XRP_PAYMENT_CHANNEL = 'x',
     CHECK = 'C',
     DEPOSIT_PREAUTH = 'p',
+    STABLECOIN = 't',
+    ORACLE = 'D',  // D for delphi
+    CDP = 'P',
+    STABLECOINBALANCE = 'A',
 
     // No longer used or supported. Left here to reserve the space
     // to avoid accidental reuse.
@@ -299,6 +303,50 @@ payChan(AccountID const& src, AccountID const& dst, std::uint32_t seq) noexcept
     return {
         ltPAYCHAN,
         indexHash(LedgerNameSpace::XRP_PAYMENT_CHANNEL, src, dst, seq)};
+}
+
+Keylet
+oracle(AccountID const& source, uint160 const& assetType)
+{
+    sha512_half_hasher h;
+    using beast::hash_append;
+    hash_append(h, LedgerNameSpace::ORACLE);
+    hash_append(h, source);
+    hash_append(h, assetType);
+    return {ltORACLE, static_cast<uint256>(h)};
+}
+
+Keylet
+stableCoin(AccountID const& owner, uint160 const& assetType)
+{
+    sha512_half_hasher h;
+    using beast::hash_append;
+    hash_append(h, LedgerNameSpace::STABLECOIN);
+    hash_append(h, owner);
+    hash_append(h, assetType);
+    return {ltSTABLE_COIN, static_cast<uint256>(h)};
+}
+
+Keylet
+cdp(AccountID const& owner, uint256 const& stableCoinID)
+{
+    sha512_half_hasher h;
+    using beast::hash_append;
+    hash_append(h, LedgerNameSpace::CDP);
+    hash_append(h, owner);
+    hash_append(h, stableCoinID);
+    return {ltCDP, static_cast<uint256>(h)};
+}
+
+Keylet
+stableCoinBalance(AccountID const& owner, uint256 const& stableCoinID)
+{
+    sha512_half_hasher h;
+    using beast::hash_append;
+    hash_append(h, LedgerNameSpace::STABLECOINBALANCE);
+    hash_append(h, owner);
+    hash_append(h, stableCoinID);
+    return {ltSTABLE_COIN_BALANCE, static_cast<uint256>(h)};
 }
 
 }  // namespace keylet

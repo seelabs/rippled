@@ -251,6 +251,114 @@ TxFormats::TxFormats()
             {sfUnauthorize, soeOPTIONAL},
         },
         commonFields);
+
+    add(jss::StableCoinCreate,
+        ttSTABLE_COIN_CREATE,
+        {
+            {sfAssetType, soeREQUIRED},
+            {sfIssuanceRatio, soeREQUIRED},
+            {sfLiquidationRatio, soeREQUIRED},
+            {sfOracleID, soeREQUIRED},
+            {sfLoanOriginationFee, soeREQUIRED},
+            {sfDepositFee, soeREQUIRED},
+            {sfLiquidationPenalty, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::StableCoinDelete,
+        ttSTABLE_COIN_DELETE,
+        {
+            {sfAssetType, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::OracleCreate,
+        ttORACLE_CREATE,
+        {
+            {sfAssetType, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::OracleDelete,
+        ttORACLE_DELETE,
+        {
+            {sfAssetType, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::OracleUpdate,
+        ttORACLE_UPDATE,
+        {
+            {sfOracleID, soeREQUIRED},
+            {sfValidAfter, soeREQUIRED},
+            {sfExpiration, soeREQUIRED},
+            {sfOracleXRPValue, soeREQUIRED},
+            {sfOracleAssetCount, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::CDPCreate,
+        ttCDP_CREATE,
+        {
+            {sfStableCoinOwner, soeREQUIRED},
+            {sfAssetType, soeREQUIRED},
+            {sfAmount, soeOPTIONAL},
+        },
+        commonFields);
+
+    add(jss::CDPDelete,
+        ttCDP_DELETE,
+        {
+            {sfStableCoinOwner, soeREQUIRED},
+            {sfAssetType, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::CDPDeposit,
+        ttCDP_DEPOSIT,
+        {
+            {sfStableCoinOwner, soeREQUIRED},
+            {sfAssetType, soeREQUIRED},
+            {sfAmount, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::CDPWithdraw,
+        ttCDP_WITHDRAW,
+        {
+            {sfStableCoinOwner, soeREQUIRED},
+            {sfAssetType, soeREQUIRED},
+            {sfAmount, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::StableCoinIssue,
+        ttSTABLE_COIN_ISSUE,
+        {
+            {sfStableCoinOwner, soeREQUIRED},
+            {sfAssetType, soeREQUIRED},
+            {sfStableCoinCount, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::StableCoinRedeem,
+        ttSTABLE_COIN_REDEEM,
+        {
+            {sfStableCoinOwner, soeREQUIRED},
+            {sfAssetType, soeREQUIRED},
+            {sfStableCoinCount, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::StableCoinTransfer,
+        ttSTABLE_COIN_TRANSFER,
+        {
+            {sfStableCoinOwner, soeREQUIRED},
+            {sfAssetType, soeREQUIRED},
+            {sfStableCoinCount, soeREQUIRED},
+            {sfDestination, soeREQUIRED},
+        },
+        commonFields);
 }
 
 TxFormats const&

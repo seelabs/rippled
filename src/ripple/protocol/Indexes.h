@@ -217,6 +217,22 @@ escrow(AccountID const& src, std::uint32_t seq) noexcept;
 Keylet
 payChan(AccountID const& src, AccountID const& dst, std::uint32_t seq) noexcept;
 
+/** An Oracle */
+Keylet
+oracle(AccountID const& source, uint160 const& assetType);
+
+/** A stable coin */
+Keylet
+stableCoin(AccountID const& owner, uint160 const& assetType);
+
+/** A stable coin's Collateralized Debt Position*/
+Keylet
+cdp(AccountID const& owner, uint256 const& stableCoinID);
+
+/** An account's stable coin balance*/
+Keylet
+stableCoinBalance(AccountID const& owner, uint256 const& stableCoinID);
+
 }  // namespace keylet
 
 // Everything below is deprecated and should be removed in favor of keylets:

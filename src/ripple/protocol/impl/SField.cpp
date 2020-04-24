@@ -119,6 +119,20 @@ SF_U32 const sfCancelAfter(access, STI_UINT32, 36, "CancelAfter");
 SF_U32 const sfFinishAfter(access, STI_UINT32, 37, "FinishAfter");
 SF_U32 const sfSignerListID(access, STI_UINT32, 38, "SignerListID");
 SF_U32 const sfSettleDelay(access, STI_UINT32, 39, "SettleDelay");
+// Stable coin issuance colateral ratio
+SF_U32 const sfIssuanceRatio(access, STI_UINT32, 40, "IssuanceRatio");
+// Stable coin liquidation colateral ratio
+SF_U32 const sfLiquidationRatio(access, STI_UINT32, 41, "LiquidationRatio");
+// Stable coin loan origination fee
+SF_U32 const sfLoanOriginationFee(access, STI_UINT32, 42, "LoanOriginationFee");
+SF_U32 const sfDepositFee(access, STI_UINT32, 43, "DepositFee");
+SF_U32 const sfLiquidationPenalty(access, STI_UINT32, 44, "LiquidationPenalty");
+// Oracle values have a limited valid time interval
+SF_U32 const sfValidAfter(access, STI_UINT32, 45, "ValidAfter");
+SF_U32 const sfOracleAssetCount(access, STI_UINT32, 46, "OracleAssetCount");
+SF_U32 const sfIssuedCoins(access, STI_UINT32, 47, "IssuedCoins");
+SF_U32 const sfStableCoinBalance(access, STI_UINT32, 48, "StableCoinBalance");
+SF_U32 const sfStableCoinCount(access, STI_UINT32, 49, "StableCoinCount");
 
 // 64-bit integers
 SF_U64 const sfIndexNext(access, STI_UINT64, 1, "IndexNext");
@@ -141,6 +155,9 @@ SF_U160 const sfTakerPaysCurrency(access, STI_HASH160, 1, "TakerPaysCurrency");
 SF_U160 const sfTakerPaysIssuer(access, STI_HASH160, 2, "TakerPaysIssuer");
 SF_U160 const sfTakerGetsCurrency(access, STI_HASH160, 3, "TakerGetsCurrency");
 SF_U160 const sfTakerGetsIssuer(access, STI_HASH160, 4, "TakerGetsIssuer");
+
+// 160-bit (uncommon)
+SF_U160 const sfAssetType(access, STI_HASH160, 5, "AssetType");
 
 // 256-bit (common)
 SF_U256 const sfLedgerHash(access, STI_HASH256, 1, "LedgerHash");
@@ -170,6 +187,8 @@ SF_U256 const sfPayChannel(access, STI_HASH256, 22, "Channel");
 SF_U256 const sfConsensusHash(access, STI_HASH256, 23, "ConsensusHash");
 SF_U256 const sfCheckID(access, STI_HASH256, 24, "CheckID");
 SF_U256 const sfValidatedHash(access, STI_HASH256, 25, "ValidatedHash");
+SF_U256 const sfOracleID(access, STI_HASH256, 25, "OracleID");
+SF_U256 const sfStableCoinID(access, STI_HASH256, 26, "StableCoinID");
 
 // currency amount (common)
 SF_Amount const sfAmount(access, STI_AMOUNT, 1, "Amount");
@@ -182,6 +201,10 @@ SF_Amount const sfHighLimit(access, STI_AMOUNT, 7, "HighLimit");
 SF_Amount const sfFee(access, STI_AMOUNT, 8, "Fee");
 SF_Amount const sfSendMax(access, STI_AMOUNT, 9, "SendMax");
 SF_Amount const sfDeliverMin(access, STI_AMOUNT, 10, "DeliverMin");
+SF_Amount const sfCDPBalance(access, STI_AMOUNT, 11, "CDPBalance");
+SF_Amount const
+    sfStabilityPoolBalance(access, STI_AMOUNT, 12, "StabilityPoolBalance");
+SF_Amount const sfOracleXRPValue(access, STI_AMOUNT, 13, "OracleXRPValue");
 
 // currency amount (uncommon)
 SF_Amount const sfMinimumOffer(access, STI_AMOUNT, 16, "MinimumOffer");
@@ -235,6 +258,7 @@ SF_Account const sfAuthorize(access, STI_ACCOUNT, 5, "Authorize");
 SF_Account const sfUnauthorize(access, STI_ACCOUNT, 6, "Unauthorize");
 SF_Account const sfTarget(access, STI_ACCOUNT, 7, "Target");
 SF_Account const sfRegularKey(access, STI_ACCOUNT, 8, "RegularKey");
+SF_Account const sfStableCoinOwner(access, STI_ACCOUNT, 9, "StableCoinOwner");
 
 // path set
 SField const sfPaths(access, STI_PATHSET, 1, "Paths");
@@ -244,6 +268,12 @@ SF_Vec256 const
     sfIndexes(access, STI_VECTOR256, 1, "Indexes", SField::sMD_Never);
 SF_Vec256 const sfHashes(access, STI_VECTOR256, 2, "Hashes");
 SF_Vec256 const sfAmendments(access, STI_VECTOR256, 3, "Amendments");
+// Temporarily an array
+SF_Vec256 const sfOracleUsers(access, STI_VECTOR256, 4, "OracleUsers");
+// Temporarily an array
+SF_Vec256 const sfCDPs(access, STI_VECTOR256, 5, "CDPs");
+// Temporarily an array
+SF_Vec64 const sfCDPAssetRatios(access, STI_VECTOR64, 6, "CDPAssetRatios");
 
 // inner object
 // OBJECT/1 is reserved for end of object

@@ -201,6 +201,30 @@ public:
         return mValue.clear();
     }
 
+    std::vector<std::uint64_t>::reference
+    front()
+    {
+        return mValue.front();
+    }
+
+    std::vector<std::uint64_t>::const_reference
+    front() const
+    {
+        return mValue.front();
+    }
+
+    std::vector<std::uint64_t>::reference
+    back()
+    {
+        return mValue.back();
+    }
+
+    std::vector<std::uint64_t>::const_reference
+    back() const
+    {
+        return mValue.back();
+    }
+
 private:
     std::vector<std::uint64_t> mValue;
 };

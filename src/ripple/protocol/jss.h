@@ -48,12 +48,19 @@ JSS(AccountRoot);            // ledger type.
 JSS(AccountSet);             // transaction type.
 JSS(Amendments);             // ledger type.
 JSS(Amount);                 // in: TransactionSign; field.
+JSS(AssetType);              // in: OracleCreate, StableCoinCreate; field.
+JSS(CDP);                    // ledger type.
+JSS(CDPCreate);              // transaction type.
+JSS(CDPDelete);              // transaction type.
+JSS(CDPDeposit);             // transaction type.
+JSS(CDPWithdraw);            // transaction type.
 JSS(Check);                  // ledger type.
 JSS(CheckCancel);            // transaction type.
 JSS(CheckCash);              // transaction type.
 JSS(CheckCreate);            // transaction type.
 JSS(ClearFlag);              // field.
 JSS(DeliverMin);             // in: TransactionSign
+JSS(DepositFee);             // in: StableCoinCreate; field.
 JSS(DepositPreauth);         // transaction and ledger type.
 JSS(Destination);            // in: TransactionSign; field.
 JSS(DirectoryNode);          // ledger type.
@@ -62,17 +69,29 @@ JSS(Escrow);                 // ledger type.
 JSS(EscrowCancel);           // transaction type.
 JSS(EscrowCreate);           // transaction type.
 JSS(EscrowFinish);           // transaction type.
+JSS(Expiration);             // OracleUpdate; field.
 JSS(Fee);                    // in/out: TransactionSign; field.
 JSS(FeeSettings);            // ledger type.
 JSS(Flags);                  // in/out: TransactionSign; field.
 JSS(Invalid);                //
+JSS(IssuanceRatio);          // in: StableCoinCreate; field.
 JSS(LastLedgerSequence);     // in: TransactionSign; field
 JSS(LedgerHashes);           // ledger type.
 JSS(LimitAmount);            // field.
+JSS(LiquidationPenalty);     // in: StableCoinCreate; field.
+JSS(LiquidationRatio);       // in: StableCoinCreate; field.
+JSS(LoanOriginationFee);     // in: StableCoinCreate; field.
 JSS(Offer);                  // ledger type.
 JSS(OfferCancel);            // transaction type.
 JSS(OfferCreate);            // transaction type.
 JSS(OfferSequence);          // field.
+JSS(Oracle);                 // ledger type.
+JSS(OracleAssetCount);       // in: OracleUpdate; field.
+JSS(OracleCreate);           // transaction type.
+JSS(OracleDelete);           // transaction type.
+JSS(OracleUpdate);           // transaction type.
+JSS(OracleID);               // in: OracleUpdate; field.
+JSS(OracleXRPValue);         // in: OracleUpdate; field.
 JSS(Paths);                  // in/out: TransactionSign
 JSS(PayChannel);             // ledger type.
 JSS(Payment);                // transaction type.
@@ -90,6 +109,16 @@ JSS(SetRegularKey);          // transaction type.
 JSS(SignerList);             // ledger type.
 JSS(SignerListSet);          // transaction type.
 JSS(SigningPubKey);          // field.
+JSS(StableCoin);             // ledger type.
+JSS(StableCoinCount);        // in: StableCoinIssue, StableCoinRedeem,
+                             // StableCoinTransfer
+JSS(StableCoinCreate);       // transaction type.
+JSS(StableCoinDelete);       // transaction type.
+JSS(StableCoinOwner);        // in: CDPCreate
+JSS(StableCoinBalance);      // ledger type.
+JSS(StableCoinIssue);        // transaction type.
+JSS(StableCoinRedeem);       // transaction type.
+JSS(StableCoinTransfer);     // transaction type.
 JSS(TakerGets);              // field.
 JSS(TakerPays);              // field.
 JSS(Ticket);                 // ledger type.
@@ -99,6 +128,7 @@ JSS(TxnSignature);           // field.
 JSS(TransactionType);        // in: TransactionSign.
 JSS(TransferRate);           // in: TransferRate.
 JSS(TrustSet);               // transaction type.
+JSS(ValidAfter);             // in: OracleUpdate; field.
 JSS(aborted);                // out: InboundLedger
 JSS(accepted);               // out: LedgerToJson, OwnerInfo, SubmitTransaction
 JSS(account);                // in/out: many

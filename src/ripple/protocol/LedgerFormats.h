@@ -86,12 +86,24 @@ enum LedgerEntryType {
 
     ltDEPOSIT_PREAUTH = 'p',
 
+    ltSTABLE_COIN = 't',
+
+    ltORACLE = 'O',
+
+    ltCDP = 'P',
+
+    ltSTABLE_COIN_BALANCE = 'A',
+
     // No longer used or supported. Left here to prevent accidental
     // reassignment of the ledger type.
     ltNICKNAME [[deprecated]] = 'n',
 
     ltNotUsed01 [[deprecated]] = 'c',
 };
+
+/**
+    @ingroup protocol
+*/
 
 /**
     @ingroup protocol

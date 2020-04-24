@@ -196,6 +196,30 @@ public:
         return mValue.clear();
     }
 
+    std::vector<uint256>::reference
+    front()
+    {
+        return mValue.front();
+    }
+
+    std::vector<uint256>::const_reference
+    front() const
+    {
+        return mValue.front();
+    }
+
+    std::vector<uint256>::reference
+    back()
+    {
+        return mValue.back();
+    }
+
+    std::vector<uint256>::const_reference
+    back() const
+    {
+        return mValue.back();
+    }
+
 private:
     std::vector<uint256> mValue;
 };

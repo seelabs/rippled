@@ -111,13 +111,40 @@ public:
  * @brief Invariant: A transaction must not create XRP and should only destroy
  * the XRP fee.
  *
- * We iterate through all account roots, payment channels and escrow entries
- * that were modified and calculate the net change in XRP caused by the
- * transactions.
+ * We iterate through all account roots, payment channels, escrow entries,
+ * stable coin cdps and stable coin roots that were modified and calculate the
+ * net change in XRP caused by the transactions.
  */
 class XRPNotCreated
 {
     std::int64_t drops_ = 0;
+
+public:
+    void
+    visitEntry(
+        bool,
+        std::shared_ptr<SLE const> const&,
+        std::shared_ptr<SLE const> const&);
+
+    bool
+    finalize(
+        STTx const&,
+        TER const,
+        XRPAmount const,
+        ReadView const&,
+        beast::Journal const&);
+};
+
+/**
+ * @brief Invariant: The total number of stable coins is always #issued -
+ * #redeemed
+ *
+ * We iterate through all stable coin balances and cdps that were modified and
+ * calculate the net change in each stable coin caused by the transactions.
+ */
+class StableCoinTally
+{
+    std::int64_t tally_ = 0;
 
 public:
     void
@@ -329,7 +356,8 @@ using InvariantChecks = std::tuple<
     NoXRPTrustLines,
     NoBadOffers,
     NoZeroEscrow,
-    ValidNewAccountRoot>;
+    ValidNewAccountRoot,
+    StableCoinTally>;
 
 /**
  * @brief get a tuple of all invariant checks

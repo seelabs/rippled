@@ -116,7 +116,13 @@ enum TEMcodes : TERUnderlyingType {
 
     // An intermediate result used internally, should never be returned.
     temUNCERTAIN,
-    temUNKNOWN
+    temUNKNOWN,
+
+    temBAD_STABLECOIN_ISSUANCE_RATIO,
+    temBAD_STABLECOIN_LIQUIDATION_RATIO,
+    temBAD_STABLECOIN_LOAN_ORG_FEE,
+    temBAD_STABLECOIN_DEPOSIT_FEE,
+    temBAD_STABLECOIN_LIQUIDATION_PENALTY,
 };
 
 //------------------------------------------------------------------------------
@@ -274,6 +280,16 @@ enum TECcodes : TERUnderlyingType {
     tecKILLED = 150,
     tecHAS_OBLIGATIONS = 151,
     tecTOO_SOON = 152,
+    tecBAD_ORACLE_UPDATE = 153,
+    tecORACLE_ASSET_MISMATCH = 154,
+    tecUNFUNDED_CDP_DEPOSIT = 155,
+    // TBD: Limit only used for the prototype. Will be removed
+    tecSTABLECOIN_PROTOTYPE_LIMIT_EXCEEDED = 156,
+    tecNO_ORACLE_VALUE = 157,
+    tecSTABLECOIN_ISSUANCE_RATIO = 158,
+    tecSTABLECOIN_MAX_ISSUED_EXCEEDED = 159,
+    tecCDP_DRY = 160,
+    tecSTABLECOIN_UNFUNDED_REDEEM = 161,
 };
 
 //------------------------------------------------------------------------------

@@ -101,6 +101,12 @@ XRPNotCreated::visitEntry(
             case ltESCROW:
                 drops_ -= (*before)[sfAmount].xrp().drops();
                 break;
+            case ltCDP:
+                drops_ -= (*before)[sfBalance].xrp().drops();
+                break;
+            case ltSTABLE_COIN:
+                drops_ -= (*before)[sfStabilityPoolBalance].xrp().drops();
+                break;
             default:
                 break;
         }
@@ -122,6 +128,12 @@ XRPNotCreated::visitEntry(
             case ltESCROW:
                 if (!isDelete)
                     drops_ += (*after)[sfAmount].xrp().drops();
+                break;
+            case ltCDP:
+                drops_ += (*after)[sfBalance].xrp().drops();
+                break;
+            case ltSTABLE_COIN:
+                drops_ += (*after)[sfStabilityPoolBalance].xrp().drops();
                 break;
             default:
                 break;
@@ -151,6 +163,72 @@ XRPNotCreated::finalize(
     {
         JLOG(j.fatal()) << "Invariant failed: XRP net change of " << drops_
                         << " doesn't match fee " << fee.drops();
+        return false;
+    }
+
+    return true;
+}
+
+//------------------------------------------------------------------------------
+
+void
+StableCoinTally::visitEntry(
+    bool isDelete,
+    std::shared_ptr<SLE const> const& before,
+    std::shared_ptr<SLE const> const& after)
+{
+    if (before)
+    {
+        switch (before->getType())
+        {
+            case ltCDP:
+                tally_ += (*before)[sfIssuedCoins];
+                break;
+            case ltSTABLE_COIN_BALANCE:
+                tally_ -= (*before)[sfStableCoinBalance];
+                break;
+            default:
+                break;
+        }
+    }
+
+    if (after)
+    {
+        switch (after->getType())
+        {
+            case ltCDP:
+                tally_ -= (*after)[sfIssuedCoins];
+                break;
+            case ltSTABLE_COIN_BALANCE:
+                tally_ += (*after)[sfStableCoinBalance];
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+bool
+StableCoinTally::finalize(
+    STTx const&,
+    TER const,
+    XRPAmount const,
+    ReadView const&,
+    beast::Journal const& j)
+{
+    if (tally_ > 0)
+    {
+        JLOG(j.fatal())
+            << "Invariant failed: Untracked stable coins were created: "
+            << tally_;
+        return false;
+    }
+
+    if (tally_ < 0)
+    {
+        JLOG(j.fatal())
+            << "Invariant failed: Untracked Stable coins were destroyed: "
+            << -tally_;
         return false;
     }
 
@@ -365,6 +443,10 @@ LedgerEntryTypesMatch::visitEntry(
             case ltPAYCHAN:
             case ltCHECK:
             case ltDEPOSIT_PREAUTH:
+            case ltORACLE:
+            case ltSTABLE_COIN:
+            case ltCDP:
+            case ltSTABLE_COIN_BALANCE:
                 break;
             default:
                 invalidTypeAdded_ = true;
