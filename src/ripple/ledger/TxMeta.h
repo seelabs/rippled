@@ -74,7 +74,7 @@ public:
     {
         return mTransactionID;
     }
-    std::uint32_t getLgrSeq ()
+    std::uint32_t getLgrSeq () const
     {
         return mLedger;
     }
