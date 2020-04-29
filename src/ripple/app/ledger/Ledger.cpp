@@ -324,17 +324,18 @@ Ledger::Ledger (std::uint32_t ledgerSeq,
     setup(config);
 }
 
-void Ledger::setImmutable (Config const& config)
+void Ledger::setImmutable (Config const& config, bool rehash)
 {
     // Force update, since this is the only
     // place the hash transitions to valid
-    if (! mImmutable)
+    if (!mImmutable and rehash)
     {
         info_.txHash = txMap_->getHash ().as_uint256();
         info_.accountHash = stateMap_->getHash ().as_uint256();
     }
 
-    info_.hash = calculateLedgerHash (info_);
+    if (rehash)
+        info_.hash = calculateLedgerHash(info_);
 
     mImmutable = true;
     txMap_->setImmutable ();

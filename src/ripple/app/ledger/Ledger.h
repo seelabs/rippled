@@ -267,7 +267,7 @@ public:
         NetClock::duration closeResolution, bool correctCloseTime,
             Config const& config);
 
-    void setImmutable (Config const& config);
+    void setImmutable (Config const& config, bool rehash = true);
 
     bool isImmutable () const
     {
