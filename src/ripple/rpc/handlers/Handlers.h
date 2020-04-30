@@ -79,7 +79,7 @@ Json::Value doSubmit                (RPC::JsonContext&);
 Json::Value doSubmitMultiSigned     (RPC::JsonContext&);
 Json::Value doSubscribe             (RPC::JsonContext&);
 Json::Value doTransactionEntry      (RPC::JsonContext&);
-Json::Value doTxReportingJson                (RPC::JsonContext&);
+Json::Value doTxJson                (RPC::JsonContext&);
 Json::Value doTxHistory             (RPC::JsonContext&);
 Json::Value doUnlList               (RPC::JsonContext&);
 Json::Value doUnsubscribe           (RPC::JsonContext&);
