@@ -111,6 +111,8 @@ public:
     store(NodeObjectType type, Blob&& data,
         uint256 const& hash, std::uint32_t seq) = 0;
 
+    virtual void sync() = 0;
+
     /** Fetch an object.
         If the object is known to be not in the database, isn't found in the
         database during the fetch, or failed to load correctly during the fetch,
@@ -121,6 +123,7 @@ public:
         @param seq The sequence of the ledger where the object is stored.
         @return The object, or nullptr if it couldn't be retrieved.
     */
+
     virtual
     std::shared_ptr<NodeObject>
     fetch(uint256 const& hash, std::uint32_t seq) = 0;

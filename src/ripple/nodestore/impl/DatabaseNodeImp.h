@@ -80,6 +80,12 @@ public:
     store(NodeObjectType type, Blob&& data,
         uint256 const& hash, std::uint32_t seq) override;
 
+    void
+    sync() override
+    {
+        backend_->sync();
+    }
+
     std::shared_ptr<NodeObject>
     fetch(uint256 const& hash, std::uint32_t seq) override
     {
