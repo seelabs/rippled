@@ -152,6 +152,9 @@ isValidated(LedgerMaster& ledgerMaster, ReadView const& ledger,
 hash_set <AccountID>
 parseAccountIds(Json::Value const& jvArray);
 
+bool
+isHexTxID(std::string const& txid);
+
 /** Inject JSON describing ledger entry
 
     Effects:
