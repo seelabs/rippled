@@ -116,8 +116,8 @@ Transaction::load (uint256 const& id, Application& app, ClosedInterval<uint32_t>
     return load (id, app, op {range}, ec);
 }
 
-
-uint32_t Transaction::getLedgerSeq(uint256 const& id, Application& app)
+std::variant<uint32_t, std::pair<uint32_t, uint32_t>>
+Transaction::getLedgerSeq(uint256 const& id, Application& app)
 {
     auto baseCmd = boost::format(
             R"(SELECT tx('%s');)");
@@ -154,7 +154,7 @@ uint32_t Transaction::getLedgerSeq(uint256 const& id, Application& app)
         }
         else
         {
-            return 0;
+            return std::make_pair(v["min_seq"].asUInt(), v["max_seq"].asUInt());
         }
     }
     else
