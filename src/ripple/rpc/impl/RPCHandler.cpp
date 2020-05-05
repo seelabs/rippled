@@ -17,16 +17,13 @@
 */
 //==============================================================================
 
-#include <ripple/app/main/Application.h>
-#include <ripple/rpc/RPCHandler.h>
-#include <ripple/rpc/impl/Tuning.h>
-#include <ripple/rpc/impl/Handler.h>
-#include <ripple/app/main/Application.h>
 #include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/main/ReportingETL.h>
 #include <ripple/app/misc/NetworkOPs.h>
-#include <ripple/basics/contract.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/PerfLog.h>
+#include <ripple/basics/contract.h>
 #include <ripple/core/Config.h>
 #include <ripple/core/JobQueue.h>
 #include <ripple/json/Object.h>
@@ -35,8 +32,10 @@
 #include <ripple/net/RPCErr.h>
 #include <ripple/protocol/jss.h>
 #include <ripple/resource/Fees.h>
+#include <ripple/rpc/RPCHandler.h>
 #include <ripple/rpc/Role.h>
-#include <ripple/resource/Fees.h>
+#include <ripple/rpc/impl/Handler.h>
+#include <ripple/rpc/impl/Tuning.h>
 #include <atomic>
 #include <chrono>
 
@@ -195,6 +194,12 @@ Status callMethod (
 Status doCommand (
     RPC::JsonContext& context, Json::Value& result)
 {
+    if (shouldForwardToTx(context))
+    {
+        result = forwardToTx(context);
+        // this return value is ignored
+        return rpcSUCCESS;
+    }
     Handler const * handler = nullptr;
     if (auto error = fillHandler (context, handler))
     {
