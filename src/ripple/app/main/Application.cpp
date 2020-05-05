@@ -947,59 +947,55 @@ public:
         try
         {
             auto const setup = setup_DatabaseCon(*config_);
-
-            // transaction database
-            mTxnDB = std::make_unique <DatabaseCon>(
-                setup,
-                TxDBName,
-                TxDBPragma,
-                TxDBInit);
-            mTxnDB->getSession() <<
-                boost::str(boost::format("PRAGMA cache_size=-%d;") %
-                kilobytes(config_->getValueFor(SizedItem::txnDBCache)));
-            mTxnDB->setupCheckpointing(m_jobQueue.get(), logs());
-
-            if (!setup.standAlone ||
-                setup.startUp == Config::LOAD ||
-                setup.startUp == Config::LOAD_FILE ||
-                setup.startUp == Config::REPLAY)
+            if (!config_->usePostgresTx())
             {
-                // Check if AccountTransactions has primary key
-                std::string cid, name, type;
-                std::size_t notnull, dflt_value, pk;
-                soci::indicator ind;
-                soci::statement st = (mTxnDB->getSession().prepare <<
-                    ("PRAGMA table_info(AccountTransactions);"),
-                    soci::into(cid),
-                    soci::into(name),
-                    soci::into(type),
-                    soci::into(notnull),
-                    soci::into(dflt_value, ind),
-                    soci::into(pk));
+                // transaction database
+                mTxnDB = std::make_unique<DatabaseCon>(
+                    setup, TxDBName, TxDBPragma, TxDBInit);
+                mTxnDB->getSession() << boost::str(
+                    boost::format("PRAGMA cache_size=-%d;") %
+                    kilobytes(config_->getValueFor(SizedItem::txnDBCache)));
+                mTxnDB->setupCheckpointing(m_jobQueue.get(), logs());
 
-                st.execute();
-                while (st.fetch())
+                if (!setup.standAlone || setup.startUp == Config::LOAD ||
+                    setup.startUp == Config::LOAD_FILE ||
+                    setup.startUp == Config::REPLAY)
                 {
-                    if (pk == 1)
+                    // Check if AccountTransactions has primary key
+                    std::string cid, name, type;
+                    std::size_t notnull, dflt_value, pk;
+                    soci::indicator ind;
+                    soci::statement st =
+                        (mTxnDB->getSession().prepare
+                             << ("PRAGMA table_info(AccountTransactions);"),
+                         soci::into(cid),
+                         soci::into(name),
+                         soci::into(type),
+                         soci::into(notnull),
+                         soci::into(dflt_value, ind),
+                         soci::into(pk));
+
+                    st.execute();
+                    while (st.fetch())
                     {
-                        JLOG(m_journal.fatal()) <<
-                            "AccountTransactions database "
-                            "should not have a primary key";
-                        return false;
+                        if (pk == 1)
+                        {
+                            JLOG(m_journal.fatal())
+                                << "AccountTransactions database "
+                                   "should not have a primary key";
+                            return false;
+                        }
                     }
                 }
-            }
 
-            // ledger database
-            mLedgerDB = std::make_unique <DatabaseCon>(
-                setup,
-                LgrDBName,
-                LgrDBPragma,
-                LgrDBInit);
-            mLedgerDB->getSession() <<
-                boost::str(boost::format("PRAGMA cache_size=-%d;") %
-                kilobytes(config_->getValueFor(SizedItem::lgrDBCache)));
-            mLedgerDB->setupCheckpointing(m_jobQueue.get(), logs());
+                // ledger database
+                mLedgerDB = std::make_unique<DatabaseCon>(
+                    setup, LgrDBName, LgrDBPragma, LgrDBInit);
+                mLedgerDB->getSession() << boost::str(
+                    boost::format("PRAGMA cache_size=-%d;") %
+                    kilobytes(config_->getValueFor(SizedItem::lgrDBCache)));
+                mLedgerDB->setupCheckpointing(m_jobQueue.get(), logs());
+            }
 
             // wallet database
             mWalletDB = std::make_unique <DatabaseCon>(

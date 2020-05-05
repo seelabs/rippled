@@ -351,9 +351,11 @@ SHAMapStoreImp::run()
     ledgerMaster_ = &app_.getLedgerMaster();
     fullBelowCache_ = &app_.family().fullbelow();
     treeNodeCache_ = &app_.family().treecache();
-    transactionDb_ = &app_.getTxnDB();
-    ledgerDb_ = &app_.getLedgerDB();
-
+    if (!app_.config().usePostgresTx())
+    {
+        transactionDb_ = &app_.getTxnDB();
+        ledgerDb_ = &app_.getLedgerDB();
+    }
     if (advisoryDelete_)
         canDelete_ = state_db_.getCanDelete ();
 
@@ -679,10 +681,17 @@ SHAMapStoreImp::clearPrior (LedgerIndex lastRotated)
         std::shared_ptr<PgQuery> pg = std::make_shared<PgQuery>(app_.pgPool());
 
         std::string sql =
-            "Select truncate_ledgers(" + std::to_string(lastRotated) + ");";
+            "SELECT prepare_delete(" + std::to_string(lastRotated) + ");";
 
         auto res = pg->querySync(sql.data());
         auto result = PQresultStatus(res.get());
+        journal_.debug() << "clearPrior - postgres result = " << result;
+        assert(result == PGRES_TUPLES_OK);
+
+        sql = "SELECT online_delete(" + std::to_string(lastRotated) + ");";
+
+        res = pg->querySync(sql.data());
+        result = PQresultStatus(res.get());
         journal_.debug() << "clearPrior - postgres result = " << result;
         assert(result == PGRES_TUPLES_OK);
     }
