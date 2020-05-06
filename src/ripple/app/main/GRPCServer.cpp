@@ -18,7 +18,7 @@
 //==============================================================================
 
 #include <ripple/app/main/GRPCServer.h>
-#include <ripple/app/main/ReportingETL.h>
+#include <ripple/app/main/TxProxy.h>
 #include <ripple/resource/Fees.h>
 
 namespace ripple {
@@ -104,7 +104,6 @@ GRPCServerImpl::CallData<Request, Response>::process()
         JobType::jtRPC,
         "gRPC-Client",
         [thisShared](std::shared_ptr<JobQueue::Coro> coro) {
-
             thisShared->process(coro);
         });
 
@@ -147,14 +146,29 @@ GRPCServerImpl::CallData<Request, Response>::process(
                                                coro,
                                                InfoSub::pointer()},
                                               request_};
-            if (shouldForwardToTx(context, requiredCondition_))
+            if (app_.getTxProxy().shouldForwardToTx(
+                    context, requiredCondition_))
             {
-                auto stub = getForwardingStub(context);
-                grpc::ClientContext clientContext;
-                Response response;
-                auto status =
-                    forward_(stub.get(), &clientContext, request_, &response);
-                responder_.Finish(response, status, this);
+                auto stub = app_.getTxProxy().getForwardingStub(context);
+                if (stub)
+                {
+                    grpc::ClientContext clientContext;
+                    Response response;
+                    auto status = forward_(
+                        stub.get(), &clientContext, request_, &response);
+                    responder_.Finish(response, status, this);
+                    JLOG(app_.journal("gRPCServer").debug())
+                        << "Forwarded request to tx";
+                }
+                else
+                {
+                    JLOG(app_.journal("gRPCServer").error())
+                        << "Failed to forward request to tx";
+                    grpc::Status status{grpc::StatusCode::INTERNAL,
+                                        "Attempted to act as proxy but failed "
+                                        "to create forwarding stub"};
+                    responder_.FinishWithError(status, this);
+                }
                 return;
             }
 
@@ -248,13 +262,13 @@ GRPCServerImpl::shutdown()
 {
     JLOG(journal_.debug()) << "Shutting down";
 
-    //The below call cancels all "listeners" (CallData objects that are waiting
-    //for a request, as opposed to processing a request), and blocks until all
-    //requests being processed are completed. CallData objects in the midst of
-    //processing requests need to actually send data back to the client, via
-    //responder_.Finish(...) or responder_.FinishWithError(...), for this call
-    //to unblock. Each cancelled listener is returned via cq_.Next(...) with ok
-    //set to false
+    // The below call cancels all "listeners" (CallData objects that are waiting
+    // for a request, as opposed to processing a request), and blocks until all
+    // requests being processed are completed. CallData objects in the midst of
+    // processing requests need to actually send data back to the client, via
+    // responder_.Finish(...) or responder_.FinishWithError(...), for this call
+    // to unblock. Each cancelled listener is returned via cq_.Next(...) with ok
+    // set to false
     server_->Shutdown();
     JLOG(journal_.debug()) << "Server has been shutdown";
 
@@ -263,7 +277,6 @@ GRPCServerImpl::shutdown()
     // queue have been processed. See handleRpcs() for more details.
     cq_->Shutdown();
     JLOG(journal_.debug()) << "Completion Queue has been shutdown";
-
 }
 
 void
@@ -306,13 +319,12 @@ GRPCServerImpl::handleRpcs()
     {
         auto ptr = static_cast<Processor*>(tag);
         JLOG(journal_.trace()) << "Processing CallData object."
-            << " ptr = " << ptr
-            << " ok = " << ok;
+                               << " ptr = " << ptr << " ok = " << ok;
 
         if (!ok)
         {
             JLOG(journal_.debug()) << "Request listener cancelled. "
-                << "Destroying object";
+                                   << "Destroying object";
             erase(ptr);
         }
         else
@@ -329,7 +341,6 @@ GRPCServerImpl::handleRpcs()
             }
             else
             {
-
                 JLOG(journal_.debug()) << "Sent response. Destroying object";
                 erase(ptr);
             }
@@ -349,7 +360,9 @@ GRPCServerImpl::setupListeners()
     };
 
     {
-        using cd = CallData<org::xrpl::rpc::v1::GetFeeRequest, org::xrpl::rpc::v1::GetFeeResponse>;
+        using cd = CallData<
+            org::xrpl::rpc::v1::GetFeeRequest,
+            org::xrpl::rpc::v1::GetFeeResponse>;
 
         addToRequests(std::make_shared<cd>(
             service_,

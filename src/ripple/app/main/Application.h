@@ -77,6 +77,8 @@ class Cluster;
 class DatabaseCon;
 class SHAMapStore;
 
+class TxProxy;
+
 using NodeCache     = TaggedCache <SHAMapHash, Blob>;
 
 template <class Adaptor>
@@ -179,6 +181,8 @@ public:
     setOpenLedger(std::shared_ptr<Ledger>&) = 0;
     virtual DatabaseCon&            getTxnDB () = 0;
     virtual DatabaseCon&            getLedgerDB () = 0;
+    virtual TxProxy&
+    getTxProxy() = 0;
 
     virtual std::shared_ptr<PgPool>& pgPool() = 0;
 
