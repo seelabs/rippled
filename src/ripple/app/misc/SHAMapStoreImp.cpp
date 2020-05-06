@@ -172,6 +172,7 @@ SHAMapStoreImp::SHAMapStoreImp(
     , journal_ (journal)
     , working_(true)
     , canDelete_ (std::numeric_limits <LedgerIndex>::max())
+    , reportingReadOnly_ (app.config().reportingReadOnly())
 {
     Config& config {app.config()};
 
@@ -227,6 +228,7 @@ SHAMapStoreImp::SHAMapStoreImp(
 
     if (deleteInterval_)
     {
+        assert(!reportingReadOnly_);
         get_if_exists(section, "advisory_delete", advisoryDelete_);
 
         auto const minInterval = config.standalone() ?
@@ -678,6 +680,7 @@ SHAMapStoreImp::clearPrior (LedgerIndex lastRotated)
     if (app_.config().usePostgresTx())
     {
         assert(app_.pgPool());
+        assert(!reportingReadOnly_);
 
         std::string sql =
             "SELECT prepare_delete(" + std::to_string(lastRotated) + ");";

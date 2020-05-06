@@ -1682,7 +1682,7 @@ bool ApplicationImp::setup()
         }
     }
 
-    if (config_->reporting())
+    if (config_->reporting() && !config_->reportingReadOnly())
     {
         reportingETL_->run();
     }

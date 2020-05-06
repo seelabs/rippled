@@ -102,6 +102,8 @@ private:
 
     bool USE_POSTGRES_TX = false;
 
+    bool REPORTING_READ_ONLY = false;
+
     /** Determines if the server will sign a tx, given an account's secret seed.
 
         In the past, this was allowed, but this functionality can have security
@@ -228,6 +230,18 @@ public:
     setUsePostgresTx(bool b)
     {
         USE_POSTGRES_TX = b;
+    }
+
+    bool
+    reportingReadOnly() const
+    {
+        return REPORTING_READ_ONLY;
+    }
+
+    void
+    setReportingReadOnly(bool b)
+    {
+        REPORTING_READ_ONLY = b;
     }
 
     bool canSign() const { return signingEnabled_; }
