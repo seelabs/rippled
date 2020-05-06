@@ -38,6 +38,7 @@
 #include <ripple/basics/Log.h>
 #include <ripple/basics/TaggedCache.h>
 #include <ripple/basics/UptimeClock.h>
+#include <ripple/core/Pg.h>
 #include <ripple/core/TimeKeeper.h>
 #include <ripple/nodestore/DatabaseShard.h>
 #include <ripple/overlay/Overlay.h>
@@ -1478,8 +1479,18 @@ LedgerMaster::getPublishedLedger ()
 std::string
 LedgerMaster::getCompleteLedgers ()
 {
-    std::lock_guard sl (mCompleteLock);
-    return to_string(mCompleteLedgers);
+    if (app_.config().usePostgresTx())
+    {
+        auto range = doQuery(app_.pgPool(), "SELECT complete_ledgers()");
+        if (!range)
+            return "error";
+        return (PQgetvalue(range.get(), 0, 0));
+    }
+    else
+    {
+        std::lock_guard sl(mCompleteLock);
+        return to_string(mCompleteLedgers);
+    }
 }
 
 boost::optional <NetClock::time_point>
