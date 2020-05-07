@@ -496,6 +496,9 @@ ServerHandlerImp::processSession(
     }
     else
     {
+        if (jr[jss::result].isMember("forwarded") &&
+            jr[jss::result]["forwarded"])
+            jr = jr[jss::result];
         jr[jss::status] = jss::success;
     }
 
