@@ -188,9 +188,9 @@ getAccountObjects(ReadView const& ledger, AccountID const& account,
 namespace {
 
 bool
-isValidatedOld(LedgerMaster& ledgerMaster, bool standalone)
+isValidatedOld(LedgerMaster& ledgerMaster, bool standaloneOrReporting)
 {
-    if (standalone)
+    if (standaloneOrReporting)
         return false;
 
     return ledgerMaster.getValidatedLedgerAge () >
@@ -369,6 +369,8 @@ getLedger(T& ledger, uint32_t ledgerIndex, Context& context)
     ledger = context.ledgerMaster.getLedgerBySeq(ledgerIndex);
     if (ledger == nullptr)
     {
+        if (context.app.config().reporting())
+            return {rpcLGR_NOT_FOUND, "ledgerNotFound"};
         auto cur = context.ledgerMaster.getCurrentLedger();
         if (cur->info().seq == ledgerIndex)
         {
@@ -394,8 +396,11 @@ template <class T>
 Status
 getLedger(T& ledger, LedgerShortcut shortcut, Context& context)
 {
-    if (isValidatedOld (context.ledgerMaster, context.app.config().standalone()))
+    if (isValidatedOld (context.ledgerMaster,
+        context.app.config().standalone() || context.app.config().reporting()))
+    {
         return {rpcNO_NETWORK, "InsufficientNetworkMode"};
+    }
 
     if (shortcut == LedgerShortcut::VALIDATED)
     {
