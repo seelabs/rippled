@@ -465,6 +465,9 @@ bool
 isValidated(LedgerMaster& ledgerMaster, ReadView const& ledger,
     Application& app)
 {
+    if (app.config().reporting())
+        return true;
+
     if (ledger.open())
         return false;
 
