@@ -414,11 +414,17 @@ getLedger(T& ledger, LedgerShortcut shortcut, Context& context)
     {
         if (shortcut == LedgerShortcut::CURRENT)
         {
+            if (context.app.config().reporting())
+                return {rpcLGR_NOT_FOUND,
+                        "Reporting does not track current ledger"};
             ledger = context.ledgerMaster.getCurrentLedger ();
             assert (ledger->open());
         }
         else if (shortcut == LedgerShortcut::CLOSED)
         {
+            if (context.app.config().reporting())
+                return {rpcLGR_NOT_FOUND,
+                        "Reporting does not track closed ledger"};
             ledger = context.ledgerMaster.getClosedLedger ();
             assert (! ledger->open());
         }
