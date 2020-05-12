@@ -134,7 +134,7 @@ Transaction::getLedgerSeq(uint256 const& id, Application& app)
     assert(PQresultStatus(res.get()) == PGRES_TUPLES_OK
             || PQresultStatus(res.get()) == PGRES_SINGLE_TUPLE);
     if(PQgetisnull(res.get(), 0, 0))
-        return 0;
+        return 0u;
 
     char const* resultStr = PQgetvalue(res.get(),0,0);
 
@@ -159,7 +159,7 @@ Transaction::getLedgerSeq(uint256 const& id, Application& app)
     }
     else
     {
-        return 0;
+        return 0u;
     }
 }
 

@@ -654,7 +654,7 @@ ReportingETL::fetchLedger(
     }
 
     if (ledger_)
-        assert(idx = ledger_->info().seq + 1);
+        assert(idx == ledger_->info().seq + 1);
 
     request.mutable_ledger()->set_sequence(idx);
     request.set_transactions(true);
