@@ -26,8 +26,35 @@ message Diff
 {
     bytes key = 1;
 
-    bool deleted = 2;
+    enum LedgerEntryType
+    {
+        ltINVALID = 0;              // protobufs enums must start with zero
+        ltACCOUNT_ROOT      =  97; // 'a';
+        ltDIR_NODE          = 100; // 'd';
+        ltRIPPLE_STATE      = 114; // 'r';
+        ltTICKET            =  84; // 'T';
+        ltSIGNER_LIST       =  83; // 'S';
+        ltOFFER             = 111; // 'o';
+        ltLEDGER_HASHES     = 104; // 'h';
+        ltAMENDMENTS        = 102; // 'f';
+        ltFEE_SETTINGS      = 115; // 's';
+        ltESCROW            = 116; // 'u';
+        ltPAYCHAN           = 120; // 'x';
+        ltCHECK             =  67; // 'C';
+        ltDEPOSIT_PREAUTH   = 112; // 'p';
+        ltNICKNAME          = 110; // 'n';
+    };
+
+    enum OperationType
+    {
+        otAdd = 0;
+        otModify = 1;
+        otDelete = 2;
+    };
+
+    LedgerEntryType ledger_entry_type = 2;
+    OperationType operation_type = 3;
 
     // only returned if include_blobs is true
-    bytes blob = 3;
+    bytes blob = 4;
 }

@@ -1,3 +1,4 @@
+#include <ripple/protocol/Serializer.h>
 #include <ripple/rpc/GRPCHandlers.h>
 #include <ripple/rpc/impl/RPCHelpers.h>
 
@@ -67,18 +68,52 @@ doLedgerDiffGrpc(
         auto diff = response.add_diffs();
         auto inBase = v.first;
         auto inDesired = v.second;
+        assert(inBase || inDesired);
+        {
+            auto const opType = [&] {
+                using namespace org::xrpl::rpc::v1;
+                if (!inDesired)
+                    return Diff_OperationType_otDelete;
+                else if (!inBase)
+                    return Diff_OperationType_otAdd;
+                else
+                    return Diff_OperationType_otModify;
+            }();
+            diff->set_operation_type(opType);
+        }
+        {
+            using namespace org::xrpl::rpc::v1;
+            auto leType = [&]() -> Diff_LedgerEntryType {
+                auto s = [&] {
+                    if (inBase)
+                        return SerialIter{inBase->data(), inBase->size()};
+                    return SerialIter{inDesired->data(), inDesired->size()};
+                }();
+                int type;
+                int field;
+                s.getFieldID(type, field);
+                if (type == STI_UINT16 && field == 1)
+                {
+                    return Diff_LedgerEntryType{s.get16()};
+                }
+                else
+                {
+                    assert(0);
+                    return Diff_LedgerEntryType{0xffff};
+                }
+            }();
+            diff->set_ledger_entry_type(leType);
+        }
 
         // key does not exist in desired
         if (!inDesired)
         {
             diff->set_key(k.data(), k.size());
-            diff->set_deleted(true);
         }
         else
         {
             assert(inDesired->size() > 0);
             diff->set_key(k.data(), k.size());
-            diff->set_deleted(false);
             if (request.include_blobs())
             {
                 diff->set_blob(inDesired->data(), inDesired->size());
