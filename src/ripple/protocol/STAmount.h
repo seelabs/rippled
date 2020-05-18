@@ -46,11 +46,12 @@ public:
     using exponent_type = int;
     using rep = std::pair<mantissa_type, exponent_type>;
 
+    enum class AssetType {xrp, iou, stable_coin};
 private:
     Issue mIssue;
     mantissa_type mValue;
     exponent_type mOffset;
-    bool mIsNative;  // A shorthand for isXRP(mIssue).
+    AssetType mAssetType;  // xrp is a shorthand for isXRP(mIssue).
     bool mIsNegative;
 
 public:
@@ -143,6 +144,9 @@ public:
     STAmount(IOUAmount const& amount, Issue const& issue);
     STAmount(XRPAmount const& amount);
 
+    void setIsStableCoin();
+    bool isStableCoin() const;
+
     STBase*
     copy(std::size_t n, void* buf) const override
     {
@@ -181,7 +185,7 @@ public:
     bool
     native() const noexcept
     {
-        return mIsNative;
+        return mAssetType == AssetType::xrp;
     }
     bool
     negative() const noexcept
@@ -280,7 +284,7 @@ public:
     {
         // The -100 is used to allow 0 to sort less than a small positive values
         // which have a negative exponent.
-        mOffset = mIsNative ? 0 : -100;
+        mOffset = native() ? 0 : -100;
         mValue = 0;
         mIsNegative = false;
     }
@@ -339,7 +343,7 @@ public:
     bool
     isDefault() const override
     {
-        return (mValue == 0) && mIsNative;
+        return (mValue == 0) && native();
     }
 
     XRPAmount

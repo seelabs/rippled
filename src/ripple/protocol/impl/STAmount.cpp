@@ -74,7 +74,7 @@ STAmount::STAmount(SerialIter& sit, SField const& name) : STBase(name)
         {
             mValue = value & ~cPosNative;
             mOffset = 0;
-            mIsNative = true;
+            mAssetType = AssetType::xrp;
             mIsNegative = false;
             return;
         }
@@ -85,7 +85,7 @@ STAmount::STAmount(SerialIter& sit, SField const& name) : STBase(name)
 
         mValue = value;
         mOffset = 0;
-        mIsNative = true;
+        mAssetType = AssetType::xrp;
         mIsNegative = true;
         return;
     }
@@ -135,6 +135,16 @@ STAmount::STAmount(SerialIter& sit, SField const& name) : STBase(name)
     canonicalize();
 }
 
+namespace {
+STAmount::AssetType
+isNativeToAssetType(bool n)
+{
+    if (n)
+        return STAmount::AssetType::xrp;
+    return STAmount::AssetType::iou;
+}
+}  // namespace
+
 STAmount::STAmount(
     SField const& name,
     Issue const& issue,
@@ -147,7 +157,7 @@ STAmount::STAmount(
     , mIssue(issue)
     , mValue(mantissa)
     , mOffset(exponent)
-    , mIsNative(native)
+    , mAssetType(isNativeToAssetType(native))
     , mIsNegative(negative)
 {
 }
@@ -162,7 +172,7 @@ STAmount::STAmount(
     : mIssue(issue)
     , mValue(mantissa)
     , mOffset(exponent)
-    , mIsNative(native)
+    , mAssetType(isNativeToAssetType(native))
     , mIsNegative(negative)
 {
 }
@@ -178,14 +188,14 @@ STAmount::STAmount(
     , mIssue(issue)
     , mValue(mantissa)
     , mOffset(exponent)
-    , mIsNative(native)
+    , mAssetType(isNativeToAssetType(native))
     , mIsNegative(negative)
 {
     canonicalize();
 }
 
 STAmount::STAmount(SField const& name, std::int64_t mantissa)
-    : STBase(name), mOffset(0), mIsNative(true)
+    : STBase(name), mOffset(0), mAssetType(AssetType::xrp)
 {
     set(mantissa);
 }
@@ -194,7 +204,7 @@ STAmount::STAmount(SField const& name, std::uint64_t mantissa, bool negative)
     : STBase(name)
     , mValue(mantissa)
     , mOffset(0)
-    , mIsNative(true)
+    , mAssetType(AssetType::xrp)
     , mIsNegative(negative)
 {
     assert(mValue <= std::numeric_limits<std::int64_t>::max());
@@ -221,7 +231,7 @@ STAmount::STAmount(
 STAmount::STAmount(std::uint64_t mantissa, bool negative)
     : mValue(mantissa)
     , mOffset(0)
-    , mIsNative(true)
+    , mAssetType(AssetType::xrp)
     , mIsNegative(mantissa != 0 && negative)
 {
     assert(mValue <= std::numeric_limits<std::int64_t>::max());
@@ -262,7 +272,7 @@ STAmount::STAmount(Issue const& issue, int mantissa, int exponent)
 STAmount::STAmount(IOUAmount const& amount, Issue const& issue)
     : mIssue(issue)
     , mOffset(amount.exponent())
-    , mIsNative(false)
+    , mAssetType(AssetType::iou)
     , mIsNegative(amount < beast::zero)
 {
     if (mIsNegative)
@@ -274,7 +284,7 @@ STAmount::STAmount(IOUAmount const& amount, Issue const& issue)
 }
 
 STAmount::STAmount(XRPAmount const& amount)
-    : mOffset(0), mIsNative(true), mIsNegative(amount < beast::zero)
+    : mOffset(0), mAssetType(AssetType::xrp), mIsNegative(amount < beast::zero)
 {
     if (mIsNegative)
         mValue = unsafe_cast<std::uint64_t>(-amount.drops());
@@ -290,6 +300,14 @@ STAmount::construct(SerialIter& sit, SField const& name)
     return std::make_unique<STAmount>(sit, name);
 }
 
+void STAmount::setIsStableCoin(){
+    mAssetType = AssetType::stable_coin;
+}
+
+bool STAmount::isStableCoin() const{
+    return mAssetType == AssetType::stable_coin;
+}
+
 //------------------------------------------------------------------------------
 //
 // Conversion
@@ -298,7 +316,7 @@ STAmount::construct(SerialIter& sit, SField const& name)
 XRPAmount
 STAmount::xrp() const
 {
-    if (!mIsNative)
+    if (!native())
         Throw<std::logic_error>(
             "Cannot return non-native STAmount as XRPAmount");
 
@@ -313,7 +331,7 @@ STAmount::xrp() const
 IOUAmount
 STAmount::iou() const
 {
-    if (mIsNative)
+    if (native())
         Throw<std::logic_error>("Cannot return native STAmount as IOUAmount");
 
     auto mantissa = static_cast<std::int64_t>(mValue);
@@ -424,7 +442,6 @@ void
 STAmount::setIssue(Issue const& issue)
 {
     mIssue = issue;
-    mIsNative = isXRP(*this);
 }
 
 // Convert an offer into an index amount so they sort by rate.
@@ -463,7 +480,7 @@ STAmount::setJson(Json::Value& elem) const
 {
     elem = Json::objectValue;
 
-    if (!mIsNative)
+    if (!native())
     {
         // It is an error for currency or issuer not to be specified for valid
         // json.
@@ -491,7 +508,7 @@ STAmount::getFullText() const
     ret.reserve(64);
     ret = getText() + "/" + to_string(mIssue.currency);
 
-    if (!mIsNative)
+    if (!native())
     {
         ret += "/";
 
@@ -522,7 +539,7 @@ STAmount::getText() const
     bool const scientific(
         (mOffset != 0) && ((mOffset < -25) || (mOffset > -5)));
 
-    if (mIsNative || scientific)
+    if (native() || scientific)
     {
         ret.append(raw_value);
 
@@ -601,7 +618,7 @@ Json::Value STAmount::getJson(JsonOptions) const
 void
 STAmount::add(Serializer& s) const
 {
-    if (mIsNative)
+    if (native())
     {
         assert(mOffset == 0);
 
@@ -660,7 +677,7 @@ STAmount::canonicalize()
     if (isXRP(*this))
     {
         // native currency amounts should always have an offset of zero
-        mIsNative = true;
+        mAssetType = AssetType::xrp;
 
         if (mValue == 0)
         {
@@ -687,7 +704,8 @@ STAmount::canonicalize()
         return;
     }
 
-    mIsNative = false;
+    if (mAssetType != AssetType::stable_coin)
+        mAssetType = AssetType::iou;
 
     if (mValue == 0)
     {
