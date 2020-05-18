@@ -58,8 +58,12 @@ getSNValue(STAmount const& amount)
 static bool
 areComparable(STAmount const& v1, STAmount const& v2)
 {
+    if (v1.isStableCoin() && v1.issue().account() != v2.issue().account())
+        return false;
+
     return v1.native() == v2.native() &&
-        v1.issue().currency == v2.issue().currency;
+        v1.issue().currency() == v2.issue().currency() &&
+        v1.issue().isStableCoin() == v2.issue().isStableCoin();
 }
 
 STAmount::STAmount(SerialIter& sit, SField const& name) : STBase(name)
@@ -74,7 +78,7 @@ STAmount::STAmount(SerialIter& sit, SField const& name) : STBase(name)
         {
             mValue = value & ~cPosNative;
             mOffset = 0;
-            mAssetType = AssetType::xrp;
+            mIssue.setAssetType(AssetType::xrp);
             mIsNegative = false;
             return;
         }
@@ -85,21 +89,24 @@ STAmount::STAmount(SerialIter& sit, SField const& name) : STBase(name)
 
         mValue = value;
         mOffset = 0;
-        mAssetType = AssetType::xrp;
+        mIssue.setAssetType(AssetType::xrp);
         mIsNegative = true;
         return;
     }
 
-    Issue issue;
-    issue.currency = sit.get160();
+    Issue const issue = [&]() -> Issue {
+        Currency const c{sit.get160()};
 
-    if (isXRP(issue.currency))
-        Throw<std::runtime_error>("invalid native currency");
+        if (isXRP(c))
+            Throw<std::runtime_error>("invalid native currency");
 
-    issue.account = sit.get160();
+        AccountID const a{sit.get160()};
 
-    if (isXRP(issue.account))
-        Throw<std::runtime_error>("invalid native account");
+        if (isXRP(a))
+            Throw<std::runtime_error>("invalid native account");
+
+        return Issue{c, a};
+    }();
 
     // 10 bits for the offset, sign and "not native" flag
     int offset = static_cast<int>(value >> (64 - 10));
@@ -136,12 +143,12 @@ STAmount::STAmount(SerialIter& sit, SField const& name) : STBase(name)
 }
 
 namespace {
-STAmount::AssetType
+AssetType
 isNativeToAssetType(bool n)
 {
     if (n)
-        return STAmount::AssetType::xrp;
-    return STAmount::AssetType::iou;
+        return AssetType::xrp;
+    return AssetType::iou;
 }
 }  // namespace
 
@@ -150,6 +157,7 @@ STAmount::STAmount(
     Issue const& issue,
     mantissa_type mantissa,
     exponent_type exponent,
+    // TBD: remove this parameter.
     bool native,
     bool negative,
     unchecked)
@@ -157,24 +165,24 @@ STAmount::STAmount(
     , mIssue(issue)
     , mValue(mantissa)
     , mOffset(exponent)
-    , mAssetType(isNativeToAssetType(native))
     , mIsNegative(negative)
 {
+    if (!mIssue.isStableCoin())
+        mIssue.setAssetType(isNativeToAssetType(native));
 }
 
 STAmount::STAmount(
     Issue const& issue,
     mantissa_type mantissa,
     exponent_type exponent,
+    // TBD: remove this parameter
     bool native,
     bool negative,
     unchecked)
-    : mIssue(issue)
-    , mValue(mantissa)
-    , mOffset(exponent)
-    , mAssetType(isNativeToAssetType(native))
-    , mIsNegative(negative)
+    : mIssue(issue), mValue(mantissa), mOffset(exponent), mIsNegative(negative)
 {
+    if (!mIssue.isStableCoin())
+        mIssue.setAssetType(isNativeToAssetType(native));
 }
 
 STAmount::STAmount(
@@ -182,31 +190,31 @@ STAmount::STAmount(
     Issue const& issue,
     mantissa_type mantissa,
     exponent_type exponent,
+    // TBD: remove this parameter
     bool native,
     bool negative)
     : STBase(name)
     , mIssue(issue)
     , mValue(mantissa)
     , mOffset(exponent)
-    , mAssetType(isNativeToAssetType(native))
     , mIsNegative(negative)
 {
+    if (!mIssue.isStableCoin())
+        mIssue.setAssetType(isNativeToAssetType(native));
     canonicalize();
 }
 
 STAmount::STAmount(SField const& name, std::int64_t mantissa)
-    : STBase(name), mOffset(0), mAssetType(AssetType::xrp)
+    : STBase(name), mOffset(0)
 {
+    mIssue.setAssetType(AssetType::xrp);
     set(mantissa);
 }
 
 STAmount::STAmount(SField const& name, std::uint64_t mantissa, bool negative)
-    : STBase(name)
-    , mValue(mantissa)
-    , mOffset(0)
-    , mAssetType(AssetType::xrp)
-    , mIsNegative(negative)
+    : STBase(name), mValue(mantissa), mOffset(0), mIsNegative(negative)
 {
+    mIssue.setAssetType(AssetType::xrp);
     assert(mValue <= std::numeric_limits<std::int64_t>::max());
 }
 
@@ -229,11 +237,9 @@ STAmount::STAmount(
 //------------------------------------------------------------------------------
 
 STAmount::STAmount(std::uint64_t mantissa, bool negative)
-    : mValue(mantissa)
-    , mOffset(0)
-    , mAssetType(AssetType::xrp)
-    , mIsNegative(mantissa != 0 && negative)
+    : mValue(mantissa), mOffset(0), mIsNegative(mantissa != 0 && negative)
 {
+    mIssue.setAssetType(AssetType::xrp);
     assert(mValue <= std::numeric_limits<std::int64_t>::max());
 }
 
@@ -272,9 +278,10 @@ STAmount::STAmount(Issue const& issue, int mantissa, int exponent)
 STAmount::STAmount(IOUAmount const& amount, Issue const& issue)
     : mIssue(issue)
     , mOffset(amount.exponent())
-    , mAssetType(AssetType::iou)
     , mIsNegative(amount < beast::zero)
 {
+    if (!mIssue.isStableCoin())
+        mIssue.setAssetType(AssetType::iou);
     if (mIsNegative)
         mValue = static_cast<std::uint64_t>(-amount.mantissa());
     else
@@ -284,8 +291,10 @@ STAmount::STAmount(IOUAmount const& amount, Issue const& issue)
 }
 
 STAmount::STAmount(XRPAmount const& amount)
-    : mOffset(0), mAssetType(AssetType::xrp), mIsNegative(amount < beast::zero)
+    : mOffset(0), mIsNegative(amount < beast::zero)
 {
+    if (!mIssue.isStableCoin())
+        mIssue.setAssetType(AssetType::iou);
     if (mIsNegative)
         mValue = unsafe_cast<std::uint64_t>(-amount.drops());
     else
@@ -300,12 +309,22 @@ STAmount::construct(SerialIter& sit, SField const& name)
     return std::make_unique<STAmount>(sit, name);
 }
 
-void STAmount::setIsStableCoin(){
-    mAssetType = AssetType::stable_coin;
+void
+STAmount::setAssetType(AssetType t)
+{
+    mIssue.setAssetType(t);
 }
 
-bool STAmount::isStableCoin() const{
-    return mAssetType == AssetType::stable_coin;
+bool
+STAmount::isStableCoin() const
+{
+    return assetType() == AssetType::stable_coin;
+}
+
+AssetType
+STAmount::assetType() const
+{
+    return mIssue.assetType();
 }
 
 //------------------------------------------------------------------------------
@@ -341,6 +360,44 @@ STAmount::iou() const
         mantissa = -mantissa;
 
     return {mantissa, exponent};
+}
+
+boost::optional<std::uint32_t>
+STAmount::as_u32(bool roundUp) const
+{
+    if (mIsNegative)
+        return boost::none;
+
+    constexpr mantissa_type maxVal = std::numeric_limits<std::uint32_t>::max();
+
+    if (isXRP(*this))
+    {
+        if (mValue > maxVal)
+            return boost::none;
+        return static_cast<std::uint32_t>(mValue);
+    }
+
+    if (mValue == 0)
+        return 0;
+
+    mantissa_type m = mValue;
+    exponent_type e = mOffset;
+    while (e < 0)
+    {
+        m /= 10;
+        ++e;
+    }
+    while (e > 0)
+    {
+        if (m > maxVal)
+            return boost::none;
+        m *= 10;
+        --e;
+    }
+    assert(e == 0);
+    if (m > maxVal)
+        return boost::none;
+    return static_cast<uint32_t>(m);
 }
 
 //------------------------------------------------------------------------------
@@ -485,8 +542,12 @@ STAmount::setJson(Json::Value& elem) const
         // It is an error for currency or issuer not to be specified for valid
         // json.
         elem[jss::value] = getText();
-        elem[jss::currency] = to_string(mIssue.currency);
-        elem[jss::issuer] = to_string(mIssue.account);
+        elem[jss::currency] = to_string(mIssue.currency());
+        elem[jss::issuer] = to_string(mIssue.account());
+        if (mIssue.isStableCoin())
+        {
+            elem[jss::isStableCoin] = true;
+        }
     }
     else
     {
@@ -506,7 +567,7 @@ STAmount::getFullText() const
     std::string ret;
 
     ret.reserve(64);
-    ret = getText() + "/" + to_string(mIssue.currency);
+    ret = getText() + "/" + to_string(mIssue.currency());
 
     if (!native())
     {
@@ -514,10 +575,13 @@ STAmount::getFullText() const
 
         if (isXRP(*this))
             ret += "0";
-        else if (mIssue.account == noAccount())
+        else if (mIssue.account() == noAccount())
             ret += "1";
         else
-            ret += to_string(mIssue.account);
+            ret += to_string(mIssue.account());
+
+        if (mIssue.isStableCoin())
+            ret += "Stable Coin";
     }
 
     return ret;
@@ -641,8 +705,10 @@ STAmount::add(Serializer& s) const
                 (static_cast<std::uint64_t>(mOffset + 512 + 256 + 97)
                  << (64 - 10)));
 
-        s.addBitString(mIssue.currency);
-        s.addBitString(mIssue.account);
+        s.addBitString(mIssue.currency());
+        s.addBitString(mIssue.account());
+        // Unfortunately we can not serialize the stable coin attributes wihtout
+        // breaking backward compatability
     }
 }
 
@@ -677,7 +743,7 @@ STAmount::canonicalize()
     if (isXRP(*this))
     {
         // native currency amounts should always have an offset of zero
-        mAssetType = AssetType::xrp;
+        mIssue.setAssetType(AssetType::xrp);
 
         if (mValue == 0)
         {
@@ -704,8 +770,11 @@ STAmount::canonicalize()
         return;
     }
 
-    if (mAssetType != AssetType::stable_coin)
-        mAssetType = AssetType::iou;
+    // TBD: remove this. It doesn't do anything.
+    // We get the asset type from the issue already.
+    // This is stale code.
+    if (assetType() != AssetType::stable_coin)
+        mIssue.setAssetType(AssetType::iou);
 
     if (mValue == 0)
     {
@@ -818,6 +887,7 @@ amountFromString(Issue const& issue, std::string const& amount)
     if (!match[4].matched)  // integer only
     {
         mantissa =
+
             beast::lexicalCastThrow<std::uint64_t>(std::string(match[2]));
         exponent = 0;
     }
@@ -851,6 +921,11 @@ amountFromJson(SField const& name, Json::Value const& v)
     Json::Value value;
     Json::Value currency;
     Json::Value issuer;
+    bool const isStableCoin = [&] {
+        if (v.isObject() && v.isMember(jss::isStableCoin))
+            return v.get(jss::isStableCoin, false).asBool();
+        return false;
+    }();
 
     if (v.isNull())
     {
@@ -898,19 +973,28 @@ amountFromJson(SField const& name, Json::Value const& v)
     {
         if (v.isObjectOrNull())
             Throw<std::runtime_error>("XRP may not be specified as an object");
+        if (isStableCoin)
+            Throw<std::runtime_error>("XRP may not be a stable coin");
         issue = xrpIssue();
     }
     else
     {
         // non-XRP
-        if (!to_currency(issue.currency, currency.asString()))
+        Currency c;
+        AccountID ia;
+        if (!to_currency(c, currency.asString()))
             Throw<std::runtime_error>("invalid currency");
 
-        if (!issuer.isString() || !to_issuer(issue.account, issuer.asString()))
+        if (!issuer.isString() || !to_issuer(ia, issuer.asString()))
             Throw<std::runtime_error>("invalid issuer");
 
-        if (isXRP(issue.currency))
+        if (isXRP(c))
             Throw<std::runtime_error>("invalid issuer");
+
+        if (!isStableCoin)
+            issue = Issue{c, ia};
+        else
+            issue = Issue{c, ia, AssetType::stable_coin};
     }
 
     if (value.isInt())
@@ -942,7 +1026,7 @@ amountFromJson(SField const& name, Json::Value const& v)
         Throw<std::runtime_error>("invalid amount type");
     }
 
-    return {name, issue, mantissa, exponent, native, negative};
+    return STAmount{name, issue, mantissa, exponent, native, negative};
 }
 
 bool

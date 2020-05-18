@@ -33,7 +33,7 @@
 namespace ripple {
 
 /** The flavor of an offer crossing */
-enum class CrossType { XrpToIou, IouToXrp, IouToIou };
+enum class CrossType { XrpToIssued, IssuedToXrp, IssuedToIssued };
 
 /** State for the active party during order book or payment operations. */
 class BasicTaker
@@ -308,6 +308,12 @@ private:
 
     TER
     transferXRP(
+        AccountID const& from,
+        AccountID const& to,
+        STAmount const& amount);
+
+    TER
+    transferStableCoin(
         AccountID const& from,
         AccountID const& to,
         STAmount const& amount);

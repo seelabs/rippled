@@ -46,12 +46,10 @@ public:
     using exponent_type = int;
     using rep = std::pair<mantissa_type, exponent_type>;
 
-    enum class AssetType {xrp, iou, stable_coin};
 private:
     Issue mIssue;
     mantissa_type mValue;
     exponent_type mOffset;
-    AssetType mAssetType;  // xrp is a shorthand for isXRP(mIssue).
     bool mIsNegative;
 
 public:
@@ -144,8 +142,12 @@ public:
     STAmount(IOUAmount const& amount, Issue const& issue);
     STAmount(XRPAmount const& amount);
 
-    void setIsStableCoin();
-    bool isStableCoin() const;
+    bool
+    isStableCoin() const;
+    void
+    setAssetType(AssetType t);
+    AssetType
+    assetType() const;
 
     STBase*
     copy(std::size_t n, void* buf) const override
@@ -185,7 +187,7 @@ public:
     bool
     native() const noexcept
     {
-        return mAssetType == AssetType::xrp;
+        return assetType() == AssetType::xrp;
     }
     bool
     negative() const noexcept
@@ -207,12 +209,12 @@ public:
     Currency const&
     getCurrency() const
     {
-        return mIssue.currency;
+        return mIssue.currency();
     }
     AccountID const&
     getIssuer() const
     {
-        return mIssue.account;
+        return mIssue.account();
     }
 
     int
@@ -306,7 +308,7 @@ public:
     void
     setIssuer(AccountID const& uIssuer)
     {
-        mIssue.account = uIssuer;
+        mIssue.setAccount(uIssuer);
         setIssue(mIssue);
     }
 
@@ -334,6 +336,9 @@ public:
 
     Json::Value getJson(JsonOptions) const override;
 
+    // N.B. The stable coin attributes are _NOT_ serialized.
+    // If you serialize a stable coin and read it back in, it will read back in
+    // as an iou.
     void
     add(Serializer& s) const override;
 
@@ -350,6 +355,10 @@ public:
     xrp() const;
     IOUAmount
     iou() const;
+
+    // returns empty opt if overflows or underflows
+    boost::optional<std::uint32_t>
+    as_u32(bool roundUp) const;
 };
 
 //------------------------------------------------------------------------------
@@ -472,7 +481,7 @@ getRate(STAmount const& offerOut, STAmount const& offerIn);
 inline bool
 isXRP(STAmount const& amount)
 {
-    return isXRP(amount.issue().currency);
+    return isXRP(amount.issue().currency());
 }
 
 }  // namespace ripple

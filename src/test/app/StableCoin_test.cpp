@@ -273,6 +273,17 @@ struct StableCoin_test : public beast::unit_test::suite
         return jv;
     }
 
+    [[nodiscard]] static auto
+    scAccBal(jtx::Env& env, jtx::Account const& account, uint256 const& scID)
+        -> boost::optional<std::uint32_t>
+    {
+        auto const accSCBalSLE =
+            env.current()->read(keylet::stableCoinBalance(account, scID));
+        if (!accSCBalSLE)
+            return boost::none;
+        return (*accSCBalSLE)[sfStableCoinBalance];
+    };
+
     void
     testOracle()
     {
@@ -850,6 +861,7 @@ struct StableCoin_test : public beast::unit_test::suite
                 ter(tecDUPLICATE));
         }
     }
+
     void
     testCDP()
     {
@@ -994,17 +1006,6 @@ struct StableCoin_test : public beast::unit_test::suite
             if (!sle)
                 return boost::none;
             return (*sle)[sfIssuedCoins];
-        };
-
-        auto scAccBal =
-            [](Env& env,
-               Account const& account,
-               uint256 const& scID) -> boost::optional<std::uint32_t> {
-            auto const accSCBalSLE =
-                env.current()->read(keylet::stableCoinBalance(account, scID));
-            if (!accSCBalSLE)
-                return boost::none;
-            return (*accSCBalSLE)[sfStableCoinBalance];
         };
 
         {
@@ -1632,6 +1633,283 @@ struct StableCoin_test : public beast::unit_test::suite
         }
     }
 
+    void
+    testOffer()
+    {
+        testcase("Stable Coin Offer");
+        using namespace jtx;
+        using namespace std::literals;
+
+        uint160 const assetType{to_currency("USD")};
+        auto const alice = Account("alice");  // SC owner
+        auto const bob = Account("bob");      // CDC owner and sc issuer
+        auto const carol =
+            Account("carol");  // offer to buy stable coin with an offer
+        auto const USDA = alice["USD"];
+        auto const USDB = bob["USD"];
+        auto const USDC = carol["USD"];
+        auto const oracleID = keylet::oracle(alice, assetType);
+        std::uint32_t issRatio = 1'200'000'000;
+        std::uint32_t lqdRatio = 1'100'000'000;
+        std::uint32_t lqdPenalty = 3;
+        // 10% deposit fee
+        std::uint32_t depositFee = 0;
+        std::uint32_t loanOrgFee = 0;
+        STAmount const initialOracleValue{1};
+
+        // alice creates a stable coin
+        // bob creates a cdp and issues 10 coins
+        auto setupEnv = [&](Env& env, std::uint32_t issuedSC) {
+            env.fund(XRP(10000), alice, bob, carol);
+            env.close();
+            env(createOracle(alice, assetType));
+            env.close();
+            env(createStableCoin(
+                alice,
+                assetType,
+                oracleID.key,
+                issRatio,
+                lqdRatio,
+                lqdPenalty,
+                loanOrgFee,
+                depositFee));
+            env.close();
+            env(updateOracle(
+                alice,
+                assetType,
+                /*validAfter*/ 0,
+                /*expiration*/ std::numeric_limits<std::uint32_t>::max(),
+                /*asset count*/ 1,
+                initialOracleValue));
+            env.close();
+            env(createCDP(bob, alice, assetType, STAmount{1000}));
+            env.close();
+            env(issueStableCoin(bob, alice, assetType, issuedSC));
+        };
+        {
+            // simple offer crossing:
+            // bob offers 10 stable coin for 10 xrp
+            // carol offers 10 xrp for 10 stable coin and the offers cross
+            Env env(*this);
+            std::uint32_t const issuedSC = 100;
+            setupEnv(env, issuedSC);
+            auto const txnFee = env.current()->fees().base;
+            auto const scID = keylet::stableCoin(alice, assetType);
+            Issue const stableCoinIssue(
+                Currency{assetType}, alice, AssetType::stable_coin);
+            std::uint32_t const offerSC = 10;
+            STAmount stableCoinAmt(stableCoinIssue, offerSC);
+            STAmount xrpAmt(10);
+            env(offer(bob, xrpAmt, stableCoinAmt),
+                txflags(tfTakerGetsIsStableCoin));
+            BEAST_EXPECT(scAccBal(env, bob, scID.key).value_or(0u) == issuedSC);
+            BEAST_EXPECT(scAccBal(env, carol, scID.key).value_or(0u) == 0u);
+            auto const preBalanceBob = env.balance(bob);
+            auto const preBalanceCarol = env.balance(carol);
+            env(offer(carol, stableCoinAmt, xrpAmt),
+                txflags(tfTakerPaysIsStableCoin));
+
+            // Offers should cross; Carol should pay bob 10 xrp and have 10
+            // stable coins
+            BEAST_EXPECT(
+                scAccBal(env, bob, scID.key).value_or(0u) ==
+                issuedSC - offerSC);
+            BEAST_EXPECT(
+                scAccBal(env, carol, scID.key).value_or(0u) == offerSC);
+            BEAST_EXPECT(env.balance(bob) == preBalanceBob + xrpAmt);
+            BEAST_EXPECT(
+                env.balance(carol) == preBalanceCarol - xrpAmt - txnFee);
+        }
+
+        {
+            // Check there is no interaction with IOU balances: part 1
+            // Create a trust line between the stable coin owner, offer owner
+            // and offer taker with the same asset type as the stable coin.
+            // Let a stable coin offer cross and check that the trust lines are
+            // untouched
+
+            // simple offer crossing:
+            // bob offers 10 stable coin for 10 xrp
+            // carol offers 10 xrp for 10 stable coin and the offers cross
+            Env env(*this);
+            std::uint32_t const issuedSC = 100;
+            setupEnv(env, issuedSC);
+            // Trust lines between everyone
+            env.trust(USDA(1000), bob, carol);
+            env.trust(USDB(1000), alice, carol);
+            env.trust(USDC(1000), alice, bob);
+            env(pay(alice, bob, USDA(100)));
+            env(pay(alice, carol, USDA(100)));
+            env(pay(bob, carol, USDB(100)));
+
+            auto const txnFee = env.current()->fees().base;
+            auto const scID = keylet::stableCoin(alice, assetType);
+            Issue const stableCoinIssue(
+                Currency{assetType}, alice, AssetType::stable_coin);
+            std::uint32_t const offerSC = 10;
+            STAmount stableCoinAmt(stableCoinIssue, offerSC);
+            STAmount xrpAmt(10);
+            env(offer(bob, xrpAmt, stableCoinAmt),
+                txflags(tfTakerGetsIsStableCoin));
+            BEAST_EXPECT(scAccBal(env, bob, scID.key).value_or(0u) == issuedSC);
+            BEAST_EXPECT(scAccBal(env, carol, scID.key).value_or(0u) == 0u);
+            auto const preBalanceBob = env.balance(bob);
+            auto const preBalanceCarol = env.balance(carol);
+            auto const preUSDABalanceBob = env.balance(bob, USDA);
+            auto const preUSDABalanceCarol = env.balance(carol, USDA);
+            auto const preUSDBBalanceCarol = env.balance(carol, USDB);
+            env(offer(carol, stableCoinAmt, xrpAmt),
+                txflags(tfTakerPaysIsStableCoin));
+
+            // Offers should cross; Carol should pay bob 10 xrp and have 10
+            // stable coins
+            BEAST_EXPECT(
+                scAccBal(env, bob, scID.key).value_or(0u) ==
+                issuedSC - offerSC);
+            BEAST_EXPECT(
+                scAccBal(env, carol, scID.key).value_or(0u) == offerSC);
+            BEAST_EXPECT(env.balance(bob) == preBalanceBob + xrpAmt);
+            BEAST_EXPECT(
+                env.balance(carol) == preBalanceCarol - xrpAmt - txnFee);
+
+            // Trust lines shouldn't change
+            env.require(balance(bob, preUSDABalanceBob));
+            env.require(balance(carol, preUSDABalanceCarol));
+            env.require(balance(carol, preUSDBBalanceCarol));
+        }
+        {
+            // Check there is no interaction with IOU balances: part 2
+            // Check that transfer fees and quality in and quality out are
+            // not used in stable coin offers
+
+            // simple offer crossing:
+            // bob offers 10 stable coin for 10 xrp
+            // carol offers 10 xrp for 10 stable coin and the offers cross
+            Env env(*this);
+            std::uint32_t const issuedSC = 100;
+            setupEnv(env, issuedSC);
+
+            // Trust lines between everyone
+            env(trust(bob, USDA(1000)),
+                qualityInPercent(80),
+                qualityOutPercent(120));
+            env(trust(carol, USDA(1000)),
+                qualityInPercent(80),
+                qualityOutPercent(120));
+            env(trust(alice, USDB(1000)),
+                qualityInPercent(80),
+                qualityOutPercent(120));
+            env(trust(carol, USDB(1000)),
+                qualityInPercent(80),
+                qualityOutPercent(120));
+            env(trust(alice, USDC(1000)),
+                qualityInPercent(80),
+                qualityOutPercent(120));
+            env(trust(bob, USDC(1000)),
+                qualityInPercent(80),
+                qualityOutPercent(120));
+            auto const transferRate = 1.10;
+            env(rate(alice, transferRate));
+            env(rate(bob, transferRate));
+            env(rate(carol, transferRate));
+
+            env(pay(alice, bob, USDA(100)), sendmax(USDA(200)));
+            env(pay(alice, carol, USDA(100)), sendmax(USDA(200)));
+            env(pay(bob, carol, USDB(100)), sendmax(USDB(200)));
+
+            auto const txnFee = env.current()->fees().base;
+            auto const scID = keylet::stableCoin(alice, assetType);
+            Issue const stableCoinIssue(
+                Currency{assetType}, alice, AssetType::stable_coin);
+            std::uint32_t const offerSC = 10;
+            STAmount stableCoinAmt(stableCoinIssue, offerSC);
+            STAmount xrpAmt(10);
+            env(offer(bob, xrpAmt, stableCoinAmt),
+                txflags(tfTakerGetsIsStableCoin));
+            BEAST_EXPECT(scAccBal(env, bob, scID.key).value_or(0u) == issuedSC);
+            BEAST_EXPECT(scAccBal(env, carol, scID.key).value_or(0u) == 0u);
+            auto const preBalanceBob = env.balance(bob);
+            auto const preBalanceCarol = env.balance(carol);
+            auto const preUSDABalanceBob = env.balance(bob, USDA);
+            auto const preUSDABalanceCarol = env.balance(carol, USDA);
+            auto const preUSDBBalanceCarol = env.balance(carol, USDB);
+            env(offer(carol, stableCoinAmt, xrpAmt),
+                txflags(tfTakerPaysIsStableCoin));
+
+            // Offers should cross; Carol should pay bob 10 xrp and have 10
+            // stable coins
+            BEAST_EXPECT(
+                scAccBal(env, bob, scID.key).value_or(0u) ==
+                issuedSC - offerSC);
+            BEAST_EXPECT(
+                scAccBal(env, carol, scID.key).value_or(0u) == offerSC);
+            BEAST_EXPECT(env.balance(bob) == preBalanceBob + xrpAmt);
+            BEAST_EXPECT(
+                env.balance(carol) == preBalanceCarol - xrpAmt - txnFee);
+
+            // Trust lines shouldn't change
+            env.require(balance(bob, preUSDABalanceBob));
+            env.require(balance(carol, preUSDABalanceCarol));
+            env.require(balance(carol, preUSDBBalanceCarol));
+        }
+        {
+            // TBD
+            // Check there is no interaction with IOU balances: part 3
+            // Create an IOU/Stable coin offer of the same asset type for
+            // all values
+        }
+
+        {
+            // Try to cross a stable coin offer with an iou offer. Confirm it
+            // does not cross simple offer crossing: bob offers 10 stable coin
+            // for 10 xrp carol offers 10 xrp for 10 stable coin and the offers
+            // cross
+
+            Env env(*this);
+            std::uint32_t const issuedSC = 100;
+            setupEnv(env, issuedSC);
+            // Trust lines between everyone
+            env.trust(USDA(1000), bob, carol);
+            env.trust(USDB(1000), alice, carol);
+            env.trust(USDC(1000), alice, bob);
+            env(pay(alice, bob, USDA(100)));
+            env(pay(alice, carol, USDA(100)));
+            env(pay(bob, carol, USDB(100)));
+
+            auto const txnFee = env.current()->fees().base;
+            auto const scID = keylet::stableCoin(alice, assetType);
+            Issue const stableCoinIssue(
+                Currency{assetType}, alice, AssetType::stable_coin);
+            std::uint32_t const offerSC = 10;
+            STAmount stableCoinAmt(stableCoinIssue, offerSC);
+            STAmount xrpAmt(10);
+            env(offer(bob, xrpAmt, stableCoinAmt),
+                txflags(tfTakerGetsIsStableCoin));
+            BEAST_EXPECT(scAccBal(env, bob, scID.key).value_or(0u) == issuedSC);
+            BEAST_EXPECT(scAccBal(env, carol, scID.key).value_or(0u) == 0u);
+            auto const preBalanceBob = env.balance(bob);
+            auto const preBalanceCarol = env.balance(carol);
+            auto const preUSDABalanceBob = env.balance(bob, USDA);
+            auto const preUSDABalanceCarol = env.balance(carol, USDA);
+            auto const preUSDBBalanceCarol = env.balance(carol, USDB);
+            // offer iou's NOT stable coins
+            env(offer(carol, stableCoinAmt, xrpAmt));
+
+            // Offers should NOT cross;
+            // Carol offered to buy USD/alice iou while bob offered to sell USD
+            // alice stablecoins
+            BEAST_EXPECT(scAccBal(env, bob, scID.key).value_or(0u) == issuedSC);
+            BEAST_EXPECT(scAccBal(env, carol, scID.key).value_or(0u) == 0);
+            BEAST_EXPECT(env.balance(bob) == preBalanceBob);
+            BEAST_EXPECT(env.balance(carol) == preBalanceCarol - txnFee);
+
+            // Trust lines shouldn't change
+            env.require(balance(bob, preUSDABalanceBob));
+            env.require(balance(carol, preUSDABalanceCarol));
+            env.require(balance(carol, preUSDBBalanceCarol));
+        }
+    }
+
     // TBD: to test:
     // account reserve violations
     // cdp balance violations
@@ -1651,6 +1929,7 @@ struct StableCoin_test : public beast::unit_test::suite
         testCreateStableCoin();
         testCDP();
         testRm();
+        testOffer();
     }
 };  // namespace test
 

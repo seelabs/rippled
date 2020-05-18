@@ -2980,7 +2980,7 @@ NetworkOPsImp::transJson(
         auto const amount = stTxn.getFieldAmount(sfTakerGets);
 
         // If the offer create is not self funded then add the owner balance
-        if (account != amount.issue().account)
+        if (account != amount.issue().account())
         {
             auto const ownerFunds = accountFunds(
                 *lpCurrent,
@@ -3518,8 +3518,8 @@ NetworkOPsImp::getBookPage(
 
     ReadView const& view = *lpLedger;
 
-    bool const bGlobalFreeze = isGlobalFrozen(view, book.out.account) ||
-        isGlobalFrozen(view, book.in.account);
+    bool const bGlobalFreeze = isGlobalFrozen(view, book.out.account()) ||
+        isGlobalFrozen(view, book.in.account());
 
     bool bDone = false;
     bool bDirectAdvance = true;
@@ -3529,7 +3529,7 @@ NetworkOPsImp::getBookPage(
     unsigned int uBookEntry;
     STAmount saDirRate;
 
-    auto const rate = transferRate(view, book.out.account);
+    auto const rate = transferRate(view, book.out.account());
     auto viewJ = app_.journal("View");
 
     while (!bDone && iLimit-- > 0)
@@ -3583,7 +3583,7 @@ NetworkOPsImp::getBookPage(
                 STAmount saOwnerFunds;
                 bool firstOwnerOffer(true);
 
-                if (book.out.account == uOfferOwnerID)
+                if (book.out.account() == uOfferOwnerID)
                 {
                     // If an offer is selling issuer's own IOUs, it is fully
                     // funded.
@@ -3612,8 +3612,9 @@ NetworkOPsImp::getBookPage(
                         saOwnerFunds = accountHolds(
                             view,
                             uOfferOwnerID,
-                            book.out.currency,
-                            book.out.account,
+                            book.out.currency(),
+                            book.out.account(),
+                            book.out.assetType(),
                             fhZERO_IF_FROZEN,
                             viewJ);
 
@@ -3634,9 +3635,9 @@ NetworkOPsImp::getBookPage(
 
                 if (rate != parityRate
                     // Have a tranfer fee.
-                    && uTakerID != book.out.account
+                    && uTakerID != book.out.account()
                     // Not taking offers of own IOUs.
-                    && book.out.account != uOfferOwnerID)
+                    && book.out.account() != uOfferOwnerID)
                 // Offer owner not issuing ownfunds
                 {
                     // Need to charge a transfer fee to offer owner.
@@ -3726,10 +3727,10 @@ NetworkOPsImp::getBookPage(
     MetaView lesActive(lpLedger, tapNONE, true);
     OrderBookIterator obIterator(lesActive, book);
 
-    auto const rate = transferRate(lesActive, book.out.account);
+    auto const rate = transferRate(lesActive, book.out.account());
 
-    const bool bGlobalFreeze = lesActive.isGlobalFrozen(book.out.account) ||
-        lesActive.isGlobalFrozen(book.in.account);
+    const bool bGlobalFreeze = lesActive.isGlobalFrozen(book.out.account()) ||
+        lesActive.isGlobalFrozen(book.in.account());
 
     while (iLimit-- > 0 && obIterator.nextOffer())
     {
@@ -3742,7 +3743,7 @@ NetworkOPsImp::getBookPage(
             STAmount saDirRate = obIterator.getCurrentRate();
             STAmount saOwnerFunds;
 
-            if (book.out.account == uOfferOwnerID)
+            if (book.out.account() == uOfferOwnerID)
             {
                 // If offer is selling issuer's own IOUs, it is fully funded.
                 saOwnerFunds = saTakerGets;
@@ -3769,8 +3770,8 @@ NetworkOPsImp::getBookPage(
 
                     saOwnerFunds = lesActive.accountHolds(
                         uOfferOwnerID,
-                        book.out.currency,
-                        book.out.account,
+                        book.out.currency(),
+                        book.out.account(),
                         fhZERO_IF_FROZEN);
 
                     if (saOwnerFunds.isNegative())
@@ -3790,9 +3791,9 @@ NetworkOPsImp::getBookPage(
 
             if (rate != parityRate
                 // Have a tranfer fee.
-                && uTakerID != book.out.account
+                && uTakerID != book.out.account()
                 // Not taking offers of own IOUs.
-                && book.out.account != uOfferOwnerID)
+                && book.out.account() != uOfferOwnerID)
             // Offer owner not issuing ownfunds
             {
                 // Need to charge a transfer fee to offer owner.

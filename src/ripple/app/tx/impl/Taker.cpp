@@ -28,7 +28,7 @@ format_amount(STAmount const& amount)
 {
     std::string txt = amount.getText();
     txt += "/";
-    txt += to_string(amount.issue().currency);
+    txt += to_string(amount.issue().currency());
     return txt;
 }
 
@@ -63,11 +63,11 @@ BasicTaker::BasicTaker(
     // If we are dealing with a particular flavor, make sure that it's the
     // flavor we expect:
     assert(
-        cross_type != CrossType::XrpToIou ||
+        cross_type != CrossType::XrpToIssued ||
         (isXRP(issue_in()) && !isXRP(issue_out())));
 
     assert(
-        cross_type != CrossType::IouToXrp ||
+        cross_type != CrossType::IssuedToXrp ||
         (!isXRP(issue_in()) && isXRP(issue_out())));
 
     // And make sure we're not crossing XRP for XRP
@@ -89,8 +89,8 @@ BasicTaker::effective_rate(
     // If there's a transfer rate, the issuer is not involved
     // and the sender isn't the same as the recipient, return
     // the actual transfer rate.
-    if (rate != parityRate && from != to && from != issue.account &&
-        to != issue.account)
+    if (rate != parityRate && from != to && from != issue.account() &&
+        to != issue.account())
     {
         return rate;
     }
@@ -253,7 +253,7 @@ BasicTaker::flow_xrp_to_iou(
 
     // Clamp on remaining offer if we are not handling the second leg
     // of an autobridge.
-    if (cross_type_ == CrossType::XrpToIou && (remaining_.in < f.order.in))
+    if (cross_type_ == CrossType::XrpToIssued && (remaining_.in < f.order.in))
     {
         f.order.in = remaining_.in;
         f.order.out = qual_div(f.order.in, quality, f.order.out);
@@ -289,7 +289,7 @@ BasicTaker::flow_iou_to_xrp(
 
     // Clamp if taker wants to limit the output and we are not the
     // first leg of an autobridge.
-    if (!sell_ && cross_type_ == CrossType::IouToXrp)
+    if (!sell_ && cross_type_ == CrossType::IssuedToXrp)
     {
         if (remaining_.out < f.order.out)
         {
@@ -389,7 +389,7 @@ BasicTaker::do_cross(Amounts offer, Quality quality, AccountID const& owner)
 
     Flow result;
 
-    if (cross_type_ == CrossType::XrpToIou)
+    if (cross_type_ == CrossType::XrpToIssued)
     {
         result = flow_xrp_to_iou(
             offer,
@@ -398,7 +398,7 @@ BasicTaker::do_cross(Amounts offer, Quality quality, AccountID const& owner)
             taker_funds,
             out_rate(owner, account()));
     }
-    else if (cross_type_ == CrossType::IouToXrp)
+    else if (cross_type_ == CrossType::IssuedToXrp)
     {
         result = flow_iou_to_xrp(
             offer,
@@ -578,13 +578,13 @@ Taker::Taker(
             stream << "   Offer in: " << format_amount(offer.in);
         else
             stream << "   Offer in: " << format_amount(offer.in)
-                   << " (issuer: " << issue_in().account << ")";
+                   << " (issuer: " << issue_in().account() << ")";
 
         if (isXRP(issue_out()))
             stream << "  Offer out: " << format_amount(offer.out);
         else
             stream << "  Offer out: " << format_amount(offer.out)
-                   << " (issuer: " << issue_out().account << ")";
+                   << " (issuer: " << issue_out().account() << ")";
 
         stream << "    Balance: "
                << format_amount(get_funds(account, offer.in));
@@ -639,6 +639,25 @@ Taker::transferXRP(
 }
 
 TER
+Taker::transferStableCoin(
+    AccountID const& from,
+    AccountID const& to,
+    STAmount const& amount)
+{
+    if (amount.assetType() != AssetType::stable_coin)
+        Throw<std::logic_error>("Using transferXRP with IOU");
+
+    if (from == to)
+        return tesSUCCESS;
+
+    // Transferring zero is equivalent to not doing a transfer
+    if (amount == beast::zero)
+        return tesSUCCESS;
+
+    return ripple::transferStableCoin(view_, from, to, amount, journal_);
+}
+
+TER
 Taker::redeemIOU(
     AccountID const& account,
     STAmount const& amount,
@@ -647,7 +666,7 @@ Taker::redeemIOU(
     if (isXRP(amount))
         Throw<std::logic_error>("Using redeemIOU with XRP");
 
-    if (account == issue.account)
+    if (account == issue.account())
         return tesSUCCESS;
 
     // Transferring zero is equivalent to not doing a transfer
@@ -676,7 +695,7 @@ Taker::issueIOU(
     if (isXRP(amount))
         Throw<std::logic_error>("Using issueIOU with XRP");
 
-    if (account == issue.account)
+    if (account == issue.account())
         return tesSUCCESS;
 
     // Transferring zero is equivalent to not doing a transfer
@@ -695,45 +714,109 @@ Taker::fill(BasicTaker::Flow const& flow, Offer& offer)
 
     TER result = tesSUCCESS;
 
-    if (cross_type() != CrossType::XrpToIou)
+    switch (flow.order.in.assetType())
     {
-        assert(!isXRP(flow.order.in));
+        case AssetType::xrp:
+            if (cross_type() != CrossType::XrpToIssued)
+            {
+                assert(0);
+                return tefINTERNAL;
+            }
 
-        if (result == tesSUCCESS)
-            result =
-                redeemIOU(account(), flow.issuers.in, flow.issuers.in.issue());
+            assert(isXRP(flow.order.in));
 
-        if (result == tesSUCCESS)
-            result =
-                issueIOU(offer.owner(), flow.order.in, flow.order.in.issue());
+            if (result == tesSUCCESS)
+                result = transferXRP(account(), offer.owner(), flow.order.in);
+            break;
+        case AssetType::iou:
+            if (cross_type() == CrossType::XrpToIssued)
+            {
+                assert(0);
+                return tefINTERNAL;
+            }
+            if (isXRP(flow.order.in))
+            {
+                assert(0);
+                return tefINTERNAL;
+            }
+
+            if (result == tesSUCCESS)
+                result = redeemIOU(
+                    account(), flow.issuers.in, flow.issuers.in.issue());
+
+            if (result == tesSUCCESS)
+                result = issueIOU(
+                    offer.owner(), flow.order.in, flow.order.in.issue());
+            break;
+        case AssetType::stable_coin:
+            if (cross_type() == CrossType::XrpToIssued)
+            {
+                assert(0);
+                return tefINTERNAL;
+            }
+            if (isXRP(flow.order.in))
+            {
+                assert(0);
+                return tefINTERNAL;
+            }
+
+            if (result == tesSUCCESS)
+                result = transferStableCoin(
+                    account(), offer.owner(), flow.issuers.in.issue());
+            break;
     }
-    else
+
+    switch (flow.order.out.assetType())
     {
-        assert(isXRP(flow.order.in));
+        case AssetType::xrp:
+            if (cross_type() != CrossType::IssuedToXrp)
+            {
+                assert(0);
+                return tefINTERNAL;
+            }
 
-        if (result == tesSUCCESS)
-            result = transferXRP(account(), offer.owner(), flow.order.in);
-    }
+            assert(isXRP(flow.order.out));
 
-    // Now send funds from the account whose offer we're taking
-    if (cross_type() != CrossType::IouToXrp)
-    {
-        assert(!isXRP(flow.order.out));
+            if (result == tesSUCCESS)
+                result = transferXRP(offer.owner(), account(), flow.order.out);
+            break;
+        case AssetType::iou:
+            if (cross_type() == CrossType::IssuedToXrp)
+            {
+                assert(0);
+                return tefINTERNAL;
+            }
+            if (isXRP(flow.order.out))
+            {
+                assert(0);
+                return tefINTERNAL;
+            }
 
-        if (result == tesSUCCESS)
-            result = redeemIOU(
-                offer.owner(), flow.issuers.out, flow.issuers.out.issue());
+            if (result == tesSUCCESS)
+                result = redeemIOU(
+                    offer.owner(), flow.issuers.out, flow.issuers.out.issue());
 
-        if (result == tesSUCCESS)
-            result =
-                issueIOU(account(), flow.order.out, flow.order.out.issue());
-    }
-    else
-    {
-        assert(isXRP(flow.order.out));
+            if (result == tesSUCCESS)
+                result =
+                    issueIOU(account(), flow.order.out, flow.order.out.issue());
 
-        if (result == tesSUCCESS)
-            result = transferXRP(offer.owner(), account(), flow.order.out);
+            break;
+        case AssetType::stable_coin:
+            if (cross_type() == CrossType::IssuedToXrp)
+            {
+                assert(0);
+                return tefINTERNAL;
+            }
+            if (isXRP(flow.order.out))
+            {
+                assert(0);
+                return tefINTERNAL;
+            }
+
+            if (result == tesSUCCESS)
+                result = transferStableCoin(
+                    offer.owner(), account(), flow.issuers.out);
+            break;
     }
 
     if (result == tesSUCCESS)
@@ -759,13 +842,29 @@ Taker::fill(
     // Taker to leg1: IOU
     if (leg1.owner() != account())
     {
-        if (result == tesSUCCESS)
-            result = redeemIOU(
-                account(), flow1.issuers.in, flow1.issuers.in.issue());
+        switch (flow1.issuers.in.assetType())
+        {
+            case AssetType::xrp: {
+                assert(0);
+                return tefINTERNAL;
+            }
+            case AssetType::iou: {
+                if (result == tesSUCCESS)
+                    result = redeemIOU(
+                        account(), flow1.issuers.in, flow1.issuers.in.issue());
 
-        if (result == tesSUCCESS)
-            result =
-                issueIOU(leg1.owner(), flow1.order.in, flow1.order.in.issue());
+                if (result == tesSUCCESS)
+                    result = issueIOU(
+                        leg1.owner(), flow1.order.in, flow1.order.in.issue());
+                break;
+            }
+            case AssetType::stable_coin: {
+                if (result == tesSUCCESS)
+                    result = transferStableCoin(
+                        account(), leg1.owner(), flow1.issuers.in);
+                break;
+            }
+        }
     }
 
     // leg1 to leg2: bridging over XRP
@@ -775,13 +874,31 @@ Taker::fill(
     // leg2 to Taker: IOU
     if (leg2.owner() != account())
     {
-        if (result == tesSUCCESS)
-            result = redeemIOU(
-                leg2.owner(), flow2.issuers.out, flow2.issuers.out.issue());
+        switch (flow2.issuers.out.assetType())
+        {
+            case AssetType::xrp: {
+                assert(0);
+                return tefINTERNAL;
+            }
+            case AssetType::iou: {
+                if (result == tesSUCCESS)
+                    result = redeemIOU(
+                        leg2.owner(),
+                        flow2.issuers.out,
+                        flow2.issuers.out.issue());
 
-        if (result == tesSUCCESS)
-            result =
-                issueIOU(account(), flow2.order.out, flow2.order.out.issue());
+                if (result == tesSUCCESS)
+                    result = issueIOU(
+                        account(), flow2.order.out, flow2.order.out.issue());
+                break;
+            }
+            case AssetType::stable_coin: {
+                if (result == tesSUCCESS)
+                    result = transferStableCoin(
+                        leg2.owner(), account(), flow2.issuers.out);
+                break;
+            }
+        }
     }
 
     if (result == tesSUCCESS)

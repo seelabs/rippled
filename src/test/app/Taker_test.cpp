@@ -182,7 +182,7 @@ private:
     {
         std::string txt = amount.getText();
         txt += "/";
-        txt += to_string(amount.issue().currency);
+        txt += to_string(amount.issue().currency());
         return txt;
     }
 
@@ -211,11 +211,11 @@ private:
         CrossType cross_type;
 
         if (isXRP(issue_out))
-            cross_type = CrossType::IouToXrp;
+            cross_type = CrossType::IssuedToXrp;
         else if (isXRP(issue_in))
-            cross_type = CrossType::XrpToIou;
+            cross_type = CrossType::XrpToIssued;
         else
-            cross_type = CrossType::IouToIou;
+            cross_type = CrossType::IssuedToIssued;
 
         // FIXME: We are always invoking the IOU-to-IOU taker. We should select
         // the correct type dynamically.

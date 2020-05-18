@@ -71,6 +71,7 @@ accountHolds(
     AccountID const& account,
     Currency const& currency,
     AccountID const& issuer,
+    AssetType assetType,
     FreezeHandling zeroIfFrozen,
     beast::Journal j);
 
@@ -354,6 +355,24 @@ transferXRP(
     AccountID const& from,
     AccountID const& to,
     STAmount const& amount,
+    beast::Journal j);
+
+[[nodiscard]] TER
+transferStableCoin(
+    ApplyView& view,
+    AccountID const& from,
+    AccountID const& to,
+    STAmount const& amount,
+    beast::Journal j);
+
+[[nodiscard]] TER
+transferStableCoin(
+    ApplyView& view,
+    AccountID const& from,
+    AccountID const& to,
+    AccountID const& scOwner,
+    uint160 const& assetType,
+    std::uint32_t amount,
     beast::Journal j);
 
 }  // namespace ripple

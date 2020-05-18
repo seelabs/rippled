@@ -24,6 +24,7 @@
 #include <ripple/core/Config.h>
 #include <ripple/core/JobQueue.h>
 #include <ripple/protocol/Indexes.h>
+#include <ripple/protocol/TxFlags.h>
 
 namespace ripple {
 
@@ -114,11 +115,35 @@ OrderBookDB::update(std::shared_ptr<ReadView const> const& ledger)
                 sle->isFieldPresent(sfExchangeRate) &&
                 sle->getFieldH256(sfRootIndex) == sle->key())
             {
+                std::uint32_t const flags = (*sle)[sfFlags];
+
+                Issue const inIss = [&]() -> Issue {
+                    Currency const currency{
+                        sle->getFieldH160(sfTakerPaysCurrency)};
+                    AccountID const issAccount{
+                        sle->getFieldH160(sfTakerPaysIssuer)};
+                    if (flags & lsfTakerPaysIsStableCoin)
+                        return Issue(
+                            currency, issAccount, AssetType::stable_coin);
+                    return Issue(currency, issAccount);
+                }();
+                Issue const outIss = [&]() -> Issue {
+                    Currency const currency{
+                        sle->getFieldH160(sfTakerGetsCurrency)};
+                    AccountID const issAccount{
+                        sle->getFieldH160(sfTakerGetsIssuer)};
+                    if (flags & lsfTakerGetsIsStableCoin)
+                        return Issue(
+                            currency, issAccount, AssetType::stable_coin);
+                    return Issue(currency, issAccount);
+                }();
+                if (inIss.isStableCoin() || outIss.isStableCoin())
+                    // stable coins are not part of path finding
+                    continue;
+
                 Book book;
-                book.in.currency = sle->getFieldH160(sfTakerPaysCurrency);
-                book.in.account = sle->getFieldH160(sfTakerPaysIssuer);
-                book.out.account = sle->getFieldH160(sfTakerGetsIssuer);
-                book.out.currency = sle->getFieldH160(sfTakerGetsCurrency);
+                book.in = inIss;
+                book.out = outIss;
 
                 uint256 index = getBookBase(book);
                 if (seen.insert(index).second)
@@ -155,6 +180,10 @@ OrderBookDB::update(std::shared_ptr<ReadView const> const& ledger)
 void
 OrderBookDB::addOrderBook(Book const& book)
 {
+    if (book.in.isStableCoin() || book.out.isStableCoin())
+        // stable coins are not part of path finding
+        return;
+
     bool toXRP = isXRP(book.out);
     std::lock_guard sl(mLock);
 
@@ -172,8 +201,8 @@ OrderBookDB::addOrderBook(Book const& book)
     {
         for (auto ob : mDestMap[book.out])
         {
-            if (ob->getCurrencyIn() == book.in.currency &&
-                ob->getIssuerIn() == book.in.account)
+            if (ob->getCurrencyIn() == book.in.currency() &&
+                ob->getIssuerIn() == book.in.account())
             {
                 return;
             }

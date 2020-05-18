@@ -692,10 +692,10 @@ Pathfinder::getBestPaths(
 bool
 Pathfinder::issueMatchesOrigin(Issue const& issue)
 {
-    bool matchingCurrency = (issue.currency == mSrcCurrency);
-    bool matchingAccount = isXRP(issue.currency) ||
-        (mSrcIssuer && issue.account == mSrcIssuer) ||
-        issue.account == mSrcAccount;
+    bool matchingCurrency = (issue.currency() == mSrcCurrency);
+    bool matchingAccount = isXRP(issue.currency()) ||
+        (mSrcIssuer && issue.account() == mSrcIssuer) ||
+        issue.account() == mSrcAccount;
 
     return matchingCurrency && matchingAccount;
 }

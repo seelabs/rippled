@@ -57,7 +57,7 @@ toSTAmount(XRPAmount const& xrp)
 inline STAmount
 toSTAmount(XRPAmount const& xrp, Issue const& iss)
 {
-    assert(isXRP(iss.account) && isXRP(iss.currency));
+    assert(isXRP(iss.account()) && isXRP(iss.currency()));
     return toSTAmount(xrp);
 }
 

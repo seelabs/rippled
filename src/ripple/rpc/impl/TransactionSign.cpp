@@ -226,8 +226,8 @@ checkPayment(
                     std::make_shared<RippleLineCache>(ledger),
                     srcAddressID,
                     *dstAccountID,
-                    sendMax.issue().currency,
-                    sendMax.issue().account,
+                    sendMax.issue().currency(),
+                    sendMax.issue().account(),
                     amount,
                     boost::none,
                     app);
@@ -238,7 +238,7 @@ checkPayment(
                     STPath fullLiquidityPath;
                     STPathSet paths;
                     result = pf.getBestPaths(
-                        4, fullLiquidityPath, paths, sendMax.issue().account);
+                        4, fullLiquidityPath, paths, sendMax.issue().account());
                 }
             }
 

@@ -544,6 +544,7 @@ class View_test : public beast::unit_test::suite
                     alice,
                     USD.currency,
                     gw,
+                    AssetType::iou,
                     fhZERO_IF_FROZEN,
                     env.journal));
 
@@ -569,6 +570,7 @@ class View_test : public beast::unit_test::suite
                     bob,
                     USD.currency,
                     gw,
+                    AssetType::iou,
                     fhZERO_IF_FROZEN,
                     env.journal));
 
@@ -582,6 +584,7 @@ class View_test : public beast::unit_test::suite
                     bob,
                     USD.currency,
                     gw,
+                    AssetType::iou,
                     fhZERO_IF_FROZEN,
                     env.journal));
         }
@@ -598,6 +601,7 @@ class View_test : public beast::unit_test::suite
                     carol,
                     EUR.currency,
                     gw,
+                    AssetType::iou,
                     fhZERO_IF_FROZEN,
                     env.journal));
 
@@ -609,6 +613,7 @@ class View_test : public beast::unit_test::suite
                     carol,
                     USD.currency,
                     gw,
+                    AssetType::iou,
                     fhZERO_IF_FROZEN,
                     env.journal));
 
@@ -618,6 +623,7 @@ class View_test : public beast::unit_test::suite
                 carol,
                 xrpCurrency(),
                 xrpAccount(),
+                AssetType::xrp,
                 fhZERO_IF_FROZEN,
                 env.journal);
             // carol's XRP balance:              10000
@@ -640,6 +646,7 @@ class View_test : public beast::unit_test::suite
                     carol,
                     xrpCurrency(),
                     gw,
+                    AssetType::xrp,
                     fhZERO_IF_FROZEN,
                     env.journal));
         }

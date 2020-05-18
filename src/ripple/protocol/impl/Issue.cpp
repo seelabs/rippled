@@ -21,19 +21,41 @@
 
 namespace ripple {
 
+AssetType
+Issue::assetType() const
+{
+    if (assetType_)
+        return *assetType_;
+    if (isXRP(currency_) && isXRP(account_))
+        return AssetType::xrp;
+    return AssetType::iou;
+}
+
 bool
 isConsistent(Issue const& ac)
 {
-    return isXRP(ac.currency) == isXRP(ac.account);
+    bool const currencyIsXRP = isXRP(ac.currency());
+    bool const accountIsXRP = isXRP(ac.account());
+    if (currencyIsXRP != accountIsXRP)
+        return false;
+
+    if (ac.assetType_ && currencyIsXRP && *ac.assetType_ != AssetType::xrp)
+        return false;
+
+    return true;
 }
 
 std::string
 to_string(Issue const& ac)
 {
-    if (isXRP(ac.account))
-        return to_string(ac.currency);
+    if (isXRP(ac.account()))
+        return to_string(ac.currency());
 
-    return to_string(ac.account) + "/" + to_string(ac.currency);
+    if (ac.isStableCoin())
+        return to_string(ac.account()) + "/" + to_string(ac.currency()) +
+            " Stable Coin";
+
+    return to_string(ac.account()) + "/" + to_string(ac.currency());
 }
 
 std::ostream&
@@ -50,12 +72,24 @@ operator<<(std::ostream& os, Issue const& x)
 int
 compare(Issue const& lhs, Issue const& rhs)
 {
-    int diff = compare(lhs.currency, rhs.currency);
+    if (lhs.isStableCoin() != rhs.isStableCoin())
+    {
+        if (lhs.isStableCoin() < rhs.isStableCoin())
+        {
+            return -1;
+        }
+        else
+        {
+            return 1;
+        }
+    }
+
+    int diff = compare(lhs.currency(), rhs.currency());
     if (diff != 0)
         return diff;
-    if (isXRP(lhs.currency))
+    if (isXRP(lhs.currency()))
         return 0;
-    return compare(lhs.account, rhs.account);
+    return compare(lhs.account(), rhs.account());
 }
 
 /** Equality comparison. */

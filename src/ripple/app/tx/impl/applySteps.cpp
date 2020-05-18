@@ -109,6 +109,10 @@ invoke_preflight(PreflightContext const& ctx)
             return StableCoinRedeem ::preflight(ctx);
         case ttSTABLE_COIN_TRANSFER:
             return StableCoinTransfer::preflight(ctx);
+        case ttSTABLE_COIN_BUY_OFFER:
+            return StableCoinBuyOffer::preflight(ctx);
+        case ttSTABLE_COIN_SELL_OFFER:
+            return StableCoinSellOffer::preflight(ctx);
         case ttAMENDMENT:
         case ttFEE:
             return Change ::preflight(ctx);
@@ -220,6 +224,10 @@ invoke_preclaim(PreclaimContext const& ctx)
             return invoke_preclaim<StableCoinRedeem>(ctx);
         case ttSTABLE_COIN_TRANSFER:
             return invoke_preclaim<StableCoinTransfer>(ctx);
+        case ttSTABLE_COIN_BUY_OFFER:
+            return invoke_preclaim<StableCoinBuyOffer>(ctx);
+        case ttSTABLE_COIN_SELL_OFFER:
+            return invoke_preclaim<StableCoinSellOffer>(ctx);
         case ttAMENDMENT:
         case ttFEE:
             return invoke_preclaim<Change>(ctx);
@@ -298,6 +306,10 @@ invoke_calculateBaseFee(ReadView const& view, STTx const& tx)
             return StableCoinRedeem::calculateBaseFee(view, tx);
         case ttSTABLE_COIN_TRANSFER:
             return StableCoinTransfer::calculateBaseFee(view, tx);
+        case ttSTABLE_COIN_BUY_OFFER:
+            return StableCoinBuyOffer::calculateBaseFee(view, tx);
+        case ttSTABLE_COIN_SELL_OFFER:
+            return StableCoinSellOffer::calculateBaseFee(view, tx);
         case ttAMENDMENT:
         case ttFEE:
             return Change::calculateBaseFee(view, tx);
@@ -389,6 +401,10 @@ invoke_calculateConsequences(STTx const& tx)
             return invoke_calculateConsequences<StableCoinRedeem>(tx);
         case ttSTABLE_COIN_TRANSFER:
             return invoke_calculateConsequences<StableCoinTransfer>(tx);
+        case ttSTABLE_COIN_BUY_OFFER:
+            return invoke_calculateConsequences<StableCoinBuyOffer>(tx);
+        case ttSTABLE_COIN_SELL_OFFER:
+            return invoke_calculateConsequences<StableCoinSellOffer>(tx);
         case ttAMENDMENT:
         case ttFEE:
             [[fallthrough]];
@@ -532,6 +548,14 @@ invoke_apply(ApplyContext& ctx)
         }
         case ttSTABLE_COIN_TRANSFER: {
             StableCoinTransfer p(ctx);
+            return p();
+        }
+        case ttSTABLE_COIN_BUY_OFFER: {
+            StableCoinBuyOffer p(ctx);
+            return p();
+        }
+        case ttSTABLE_COIN_SELL_OFFER: {
+            StableCoinSellOffer p(ctx);
             return p();
         }
         case ttAMENDMENT:

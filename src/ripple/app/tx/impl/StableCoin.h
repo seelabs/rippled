@@ -228,6 +228,40 @@ public:
     doApply() override;
 };
 
+class StableCoinBuyOffer : public Transactor
+{
+public:
+    explicit StableCoinBuyOffer(ApplyContext& ctx) : Transactor(ctx)
+    {
+    }
+
+    static NotTEC
+    preflight(PreflightContext const& ctx);
+
+    static TER
+    preclaim(PreclaimContext const& ctx);
+
+    TER
+    doApply() override;
+};
+
+class StableCoinSellOffer : public Transactor
+{
+public:
+    explicit StableCoinSellOffer(ApplyContext& ctx) : Transactor(ctx)
+    {
+    }
+
+    static NotTEC
+    preflight(PreflightContext const& ctx);
+
+    static TER
+    preclaim(PreclaimContext const& ctx);
+
+    TER
+    doApply() override;
+};
+
 }  // namespace ripple
 
 #endif

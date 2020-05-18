@@ -104,7 +104,7 @@ AcceptedLedgerTx::buildJson()
         auto const amount = mTxn->getFieldAmount(sfTakerGets);
 
         // If the offer create is not self funded then add the owner balance
-        if (account != amount.issue().account)
+        if (account != amount.issue().account())
         {
             auto const ownerFunds = accountFunds(
                 *mLedger,

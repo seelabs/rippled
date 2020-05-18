@@ -213,7 +213,7 @@ doGatewayBalances(RPC::JsonContext& context)
                     {
                         Json::Value entry;
                         entry[jss::currency] =
-                            to_string(balance.issue().currency);
+                            to_string(balance.issue().currency());
                         entry[jss::value] = balance.getText();
                         balanceArray.append(std::move(entry));
                     }

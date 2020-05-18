@@ -457,8 +457,8 @@ struct Flow_test : public beast::unit_test::suite
                     return STPathElement(
                         STPathElement::typeCurrency | STPathElement::typeIssuer,
                         xrpAccount(),
-                        iss.currency,
-                        iss.account);
+                        iss.currency(),
+                        iss.account());
                 };
                 {
                     // BTC -> USD

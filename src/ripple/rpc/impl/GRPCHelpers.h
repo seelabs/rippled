@@ -73,10 +73,10 @@ convert(T& to, STAmount const& from)
         org::xrpl::rpc::v1::IssuedCurrencyAmount* issued =
             to.mutable_value()->mutable_issued_currency_amount();
 
-        issued->mutable_currency()->set_name(to_string(issue.currency));
+        issued->mutable_currency()->set_name(to_string(issue.currency()));
         issued->mutable_currency()->set_code(
-            issue.currency.data(), Currency::size());
-        issued->mutable_issuer()->set_address(toBase58(issue.account));
+            issue.currency().data(), Currency::size());
+        issued->mutable_issuer()->set_address(toBase58(issue.account()));
         issued->set_value(to_string(from.iou()));
     }
 }

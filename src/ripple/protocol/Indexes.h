@@ -112,7 +112,13 @@ line(
 inline Keylet
 line(AccountID const& id, Issue const& issue) noexcept
 {
-    return line(id, issue.account, issue.currency);
+    if (issue.isStableCoin())
+    {
+        assert(0);
+        // don't crash in the prototype, but return a non-existant line
+        return Keylet{ltRIPPLE_STATE, uint256{beast::zero}};
+    }
+    return line(id, issue.account(), issue.currency());
 }
 /** @} */
 
@@ -224,6 +230,8 @@ oracle(AccountID const& source, uint160 const& assetType);
 /** A stable coin */
 Keylet
 stableCoin(AccountID const& owner, uint160 const& assetType);
+Keylet
+stableCoin(AccountID const& owner, Currency const& assetType);
 
 /** A stable coin's Collateralized Debt Position*/
 Keylet

@@ -28,6 +28,7 @@
 #include <ripple/protocol/STAccount.h>
 #include <ripple/protocol/TxFlags.h>
 
+#include "protocol/TER.h"
 #include <algorithm>
 
 namespace ripple {
@@ -438,8 +439,7 @@ StableCoinCreate::preflight(PreflightContext const& ctx)
     if (!isTesSuccess(ret))
         return ret;
 
-
-    if (isXRP(ctx.tx[sfAssetType]))
+    if (isXRP(Currency{ctx.tx[sfAssetType]}))
     {
         return temBAD_CURRENCY;
     }
@@ -1691,74 +1691,101 @@ StableCoinTransfer::preclaim(PreclaimContext const& ctx)
 TER
 StableCoinTransfer::doApply()
 {
-    auto const account = ctx_.tx[sfAccount];
-    auto const accSLE = ctx_.view().peek(keylet::account(account));
-    if (!accSLE)
-        return tefINTERNAL;
-    auto const dst = ctx_.tx[sfDestination];
-    auto const dstSLE = ctx_.view().peek(keylet::account(dst));
-    if (!dstSLE)
-        return tecNO_DST;
+    return transferStableCoin(
+        ctx_.view(),
+        ctx_.tx[sfAccount],
+        ctx_.tx[sfDestination],
+        ctx_.tx[sfStableCoinOwner],
+        ctx_.tx[sfAssetType],
+        ctx_.tx[sfStableCoinCount],
+        ctx_.journal);
+}
 
-    auto const scKeylet =
-        keylet::stableCoin(ctx_.tx[sfStableCoinOwner], ctx_.tx[sfAssetType]);
-    auto const srcBalKeylet = keylet::stableCoinBalance(account, scKeylet.key);
-    auto srcBalSLE = ctx_.view().peek(srcBalKeylet);
-    decltype(sfStableCoinCount)::type::value_type coinsToTransfer =
+NotTEC
+StableCoinBuyOffer::preflight(PreflightContext const& ctx)
+{
+    if (!ctx.rules.enabled(featureStableCoin))
+        return temDISABLED;
+
+    if (ctx.tx.getFlags() & tfUniversalMask)
+        return temINVALID_FLAG;
+
+    auto const ret = preflight1(ctx);
+    if (!isTesSuccess(ret))
+        return ret;
+
+    if (!ctx.tx.getFieldAmount(sfTakerPays).native())
+    {
+        return temDISABLED;  // Can only buy and sell stable coins for xrp
+    }
+
+    return preflight2(ctx);
+}
+
+TER
+StableCoinBuyOffer::preclaim(PreclaimContext const& ctx)
+{
+    // TBD
+    return tesSUCCESS;
+}
+
+TER
+StableCoinBuyOffer::doApply()
+{
+#if 0
+    // {sfTakerPays, soeREQUIRED},
+    // {sfStableCoinOwner, soeREQUIRED},
+    // {sfAssetType, soeREQUIRED},
+    // {sfStableCoinCount, soeREQUIRED},
+    AccountID const account = ctx_.tx[sfAccount];
+    XRPAmount const takerPays = ctx_.tx.getFieldAmount(sfTakerPays).xrp();
+    AccountID const scOnwer = ctx_.tx[sfStableCoinOwner];
+    uint160 const assetType = ctx_.tx[sfAssetType];
+    decltype(sfStableCoinCount)::type::value_type takerGetsCoins =
         ctx_.tx[sfStableCoinCount];
-    if (!srcBalSLE || (*srcBalSLE)[sfStableCoinBalance] < coinsToTransfer)
-        // TBD: tecUNFUNDED_STABLECOIN_TRANSFER instead???
-        return tecUNFUNDED_PAYMENT;
 
-    auto const dstBalKeylet = keylet::stableCoinBalance(dst, scKeylet.key);
-    auto dstBalSLE = ctx_.view().peek(dstBalKeylet);
-    bool const insertDstBalSLE = !dstBalSLE;
-    if (!dstBalSLE)
-    {
-        // Ledger object will be added: +1 owner count when checking reserve
-        if (auto const ter = checkReserve(
-                ctx_.view(), (*dstSLE)[sfBalance], (*dstSLE)[sfOwnerCount] + 1);
-            ter != tesSUCCESS)
-            return ter;
+    auto const cancelSequence = ctx_.tx[~sfOfferSequence];
+    auto const uSequence = ctx_.tx.getSequence();
 
-        // create the sle
-        dstBalSLE = std::make_shared<SLE>(dstBalKeylet);
-        (*dstBalSLE)[sfStableCoinID] = scKeylet.key;
-        (*dstBalSLE)[sfStableCoinBalance] = 0;
-        // Add to owner directory
-        if (auto const page = dirAdd(
-                ctx_.view(),
-                keylet::ownerDir(dst),
-                dstBalSLE->key(),
-                false,
-                describeOwnerDir(dst),
-                ctx_.app.journal("View")))
-        {
-            (*dstBalSLE)[sfOwnerNode] = *page;
-        }
-        else
-        {
-            return tecDIR_FULL;
-        }
-    }
+    std::uint32_t const uTxFlags = ctx_.tx.getFlags();
+    bool const bPassive(uTxFlags & tfPassive);
+    bool const bImmediateOrCancel(uTxFlags & tfImmediateOrCancel);
+    bool const bFillOrKill(uTxFlags & tfFillOrKill);
+    bool const bSell(uTxFlags & tfSell);
 
-    (*srcBalSLE)[sfStableCoinBalance] =
-        (*srcBalSLE)[sfStableCoinBalance] - coinsToTransfer;
-    (*dstBalSLE)[sfStableCoinBalance] =
-        (*dstBalSLE)[sfStableCoinBalance] + coinsToTransfer;
+    auto const rate =getRate(XRPAmount{takerGetsCoins}, takerPays);
+#endif
 
-    ctx_.view().update(srcBalSLE);
+    return tesSUCCESS;
+}
 
-    if (insertDstBalSLE)
-    {
-        adjustOwnerCount(ctx_.view(), dstSLE, 1, ctx_.journal);
-        ctx_.view().insert(dstBalSLE);
-    }
-    else
-    {
-        ctx_.view().update(dstBalSLE);
-    }
+NotTEC
+StableCoinSellOffer::preflight(PreflightContext const& ctx)
+{
+    if (!ctx.rules.enabled(featureStableCoin))
+        return temDISABLED;
 
+    if (ctx.tx.getFlags() & tfUniversalMask)
+        return temINVALID_FLAG;
+
+    auto const ret = preflight1(ctx);
+    if (!isTesSuccess(ret))
+        return ret;
+
+    return preflight2(ctx);
+}
+
+TER
+StableCoinSellOffer::preclaim(PreclaimContext const& ctx)
+{
+    // TBD
+    return tesSUCCESS;
+}
+
+TER
+StableCoinSellOffer::doApply()
+{
+    // TBD
     return tesSUCCESS;
 }
 

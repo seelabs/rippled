@@ -359,6 +359,30 @@ TxFormats::TxFormats()
             {sfDestination, soeREQUIRED},
         },
         commonFields);
+
+    add(jss::StableCoinBuyOffer,
+        ttSTABLE_COIN_BUY_OFFER,
+        {
+            {sfTakerPays, soeREQUIRED},
+            {sfStableCoinOwner, soeREQUIRED},
+            {sfAssetType, soeREQUIRED},
+            {sfStableCoinCount, soeREQUIRED},
+            {sfExpiration, soeOPTIONAL},
+            {sfOfferSequence, soeOPTIONAL},
+        },
+        commonFields);
+
+    add(jss::StableCoinSellOffer,
+        ttSTABLE_COIN_SELL_OFFER,
+        {
+            {sfStableCoinOwner, soeREQUIRED},
+            {sfAssetType, soeREQUIRED},
+            {sfStableCoinCount, soeREQUIRED},
+            {sfTakerGets, soeREQUIRED},
+            {sfExpiration, soeOPTIONAL},
+            {sfOfferSequence, soeOPTIONAL},
+        },
+        commonFields);
 }
 
 TxFormats const&

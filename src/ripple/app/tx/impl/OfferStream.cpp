@@ -27,7 +27,8 @@ bool
 checkIssuers(ReadView const& view, Book const& book)
 {
     auto issuerExists = [](ReadView const& view, Issue const& iss) -> bool {
-        return isXRP(iss.account) || view.read(keylet::account(iss.account));
+        return isXRP(iss.account()) ||
+            view.read(keylet::account(iss.account()));
     };
     return issuerExists(view, book.in) && issuerExists(view, book.out);
 }
@@ -111,12 +112,18 @@ accountFundsHelper(
     FreezeHandling freezeHandling,
     beast::Journal j)
 {
-    if (issue.account == id)
+    if (issue.account() == id)
         // self funded
         return amtDefault;
 
     return toAmount<IOUAmount>(accountHolds(
-        view, id, issue.currency, issue.account, freezeHandling, j));
+        view,
+        id,
+        issue.currency(),
+        issue.account(),
+        issue.assetType(),
+        freezeHandling,
+        j));
 }
 
 static XRPAmount
@@ -129,7 +136,13 @@ accountFundsHelper(
     beast::Journal j)
 {
     return toAmount<XRPAmount>(accountHolds(
-        view, id, issue.currency, issue.account, freezeHandling, j));
+        view,
+        id,
+        issue.currency(),
+        issue.account(),
+        issue.assetType(),
+        freezeHandling,
+        j));
 }
 
 template <class TIn, class TOut>

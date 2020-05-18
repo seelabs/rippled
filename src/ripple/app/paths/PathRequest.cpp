@@ -517,7 +517,7 @@ PathRequest::findPaths(
             << " Trying to find paths: " << STAmount(issue, 1).getFullText();
 
         auto& pathfinder = getPathFinder(
-            cache, currency_map, issue.currency, dst_amount, level);
+            cache, currency_map, issue.currency(), dst_amount, level);
         if (!pathfinder)
         {
             assert(false);
@@ -527,14 +527,14 @@ PathRequest::findPaths(
 
         STPath fullLiquidityPath;
         auto ps = pathfinder->getBestPaths(
-            max_paths_, fullLiquidityPath, mContext[issue], issue.account);
+            max_paths_, fullLiquidityPath, mContext[issue], issue.account());
         mContext[issue] = ps;
 
-        auto& sourceAccount = !isXRP(issue.account)
-            ? issue.account
-            : isXRP(issue.currency) ? xrpAccount() : *raSrcAccount;
+        auto& sourceAccount = !isXRP(issue.account())
+            ? issue.account()
+            : isXRP(issue.currency()) ? xrpAccount() : *raSrcAccount;
         STAmount saMaxAmount = saSendMax.value_or(
-            STAmount({issue.currency, sourceAccount}, 1u, 0, true));
+            STAmount({issue.currency(), sourceAccount}, 1u, 0, true));
 
         JLOG(m_journal.debug())
             << iIdentifier << " Paths found, calling rippleCalc";

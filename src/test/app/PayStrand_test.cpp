@@ -150,8 +150,8 @@ ipe(Issue const& iss)
     return STPathElement(
         STPathElement::typeCurrency | STPathElement::typeIssuer,
         xrpAccount(),
-        iss.currency,
-        iss.account);
+        iss.currency(),
+        iss.account());
 };
 
 // Issuer path element
@@ -178,8 +178,8 @@ allpe(AccountID const& a, Issue const& iss)
         STPathElement::typeAccount | STPathElement::typeCurrency |
             STPathElement::typeIssuer,
         a,
-        iss.currency,
-        iss.account);
+        iss.currency(),
+        iss.account());
 };
 
 class ElementComboIter

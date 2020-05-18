@@ -94,10 +94,26 @@ accountHolds(
     AccountID const& account,
     Currency const& currency,
     AccountID const& issuer,
+    AssetType assetType,
     FreezeHandling zeroIfFrozen,
     beast::Journal j)
 {
     STAmount amount;
+
+    if (assetType == AssetType::stable_coin)
+    {
+        auto const bal = [&]() -> std::uint32_t {
+            auto const scKeylet = keylet::stableCoin(issuer, currency);
+            auto const srcBalKeylet =
+                keylet::stableCoinBalance(account, scKeylet.key);
+            auto srcBalSLE = view.read(srcBalKeylet);
+            if (!srcBalSLE)
+                return 0;
+            return (*srcBalSLE)[sfStableCoinBalance];
+        }();
+        return STAmount{Issue{currency, issuer, AssetType::stable_coin}, bal};
+    }
+
     if (isXRP(currency))
     {
         return {xrpLiquid(view, account, 0, j)};
@@ -142,7 +158,8 @@ accountFunds(
 {
     STAmount saFunds;
 
-    if (!saDefault.native() && saDefault.getIssuer() == id)
+    if (!saDefault.native() && !saDefault.isStableCoin() &&
+        saDefault.getIssuer() == id)
     {
         saFunds = saDefault;
         JLOG(j.trace()) << "accountFunds:"
@@ -157,6 +174,7 @@ accountFunds(
             id,
             saDefault.getCurrency(),
             saDefault.getIssuer(),
+            saDefault.assetType(),
             freezeHandling,
             j);
         JLOG(j.trace()) << "accountFunds:"
@@ -1288,20 +1306,20 @@ issueIOU(
     Issue const& issue,
     beast::Journal j)
 {
-    assert(!isXRP(account) && !isXRP(issue.account));
+    assert(!isXRP(account) && !isXRP(issue.account()));
 
     // Consistency check
     assert(issue == amount.issue());
 
     // Can't send to self!
-    assert(issue.account != account);
+    assert(issue.account() != account);
 
     JLOG(j.trace()) << "issueIOU: " << to_string(account) << ": "
                     << amount.getFullText();
 
-    bool bSenderHigh = issue.account > account;
+    bool bSenderHigh = issue.account() > account;
 
-    auto const index = keylet::line(issue.account, account, issue.currency);
+    auto const index = keylet::line(issue.account(), account, issue.currency());
 
     if (auto state = view.peek(index))
     {
@@ -1318,12 +1336,12 @@ issueIOU(
             view,
             state,
             bSenderHigh,
-            issue.account,
+            issue.account(),
             start_balance,
             final_balance,
             j);
 
-        view.creditHook(issue.account, account, amount, start_balance);
+        view.creditHook(issue.account(), account, amount, start_balance);
 
         if (bSenderHigh)
             final_balance.negate();
@@ -1336,8 +1354,8 @@ issueIOU(
             return trustDelete(
                 view,
                 state,
-                bSenderHigh ? account : issue.account,
-                bSenderHigh ? issue.account : account,
+                bSenderHigh ? account : issue.account(),
+                bSenderHigh ? issue.account() : account,
                 j);
 
         view.update(state);
@@ -1348,7 +1366,7 @@ issueIOU(
     // NIKB TODO: The limit uses the receiver's account as the issuer and
     // this is unnecessarily inefficient as copying which could be avoided
     // is now required. Consider available options.
-    STAmount const limit({issue.currency, account});
+    STAmount const limit({issue.currency(), account});
     STAmount final_balance = amount;
 
     final_balance.setIssuer(noAccount());
@@ -1362,7 +1380,7 @@ issueIOU(
     return trustCreate(
         view,
         bSenderHigh,
-        issue.account,
+        issue.account(),
         account,
         index.key,
         receiverAccount,
@@ -1384,21 +1402,21 @@ redeemIOU(
     Issue const& issue,
     beast::Journal j)
 {
-    assert(!isXRP(account) && !isXRP(issue.account));
+    assert(!isXRP(account) && !isXRP(issue.account()));
 
     // Consistency check
     assert(issue == amount.issue());
 
     // Can't send to self!
-    assert(issue.account != account);
+    assert(issue.account() != account);
 
     JLOG(j.trace()) << "redeemIOU: " << to_string(account) << ": "
                     << amount.getFullText();
 
-    bool bSenderHigh = account > issue.account;
+    bool bSenderHigh = account > issue.account();
 
     if (auto state =
-            view.peek(keylet::line(account, issue.account, issue.currency)))
+            view.peek(keylet::line(account, issue.account(), issue.currency())))
     {
         STAmount final_balance = state->getFieldAmount(sfBalance);
 
@@ -1412,7 +1430,7 @@ redeemIOU(
         auto const must_delete = updateTrustLine(
             view, state, bSenderHigh, account, start_balance, final_balance, j);
 
-        view.creditHook(account, issue.account, amount, start_balance);
+        view.creditHook(account, issue.account(), amount, start_balance);
 
         if (bSenderHigh)
             final_balance.negate();
@@ -1427,8 +1445,8 @@ redeemIOU(
             return trustDelete(
                 view,
                 state,
-                bSenderHigh ? issue.account : account,
-                bSenderHigh ? account : issue.account,
+                bSenderHigh ? issue.account() : account,
+                bSenderHigh ? account : issue.account(),
                 j);
         }
 
@@ -1484,6 +1502,142 @@ transferXRP(
     receiver->setFieldAmount(
         sfBalance, receiver->getFieldAmount(sfBalance) + amount);
     view.update(receiver);
+
+    return tesSUCCESS;
+}
+
+TER
+transferStableCoin(
+    ApplyView& view,
+    AccountID const& from,
+    AccountID const& to,
+    STAmount const& amount,
+    beast::Journal j)
+{
+    if (from == beast::zero || to == beast::zero || from == to ||
+        amount.assetType() != AssetType::stable_coin || amount < beast::zero)
+    {
+        assert(0);
+        return tefINTERNAL;
+    }
+
+    auto const [scOwner, scAsset] =
+        [&amount]() -> std::pair<AccountID, uint160> {
+        auto const& iss = amount.issue();
+        return {iss.account(), uint160{iss.currency()}};
+    }();
+
+    std::uint32_t coinsToTransfer = std::numeric_limits<std::uint32_t>::max();
+    {
+        // TBD - deal with floating point issues
+        // Ignore floatin point issues in the prototype
+        auto const optU32 = amount.as_u32(/*roundUp*/ false);
+        if (!optU32)
+            return tefINTERNAL;  // really "not implemented"
+        coinsToTransfer = *optU32;
+    }
+
+    JLOG(j.trace()) << "transferStableCoin: " << to_string(from) << " -> "
+                    << to_string(to) << ") : " << amount.getFullText();
+
+    return transferStableCoin(
+        view, from, to, scOwner, scAsset, coinsToTransfer, j);
+}
+
+[[nodiscard]] static TER
+checkReserve(
+    ReadView const& view,
+    STAmount const& balance,
+    std::uint32_t ownerCount,
+    boost::optional<STAmount> const& amt = boost::none)
+{
+    // Check reserve and funds availability
+    auto const reserve = view.fees().accountReserve(ownerCount);
+
+    if (balance < reserve)
+        return tecINSUFFICIENT_RESERVE;
+
+    if (amt && (balance < reserve + *amt))
+        return tecUNFUNDED;
+    return tesSUCCESS;
+}
+
+TER
+transferStableCoin(
+    ApplyView& view,
+    AccountID const& account,
+    AccountID const& dst,
+    AccountID const& scOwner,
+    uint160 const& assetType,
+    std::uint32_t coinsToTransfer,
+    beast::Journal j)
+{
+    auto const accSLE = view.peek(keylet::account(account));
+    if (!accSLE)
+        return tefINTERNAL;
+    auto const dstSLE = view.peek(keylet::account(dst));
+    if (!dstSLE)
+        return tecNO_DST;
+
+    JLOG(j.trace()) << "transferStableCoin: " << to_string(account) << " -> "
+                    << to_string(dst) << " : " << coinsToTransfer << " "
+                    << scOwner << "/" << assetType;
+
+    auto const scKeylet = keylet::stableCoin(scOwner, assetType);
+    auto const srcBalKeylet = keylet::stableCoinBalance(account, scKeylet.key);
+    auto srcBalSLE = view.peek(srcBalKeylet);
+    if (!srcBalSLE || (*srcBalSLE)[sfStableCoinBalance] < coinsToTransfer)
+        // TBD: tecUNFUNDED_STABLECOIN_TRANSFER instead???
+        return tecUNFUNDED_PAYMENT;
+
+    auto const dstBalKeylet = keylet::stableCoinBalance(dst, scKeylet.key);
+    auto dstBalSLE = view.peek(dstBalKeylet);
+    bool const insertDstBalSLE = !dstBalSLE;
+    if (!dstBalSLE)
+    {
+        // Ledger object will be added: +1 owner count when checking reserve
+        if (auto const ter = checkReserve(
+                view, (*dstSLE)[sfBalance], (*dstSLE)[sfOwnerCount] + 1);
+            ter != tesSUCCESS)
+            return ter;
+
+        // create the sle
+        dstBalSLE = std::make_shared<SLE>(dstBalKeylet);
+        (*dstBalSLE)[sfStableCoinID] = scKeylet.key;
+        (*dstBalSLE)[sfStableCoinBalance] = 0;
+        // Add to owner directory
+        if (auto const page = dirAdd(
+                view,
+                keylet::ownerDir(dst),
+                dstBalSLE->key(),
+                false,
+                describeOwnerDir(dst),
+                j))
+        {
+            (*dstBalSLE)[sfOwnerNode] = *page;
+        }
+        else
+        {
+            return tecDIR_FULL;
+        }
+    }
+
+    (*srcBalSLE)[sfStableCoinBalance] =
+        (*srcBalSLE)[sfStableCoinBalance] - coinsToTransfer;
+    (*dstBalSLE)[sfStableCoinBalance] =
+        (*dstBalSLE)[sfStableCoinBalance] + coinsToTransfer;
+
+    view.update(srcBalSLE);
+
+    if (insertDstBalSLE)
+    {
+        adjustOwnerCount(view, dstSLE, 1, j);
+        view.insert(dstBalSLE);
+    }
+    else
+    {
+        view.update(dstBalSLE);
+    }
 
     return tesSUCCESS;
 }

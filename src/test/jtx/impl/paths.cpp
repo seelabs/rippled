@@ -36,8 +36,8 @@ paths::operator()(Env& env, JTx& jt) const
         std::make_shared<RippleLineCache>(env.current()),
         from,
         to,
-        in_.currency,
-        in_.account,
+        in_.currency(),
+        in_.account(),
         amount,
         boost::none,
         env.app());
@@ -46,7 +46,7 @@ paths::operator()(Env& env, JTx& jt) const
 
     STPath fp;
     pf.computePathRanks(limit_);
-    auto const found = pf.getBestPaths(limit_, fp, {}, in_.account);
+    auto const found = pf.getBestPaths(limit_, fp, {}, in_.account());
 
     // VFALCO TODO API to allow caller to examine the STPathSet
     // VFALCO isDefault should be renamed to empty()
@@ -73,8 +73,8 @@ void
 path::append_one(IOU const& iou)
 {
     auto& jv = create();
-    jv["currency"] = to_string(iou.issue().currency);
-    jv["account"] = toBase58(iou.issue().account);
+    jv["currency"] = to_string(iou.issue().currency());
+    jv["account"] = toBase58(iou.issue().account());
 }
 
 void

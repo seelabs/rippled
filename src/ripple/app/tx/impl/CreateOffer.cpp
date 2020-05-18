@@ -103,7 +103,8 @@ CreateOffer::preflight(PreflightContext const& ctx)
     auto const& uGetsIssuerID = saTakerGets.getIssuer();
     auto const& uGetsCurrency = saTakerGets.getCurrency();
 
-    if (uPaysCurrency == uGetsCurrency && uPaysIssuerID == uGetsIssuerID)
+    if (uPaysCurrency == uGetsCurrency && uPaysIssuerID == uGetsIssuerID &&
+        saTakerPays.isStableCoin() == saTakerGets.isStableCoin())
     {
         JLOG(j.debug()) << "Malformed offer: redundant (IOU for IOU)";
         return temREDUNDANT;
@@ -122,6 +123,14 @@ CreateOffer::preflight(PreflightContext const& ctx)
         return temBAD_ISSUER;
     }
 
+    if (auto f = ctx.tx.getFlags();
+        ((f & tfTakerPaysIsStableCoin) && saTakerPays.native()) ||
+        ((f & tfTakerGetsIsStableCoin) && saTakerGets.native()))
+    {
+        // xrp is not a valid stable coin asset type
+        return temBAD_CURRENCY;
+    }
+
     return preflight2(ctx);
 }
 
@@ -131,11 +140,17 @@ CreateOffer::preclaim(PreclaimContext const& ctx)
     auto const id = ctx.tx[sfAccount];
 
     auto saTakerPays = ctx.tx[sfTakerPays];
+    if (ctx.tx.getFlags() & tfTakerPaysIsStableCoin)
+    {
+        saTakerPays.setAssetType(AssetType::stable_coin);
+    }
     auto saTakerGets = ctx.tx[sfTakerGets];
+    if (ctx.tx.getFlags() & tfTakerGetsIsStableCoin)
+    {
+        saTakerGets.setAssetType(AssetType::stable_coin);
+    }
 
     auto const& uPaysIssuerID = saTakerPays.getIssuer();
-    auto const& uPaysCurrency = saTakerPays.getCurrency();
-
     auto const& uGetsIssuerID = saTakerGets.getIssuer();
 
     auto const cancelSequence = ctx.tx[~sfOfferSequence];
@@ -197,11 +212,7 @@ CreateOffer::preclaim(PreclaimContext const& ctx)
     if (!saTakerPays.native())
     {
         auto result = checkAcceptAsset(
-            ctx.view,
-            ctx.flags,
-            id,
-            ctx.j,
-            Issue(uPaysCurrency, uPaysIssuerID));
+            ctx.view, ctx.flags, id, ctx.j, saTakerPays.issue());
         if (result != tesSUCCESS)
             return result;
     }
@@ -218,14 +229,20 @@ CreateOffer::checkAcceptAsset(
     Issue const& issue)
 {
     // Only valid for custom currencies
-    assert(!isXRP(issue.currency));
+    assert(!isXRP(issue.currency()));
 
-    auto const issuerAccount = view.read(keylet::account(issue.account));
+    if (issue.isStableCoin())
+    {
+        // TBD
+        return tesSUCCESS;
+    }
+
+    auto const issuerAccount = view.read(keylet::account(issue.account()));
 
     if (!issuerAccount)
     {
         JLOG(j.warn()) << "delay: can't receive IOUs from non-existent issuer: "
-                       << to_string(issue.account);
+                       << to_string(issue.account());
 
         return (flags & tapRETRY) ? TER{terNO_ACCOUNT} : TER{tecNO_ISSUER};
     }
@@ -233,14 +250,14 @@ CreateOffer::checkAcceptAsset(
     // This code is attached to the DepositPreauth amendment as a matter of
     // convenience.  The change is not significant enough to deserve its
     // own amendment.
-    if (view.rules().enabled(featureDepositPreauth) && (issue.account == id))
+    if (view.rules().enabled(featureDepositPreauth) && (issue.account() == id))
         // An account can always accept its own issuance.
         return tesSUCCESS;
 
     if ((*issuerAccount)[sfFlags] & lsfRequireAuth)
     {
         auto const trustLine =
-            view.read(keylet::line(id, issue.account, issue.currency));
+            view.read(keylet::line(id, issue.account(), issue.currency()));
 
         if (!trustLine)
         {
@@ -250,7 +267,7 @@ CreateOffer::checkAcceptAsset(
         // Entries have a canonical representation, determined by a
         // lexicographical "greater than" comparison employing strict weak
         // ordering. Determine which entry we need to access.
-        bool const canonical_gt(id > issue.account);
+        bool const canonical_gt(id > issue.account());
 
         bool const is_authorized(
             (*trustLine)[sfFlags] & (canonical_gt ? lsfLowAuth : lsfHighAuth));
@@ -663,7 +680,7 @@ CreateOffer::takerCross(
 
     try
     {
-        if (cross_type_ == CrossType::IouToIou)
+        if (cross_type_ == CrossType::IssuedToIssued)
             return bridged_cross(taker, sb, sbCancel, when);
 
         return direct_cross(taker, sb, sbCancel, when);
@@ -970,8 +987,13 @@ CreateOffer::cross(Sandbox& sb, Sandbox& sbCancel, Amounts const& takerAmount)
 
     // There are features for Flow offer crossing and for comparing results
     // between Taker and Flow offer crossing.  Turn those into bools.
-    bool const useFlowCross{sb.rules().enabled(featureFlowCross)};
-    bool const doCompare{sb.rules().enabled(featureCompareTakerFlowCross)};
+    bool isStableCoinCross =
+        takerAmount.in.assetType() == AssetType::stable_coin ||
+        takerAmount.out.assetType() == AssetType::stable_coin;
+    bool const useFlowCross{
+        sb.rules().enabled(featureFlowCross) && !isStableCoinCross};
+    bool const doCompare{
+        sb.rules().enabled(featureCompareTakerFlowCross) && !isStableCoinCross};
 
     Sandbox sbTaker{&sb};
     Sandbox sbCancelTaker{&sbCancel};
@@ -1108,20 +1130,20 @@ CreateOffer::format_amount(STAmount const& amount)
 {
     std::string txt = amount.getText();
     txt += "/";
-    txt += to_string(amount.issue().currency);
+    txt += to_string(amount.issue().currency());
     return txt;
 }
 
 void
 CreateOffer::preCompute()
 {
-    cross_type_ = CrossType::IouToIou;
+    cross_type_ = CrossType::IssuedToIssued;
     bool const pays_xrp = ctx_.tx.getFieldAmount(sfTakerPays).native();
     bool const gets_xrp = ctx_.tx.getFieldAmount(sfTakerGets).native();
     if (pays_xrp && !gets_xrp)
-        cross_type_ = CrossType::IouToXrp;
+        cross_type_ = CrossType::IssuedToXrp;
     else if (gets_xrp && !pays_xrp)
-        cross_type_ = CrossType::XrpToIou;
+        cross_type_ = CrossType::XrpToIssued;
 
     return Transactor::preCompute();
 }
@@ -1139,7 +1161,15 @@ CreateOffer::applyGuts(Sandbox& sb, Sandbox& sbCancel)
     bool const bSell(uTxFlags & tfSell);
 
     auto saTakerPays = ctx_.tx[sfTakerPays];
+    if (ctx_.tx.getFlags() & tfTakerPaysIsStableCoin)
+    {
+        saTakerPays.setAssetType(AssetType::stable_coin);
+    }
     auto saTakerGets = ctx_.tx[sfTakerGets];
+    if (ctx_.tx.getFlags() & tfTakerGetsIsStableCoin)
+    {
+        saTakerGets.setAssetType(AssetType::stable_coin);
+    }
 
     auto const cancelSequence = ctx_.tx[~sfOfferSequence];
 
@@ -1204,13 +1234,13 @@ CreateOffer::applyGuts(Sandbox& sb, Sandbox& sbCancel)
         auto const& uGetsIssuerID = saTakerGets.getIssuer();
 
         std::uint8_t uTickSize = Quality::maxTickSize;
-        if (!isXRP(uPaysIssuerID))
+        if (saTakerPays.assetType() == AssetType::iou)
         {
             auto const sle = sb.read(keylet::account(uPaysIssuerID));
             if (sle && sle->isFieldPresent(sfTickSize))
                 uTickSize = std::min(uTickSize, (*sle)[sfTickSize]);
         }
-        if (!isXRP(uGetsIssuerID))
+        if (saTakerGets.assetType() == AssetType::iou)
         {
             auto const sle = sb.read(keylet::account(uGetsIssuerID));
             if (sle && sle->isFieldPresent(sfTickSize))
@@ -1400,11 +1430,15 @@ CreateOffer::applyGuts(Sandbox& sb, Sandbox& sbCancel)
     bool const bookExisted = static_cast<bool>(sb.peek(dir));
 
     auto const bookNode = sb.dirAppend(dir, offer_index, [&](SLE::ref sle) {
-        sle->setFieldH160(sfTakerPaysCurrency, saTakerPays.issue().currency);
-        sle->setFieldH160(sfTakerPaysIssuer, saTakerPays.issue().account);
-        sle->setFieldH160(sfTakerGetsCurrency, saTakerGets.issue().currency);
-        sle->setFieldH160(sfTakerGetsIssuer, saTakerGets.issue().account);
+        sle->setFieldH160(sfTakerPaysCurrency, saTakerPays.issue().currency());
+        sle->setFieldH160(sfTakerPaysIssuer, saTakerPays.issue().account());
+        sle->setFieldH160(sfTakerGetsCurrency, saTakerGets.issue().currency());
+        sle->setFieldH160(sfTakerGetsIssuer, saTakerGets.issue().account());
         sle->setFieldU64(sfExchangeRate, uRate);
+        if (saTakerPays.assetType() == AssetType::stable_coin)
+            sle->setFlag(lsfTakerPaysIsStableCoin);
+        if (saTakerGets.assetType() == AssetType::stable_coin)
+            sle->setFlag(lsfTakerGetsIsStableCoin);
     });
 
     if (!bookNode)
@@ -1427,6 +1461,10 @@ CreateOffer::applyGuts(Sandbox& sb, Sandbox& sbCancel)
         sleOffer->setFlag(lsfPassive);
     if (bSell)
         sleOffer->setFlag(lsfSell);
+    if (saTakerPays.assetType() == AssetType::stable_coin)
+        sleOffer->setFlag(lsfTakerPaysIsStableCoin);
+    if (saTakerGets.assetType() == AssetType::stable_coin)
+        sleOffer->setFlag(lsfTakerGetsIsStableCoin);
     sb.insert(sleOffer);
 
     if (!bookExisted)

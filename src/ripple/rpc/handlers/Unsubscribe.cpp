@@ -155,48 +155,73 @@ doUnsubscribe(RPC::JsonContext& context)
             Book book;
 
             // Parse mandatory currency.
-            if (!taker_pays.isMember(jss::currency) ||
-                !to_currency(
-                    book.in.currency, taker_pays[jss::currency].asString()))
+            Currency c;
+            AccountID a;
+            if (taker_pays.isMember(jss::currency) &&
+                to_currency(c, taker_pays[jss::currency].asString()))
+            {
+                book.in.setCurrency(c);
+            }
+            else
             {
                 JLOG(context.j.info()) << "Bad taker_pays currency.";
                 return rpcError(rpcSRC_CUR_MALFORMED);
             }
+
             // Parse optional issuer.
-            else if (
-                ((taker_pays.isMember(jss::issuer)) &&
-                 (!taker_pays[jss::issuer].isString() ||
-                  !to_issuer(
-                      book.in.account, taker_pays[jss::issuer].asString())))
-                // Don't allow illegal issuers.
-                || !isConsistent(book.in) || noAccount() == book.in.account)
+            if (taker_pays.isMember(jss::issuer))
+            {
+                if (taker_pays[jss::issuer].isString() &&
+                    to_issuer(a, taker_pays[jss::issuer].asString()))
+                {
+                    book.in.setAccount(a);
+                }
+                else
+                {
+                    JLOG(context.j.info()) << "Bad taker_pays issuer.";
+                    return rpcError(rpcSRC_ISR_MALFORMED);
+                }
+            }
+
+            // Don't allow illegal issuers.
+            if (!isConsistent(book.in) || (noAccount() == book.in.account()))
             {
                 JLOG(context.j.info()) << "Bad taker_pays issuer.";
-
                 return rpcError(rpcSRC_ISR_MALFORMED);
             }
 
             // Parse mandatory currency.
-            if (!taker_gets.isMember(jss::currency) ||
-                !to_currency(
-                    book.out.currency, taker_gets[jss::currency].asString()))
+            if (taker_gets.isMember(jss::currency) &&
+                to_currency(c, taker_gets[jss::currency].asString()))
+            {
+                book.out.setCurrency(c);
+            }
+            else
             {
                 JLOG(context.j.info()) << "Bad taker_gets currency.";
-
                 return rpcError(rpcDST_AMT_MALFORMED);
             }
+
             // Parse optional issuer.
-            else if (
-                ((taker_gets.isMember(jss::issuer)) &&
-                 (!taker_gets[jss::issuer].isString() ||
-                  !to_issuer(
-                      book.out.account, taker_gets[jss::issuer].asString())))
-                // Don't allow illegal issuers.
-                || !isConsistent(book.out) || noAccount() == book.out.account)
+            if (taker_gets.isMember(jss::issuer))
+            {
+                if (taker_gets[jss::issuer].isString() &&
+                    to_issuer(a, taker_gets[jss::issuer].asString()))
+                {
+                    book.out.setAccount(a);
+                }
+                else
+                {
+                    JLOG(context.j.info()) << "Bad taker_gets issuer.";
+                    return rpcError(rpcDST_ISR_MALFORMED);
+                }
+            }
+
+            // Don't allow illegal issuers.
+            if (!isConsistent(book.out) || (noAccount() == book.out.account()))
             {
                 JLOG(context.j.info()) << "Bad taker_gets issuer.";
-
-                return rpcError(rpcDST_ISR_MALFORMED);
+                return rpcError(rpcSRC_ISR_MALFORMED);
             }
 
             if (book.in == book.out)

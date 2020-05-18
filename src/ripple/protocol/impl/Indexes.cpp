@@ -82,12 +82,45 @@ getBookBase(Book const& book)
 {
     assert(isConsistent(book));
 
-    auto const index = indexHash(
-        LedgerNameSpace::BOOK_DIR,
-        book.in.currency,
-        book.out.currency,
-        book.in.account,
-        book.out.account);
+    auto const index = [&] {
+        bool const inIsStableCoin = book.in.isStableCoin();
+        bool const outIsStableCoin = book.out.isStableCoin();
+        if (!inIsStableCoin && !outIsStableCoin)
+            return indexHash(
+                LedgerNameSpace::BOOK_DIR,
+                book.in.currency(),
+                book.out.currency(),
+                book.in.account(),
+                book.out.account());
+        if (inIsStableCoin && !outIsStableCoin)
+            return indexHash(
+                LedgerNameSpace::BOOK_DIR,
+                book.in.currency(),
+                StableCoinHashSuffix,
+                book.out.currency(),
+                book.in.account(),
+                book.out.account());
+        if (!inIsStableCoin && outIsStableCoin)
+            return indexHash(
+                LedgerNameSpace::BOOK_DIR,
+                book.in.currency(),
+                book.out.currency(),
+                StableCoinHashSuffix,
+                book.in.account(),
+                book.out.account());
+        if (inIsStableCoin && outIsStableCoin)
+            return indexHash(
+                LedgerNameSpace::BOOK_DIR,
+                book.in.currency(),
+                StableCoinHashSuffix,
+                book.out.currency(),
+                StableCoinHashSuffix,
+                book.in.account(),
+                book.out.account());
+
+        assert(0);
+        return uint256{};  // unreachable, but compiler warns without it.
+    }();
 
     // Return with quality 0.
     auto k = keylet::quality({ltDIR_NODE, index}, 0);
@@ -325,6 +358,13 @@ stableCoin(AccountID const& owner, uint160 const& assetType)
     hash_append(h, owner);
     hash_append(h, assetType);
     return {ltSTABLE_COIN, static_cast<uint256>(h)};
+}
+
+Keylet
+stableCoin(AccountID const& owner, Currency const& assetType)
+{
+    uint160 a{assetType};
+    return stableCoin(owner, a);
 }
 
 Keylet

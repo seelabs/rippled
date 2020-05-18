@@ -68,14 +68,14 @@ class Tx_test : public beast::unit_test::suite
             org::xrpl::rpc::v1::IssuedCurrencyAmount issuedCurrency =
                 proto_amount.issued_currency_amount();
             Issue const& issue = amount.issue();
-            Currency currency = issue.currency;
+            Currency currency = issue.currency();
             BEAST_EXPECT(
                 issuedCurrency.currency().name() == to_string(currency));
             BEAST_EXPECT(
                 issuedCurrency.currency().code() == toByteString(currency));
             BEAST_EXPECT(issuedCurrency.value() == to_string(amount.iou()));
             BEAST_EXPECT(
-                issuedCurrency.issuer().address() == toBase58(issue.account));
+                issuedCurrency.issuer().address() == toBase58(issue.account()));
         }
     }
 

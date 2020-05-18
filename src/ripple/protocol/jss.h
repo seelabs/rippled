@@ -117,6 +117,8 @@ JSS(StableCoinDelete);       // transaction type.
 JSS(StableCoinOwner);        // in: CDPCreate
 JSS(StableCoinBalance);      // ledger type.
 JSS(StableCoinIssue);        // transaction type.
+JSS(StableCoinBuyOffer);     // transaction type.
+JSS(StableCoinSellOffer);    // transaction type.
 JSS(StableCoinRedeem);       // transaction type.
 JSS(StableCoinTransfer);     // transaction type.
 JSS(TakerGets);              // field.
@@ -307,6 +309,7 @@ JSS(invalid_API_version);   // out: Many, when a request has an invalid
                             //      version
 JSS(io_latency_ms);         // out: NetworkOPs
 JSS(ip);                    // in: Connect, out: OverlayImpl
+JSS(isStableCoin);          // in: many, when specifying stamount
 JSS(issuer);                // in: RipplePathFind, Subscribe,
                             //     Unsubscribe, BookOffers
                             // out: STPathSet, STAmount

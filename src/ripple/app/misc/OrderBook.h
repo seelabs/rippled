@@ -56,25 +56,25 @@ public:
     Currency const&
     getCurrencyIn() const
     {
-        return mBook.in.currency;
+        return mBook.in.currency();
     }
 
     Currency const&
     getCurrencyOut() const
     {
-        return mBook.out.currency;
+        return mBook.out.currency();
     }
 
     AccountID const&
     getIssuerIn() const
     {
-        return mBook.in.account;
+        return mBook.in.account();
     }
 
     AccountID const&
     getIssuerOut() const
     {
-        return mBook.out.account;
+        return mBook.out.account();
     }
 
 private:

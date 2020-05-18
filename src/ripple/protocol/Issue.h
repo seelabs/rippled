@@ -20,6 +20,8 @@
 #ifndef RIPPLE_PROTOCOL_ISSUE_H_INCLUDED
 #define RIPPLE_PROTOCOL_ISSUE_H_INCLUDED
 
+#include <boost/optional.hpp>
+
 #include <cassert>
 #include <functional>
 #include <type_traits>
@@ -28,26 +30,87 @@
 
 namespace ripple {
 
+enum class AssetType { xrp, iou, stable_coin };
+
+inline static std::string const StableCoinHashSuffix{"SC"};
+
 /** A currency issued by an account.
     @see Currency, AccountID, Issue, Book
 */
 class Issue
 {
-public:
-    Currency currency;
-    AccountID account;
+    boost::optional<AssetType> assetType_;
+    Currency currency_;
+    AccountID account_;
 
+    void
+    updateAssetType()
+    {
+        assert(assetType_ != AssetType::stable_coin);
+        if (isXRP(currency_))
+            assetType_ = AssetType::xrp;
+        else
+            assetType_ = AssetType::iou;
+    }
+
+public:
     Issue()
     {
     }
 
-    Issue(Currency const& c, AccountID const& a) : currency(c), account(a)
+    Issue(Currency const& c, AccountID const& a) : currency_(c), account_(a)
     {
+        updateAssetType();
     }
-};
 
-bool
-isConsistent(Issue const& ac);
+    Issue(Currency const& c, AccountID const& a, AssetType t) : Issue(c, a)
+    {
+        assetType_ = t;
+    }
+
+    Currency const&
+    currency() const
+    {
+        return currency_;
+    }
+    AccountID const&
+    account() const
+    {
+        return account_;
+    }
+
+    void
+    setAccount(AccountID const& a)
+    {
+        account_ = a;
+        updateAssetType();
+    }
+
+    void
+    setCurrency(Currency const& c)
+    {
+        currency_ = c;
+        updateAssetType();
+    }
+
+    void
+    setAssetType(AssetType a)
+    {
+        assetType_ = a;
+    }
+
+    AssetType
+    assetType() const;
+
+    bool
+    isStableCoin() const
+    {
+        return assetType() == AssetType::stable_coin;
+    }
+
+    friend bool
+    isConsistent(Issue const& ac);
+};
 
 std::string
 to_string(Issue const& ac);
@@ -60,7 +123,10 @@ void
 hash_append(Hasher& h, Issue const& r)
 {
     using beast::hash_append;
-    hash_append(h, r.currency, r.account);
+    if (!r.isStableCoin())
+        hash_append(h, r.currency(), r.account());
+    else
+        hash_append(h, r.currency(), r.account(), StableCoinHashSuffix);
 }
 
 /** Ordered comparison.

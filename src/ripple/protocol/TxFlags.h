@@ -77,8 +77,11 @@ const std::uint32_t tfPassive = 0x00010000;
 const std::uint32_t tfImmediateOrCancel = 0x00020000;
 const std::uint32_t tfFillOrKill = 0x00040000;
 const std::uint32_t tfSell = 0x00080000;
+const std::uint32_t tfTakerPaysIsStableCoin = 0x00100000;
+const std::uint32_t tfTakerGetsIsStableCoin = 0x00200000;
 const std::uint32_t tfOfferCreateMask =
-    ~(tfUniversal | tfPassive | tfImmediateOrCancel | tfFillOrKill | tfSell);
+    ~(tfUniversal | tfPassive | tfImmediateOrCancel | tfFillOrKill | tfSell |
+      tfTakerPaysIsStableCoin | tfTakerGetsIsStableCoin);
 
 // Payment flags:
 const std::uint32_t tfNoRippleDirect = 0x00010000;

@@ -124,7 +124,7 @@ same(STPathSet const& st1, Args const&... args)
 bool
 equal(STAmount const& sa1, STAmount const& sa2)
 {
-    return sa1 == sa2 && sa1.issue().account == sa2.issue().account;
+    return sa1 == sa2 && sa1.issue().account() == sa2.issue().account();
 }
 
 Json::Value
@@ -163,8 +163,8 @@ IPE(Issue const& iss)
     return STPathElement(
         STPathElement::typeCurrency | STPathElement::typeIssuer,
         xrpAccount(),
-        iss.currency,
-        iss.account);
+        iss.currency(),
+        iss.account());
 };
 
 //------------------------------------------------------------------------------
