@@ -551,8 +551,16 @@ Taker::Taker(
           offer,
           Quality(offer),
           flags,
-          calculateRate(view, offer.in.getIssuer(), account),
-          calculateRate(view, offer.out.getIssuer(), account),
+          calculateRate(
+              view,
+              offer.in.assetType(),
+              offer.in.getIssuer(),
+              account),
+          calculateRate(
+              view,
+              offer.out.assetType(),
+              offer.out.getIssuer(),
+              account),
           journal)
     , view_(view)
     , xrp_flow_(0)
@@ -820,11 +828,14 @@ Taker::cross(Offer& leg1, Offer& leg2)
 Rate
 Taker::calculateRate(
     ApplyView const& view,
+    AssetType assetType,
     AccountID const& issuer,
     AccountID const& account)
 {
-    return isXRP(issuer) || (account == issuer) ? parityRate
-                                                : transferRate(view, issuer);
+    return isXRP(issuer) || (account == issuer) ||
+            assetType == AssetType::stable_coin
+        ? parityRate
+        : transferRate(view, issuer);
 }
 
 }  // namespace ripple

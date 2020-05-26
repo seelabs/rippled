@@ -292,6 +292,7 @@ private:
     static Rate
     calculateRate(
         ApplyView const& view,
+        AssetType assetType,
         AccountID const& issuer,
         AccountID const& account);
 
