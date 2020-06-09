@@ -221,11 +221,11 @@ handleNewValidation(
 
 std::vector<std::shared_ptr<STValidation>>
 negativeUNLFilter(
-    std::vector<std::shared_ptr<STValidation>> const& validations,
+    std::vector<std::shared_ptr<STValidation>>&& validations,
     hash_set<NodeID> const& negUnl)
 {
     /* Remove validations that are from validators on the negative UNL. */
-    auto ret = validations;
+    auto ret = std::move(validations);
 
     if (!negUnl.empty())
     {

@@ -259,7 +259,7 @@ handleNewValidation(
  */
 std::vector<std::shared_ptr<STValidation>>
 negativeUNLFilter(
-    std::vector<std::shared_ptr<STValidation>> const& validations,
+    std::vector<std::shared_ptr<STValidation>>&& validations,
     hash_set<NodeID> const& negUnl);
 
 }  // namespace ripple

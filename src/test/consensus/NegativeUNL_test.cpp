@@ -1819,7 +1819,7 @@ class NegativeUNLVoteFilterValidations_test : public beast::unit_test::suite
             hash_set<NodeID> negUnl;
             for (auto& k : nUnlKeys)
                 negUnl.insert(calcNodeID(k));
-            vals = negativeUNLFilter(vals, negUnl);
+            vals = negativeUNLFilter(std::move(vals), negUnl);
             BEAST_EXPECT(vals.size() == 28 - 7);
         }
     }
