@@ -43,14 +43,36 @@ public:
 
     /** Create and initialize an object with the given key and type. */
     template <class Initializer>
-    STLedgerEntry(Keylet const& k, Initializer&& init)
-        : STLedgerEntry(k)
+    STLedgerEntry(Keylet const& k, Initializer&& init) : STLedgerEntry(k)
     {
         init(*this);
     }
 
-    [[deprecated("Prefer using a keylet instead")]]
-    STLedgerEntry(LedgerEntryType type, uint256 const& key)
+    template <class T0, class T1, class... Ts>
+    void
+    populate(TypedField<T0> const& f, T1 const& v, Ts const&... ts)
+    {
+        (*this)[f] = v;
+        if constexpr (sizeof...(ts) > 0)
+        {
+            populate(ts...);
+        }
+    }
+
+    template <class T, class... Ts>
+    STLedgerEntry(
+        Keylet const& k,
+        TypedField<T> const& f,
+        typename T::value_type const& v,
+        Ts const&... ts)
+        : STLedgerEntry(k)
+    {
+        populate(f, v, ts...);
+    }
+
+    [[deprecated("Prefer using a keylet instead")]] STLedgerEntry(
+        LedgerEntryType type,
+        uint256 const& key)
         : STLedgerEntry(Keylet(type, key))
     {
     }

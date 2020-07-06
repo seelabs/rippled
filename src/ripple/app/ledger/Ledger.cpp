@@ -44,6 +44,7 @@
 #include <ripple/protocol/HashPrefix.h>
 #include <ripple/protocol/Indexes.h>
 #include <ripple/protocol/PublicKey.h>
+#include <ripple/protocol/STAccount.h>
 #include <ripple/protocol/SecretKey.h>
 #include <ripple/protocol/UintTypes.h>
 #include <ripple/protocol/digest.h>
@@ -189,18 +190,20 @@ Ledger::Ledger(
             .first);
 
     rawInsert(std::make_shared<SLE>(
-        keylet::account(id), [&, this](SLE& sle) {
-            sle.setFieldU32(sfSequence, 1);
-            sle.setAccountID(sfAccount, id);
-            sle.setFieldAmount(sfBalance, info_.drops);
-        }));
+        keylet::account(id),
+        sfSequence,
+        1,
+        sfAccount,
+        id,
+        sfBalance,
+        info_.drops));
 
     if (!amendments.empty())
     {
         rawInsert(std::make_shared<SLE>(
-            keylet::amendments(), [&amendments](SLE& sle) {
-                sle.setFieldV256(sfAmendments, STVector256{amendments});
-            }));
+            keylet::amendments(),
+            sfAmendments,
+            std::vector<uint256>({amendments})));
     }
 
     stateMap_->flushDirty(hotACCOUNT_NODE, info_.seq);
