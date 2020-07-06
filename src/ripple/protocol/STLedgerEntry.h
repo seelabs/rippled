@@ -27,6 +27,21 @@ namespace ripple {
 
 class Invariants_test;
 
+// This class should only be used within STLedgerEntry constructors.
+// The `val` member will be moved from after the constructor runs.
+template <class T0, class T1>
+struct SLEKV
+{
+    TypedField<T0> const& key;
+    T1 val;
+    SLEKV(TypedField<T0> const& k, T1 const& v) : key{k}, val{v}
+    {
+    }
+    SLEKV(TypedField<T0> const& k, T1&& v) : key{k}, val{std::move(v)}
+    {
+    }
+};
+
 class STLedgerEntry final : public STObject, public CountedObject<STLedgerEntry>
 {
     friend Invariants_test;  // this test wants access to the private type_
@@ -41,33 +56,22 @@ public:
     /** Create an empty object with the given key and type. */
     explicit STLedgerEntry(Keylet const& k);
 
-    /** Create and initialize an object with the given key and type. */
-    template <class Initializer>
-    STLedgerEntry(Keylet const& k, Initializer&& init) : STLedgerEntry(k)
-    {
-        init(*this);
-    }
-
     template <class T0, class T1, class... Ts>
     void
-    populate(TypedField<T0> const& f, T1 const& v, Ts const&... ts)
+    populate(SLEKV<T0, T1>&& kv, Ts&&... ts)
     {
-        (*this)[f] = v;
+        (*this)[kv.key] = std::move(kv.val);
         if constexpr (sizeof...(ts) > 0)
         {
-            populate(ts...);
+            populate(std::forward<Ts>(ts)...);
         }
     }
 
-    template <class T, class... Ts>
-    STLedgerEntry(
-        Keylet const& k,
-        TypedField<T> const& f,
-        typename T::value_type const& v,
-        Ts const&... ts)
+    template <class T0, class T1, class... Ts>
+    STLedgerEntry(Keylet const& k, SLEKV<T0, T1>&& kv, Ts&&... ts)
         : STLedgerEntry(k)
     {
-        populate(f, v, ts...);
+        populate(std::move(kv), std::forward<Ts>(ts)...);
     }
 
     [[deprecated("Prefer using a keylet instead")]] STLedgerEntry(

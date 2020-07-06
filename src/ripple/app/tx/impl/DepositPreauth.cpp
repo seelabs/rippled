@@ -134,11 +134,11 @@ DepositPreauth::doApply()
 
         // Preclaim already verified that the Preauth entry does not yet exist.
         // Create and populate the Preauth entry.
-        view().insert(std::make_shared<SLE>(pak, [&, this](SLE& sle) {
-            sle.setAccountID(sfAccount, account_);
-            sle.setAccountID(sfAuthorize, authorize);
-            sle.setFieldU64(sfOwnerNode, *page);
-        }));
+        view().insert(std::make_shared<SLE>(
+            pak,
+            SLEKV{sfAccount, account_},
+            SLEKV{sfAuthorize, authorize},
+            SLEKV{sfOwnerNode, *page}));
 
         // If we succeeded, the new entry counts against the creator's reserve.
         adjustOwnerCount(view(), sleOwner, 1, ctx_.app.journal("View"));

@@ -229,16 +229,14 @@ EscrowCreate::doApply()
     // Create escrow in ledger
     auto const slep = std::make_shared<SLE>(
         keylet::escrow(account, (*sle)[sfSequence] - 1),
-        [&, this](SLE& sle) {
-            sle[sfAmount] = ctx_.tx[sfAmount];
-            sle[sfAccount] = account;
-            sle[~sfCondition] = ctx_.tx[~sfCondition];
-            sle[~sfSourceTag] = ctx_.tx[~sfSourceTag];
-            sle[sfDestination] = ctx_.tx[sfDestination];
-            sle[~sfCancelAfter] = ctx_.tx[~sfCancelAfter];
-            sle[~sfFinishAfter] = ctx_.tx[~sfFinishAfter];
-            sle[~sfDestinationTag] = ctx_.tx[~sfDestinationTag];
-        });
+        SLEKV{sfAmount, ctx_.tx[sfAmount]},
+        SLEKV{sfAccount, account},
+        SLEKV{sfDestination, ctx_.tx[sfDestination]});
+    (*slep)[~sfCondition] = ctx_.tx[~sfCondition];
+    (*slep)[~sfSourceTag] = ctx_.tx[~sfSourceTag];
+    (*slep)[~sfCancelAfter] = ctx_.tx[~sfCancelAfter];
+    (*slep)[~sfFinishAfter] = ctx_.tx[~sfFinishAfter];
+    (*slep)[~sfDestinationTag] = ctx_.tx[~sfDestinationTag];
 
     ctx_.view().insert(slep);
 

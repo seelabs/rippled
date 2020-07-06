@@ -336,14 +336,12 @@ Payment::doApply()
     if (!sleDst)
     {
         // Create the account.
-        sleDst = std::make_shared<SLE>(k, [&, this](SLE& sle) {
-            sle.setAccountID(sfAccount, uDstAccountID);
+        sleDst = std::make_shared<SLE>(k, SLEKV{sfAccount, uDstAccountID});
 
-            if (view().rules().enabled(featureDeletableAccounts))
-                sle.setFieldU32(sfSequence, view().seq());
-            else
-                sle.setFieldU32(sfSequence, 1);
-        });
+        if (view().rules().enabled(featureDeletableAccounts))
+            sleDst->setFieldU32(sfSequence, view().seq());
+        else
+            sleDst->setFieldU32(sfSequence, 1);
 
         view().insert(sleDst);
     }

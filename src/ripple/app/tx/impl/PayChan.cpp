@@ -239,19 +239,18 @@ PayChanCreate::doApply()
     // Create PayChan in ledger
     auto const slep = std::make_shared<SLE>(
         keylet::payChan(account, dst, (*sle)[sfSequence] - 1),
-        [&, this](SLE& sle) {
-            // Funds held in this channel
-            sle[sfAmount] = ctx_.tx[sfAmount];
-            // Amount channel has already paid
-            sle[sfBalance] = ctx_.tx[sfAmount].zeroed();
-            sle[sfAccount] = account;
-            sle[sfDestination] = dst;
-            sle[sfSettleDelay] = ctx_.tx[sfSettleDelay];
-            sle[sfPublicKey] = ctx_.tx[sfPublicKey];
-            sle[~sfCancelAfter] = ctx_.tx[~sfCancelAfter];
-            sle[~sfSourceTag] = ctx_.tx[~sfSourceTag];
-            sle[~sfDestinationTag] = ctx_.tx[~sfDestinationTag];
-        });
+        // Funds held in this channel
+        SLEKV{sfAmount, ctx_.tx[sfAmount]},
+        // Amount channel has already paid
+        SLEKV{sfBalance, ctx_.tx[sfAmount].zeroed()},
+        SLEKV{sfAccount, account},
+        SLEKV{sfDestination, dst},
+        SLEKV{sfSettleDelay, ctx_.tx[sfSettleDelay]},
+        SLEKV{sfPublicKey, ctx_.tx[sfPublicKey]});
+
+    (*slep)[~sfCancelAfter] = ctx_.tx[~sfCancelAfter];
+    (*slep)[~sfSourceTag] = ctx_.tx[~sfSourceTag];
+    (*slep)[~sfDestinationTag] = ctx_.tx[~sfDestinationTag];
 
     ctx_.view().insert(slep);
 

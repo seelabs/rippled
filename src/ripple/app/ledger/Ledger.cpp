@@ -191,19 +191,15 @@ Ledger::Ledger(
 
     rawInsert(std::make_shared<SLE>(
         keylet::account(id),
-        sfSequence,
-        1,
-        sfAccount,
-        id,
-        sfBalance,
-        info_.drops));
+        SLEKV{sfSequence, 1},
+        SLEKV{sfAccount, id},
+        SLEKV{sfBalance, info_.drops}));
 
     if (!amendments.empty())
     {
         rawInsert(std::make_shared<SLE>(
             keylet::amendments(),
-            sfAmendments,
-            std::vector<uint256>({amendments})));
+            SLEKV{sfAmendments, std::vector<uint256>({amendments})}));
     }
 
     stateMap_->flushDirty(hotACCOUNT_NODE, info_.seq);

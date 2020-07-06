@@ -1416,21 +1416,24 @@ CreateOffer::applyGuts(Sandbox& sb, Sandbox& sbCancel)
         return {tecDIR_FULL, true};
     }
 
-    sb.insert(std::make_shared<SLE>(offer_index, [&, this](SLE& sle) {
-        sle.setAccountID(sfAccount, account_);
-        sle.setFieldU32(sfSequence, uSequence);
-        sle.setFieldH256(sfBookDirectory, dir.key);
-        sle.setFieldAmount(sfTakerPays, saTakerPays);
-        sle.setFieldAmount(sfTakerGets, saTakerGets);
-        sle.setFieldU64(sfOwnerNode, *ownerNode);
-        sle.setFieldU64(sfBookNode, *bookNode);
+    {
+        auto sle = std::make_shared<SLE>(
+            offer_index,
+            SLEKV{sfAccount, account_},
+            SLEKV{sfSequence, uSequence},
+            SLEKV{sfBookDirectory, dir.key},
+            SLEKV{sfTakerPays, saTakerPays},
+            SLEKV{sfTakerGets, saTakerGets},
+            SLEKV{sfOwnerNode, *ownerNode},
+            SLEKV{sfBookNode, *bookNode});
         if (expiration)
-            sle.setFieldU32(sfExpiration, *expiration);
+            sle->setFieldU32(sfExpiration, *expiration);
         if (bPassive)
-            sle.setFlag(lsfPassive);
+            sle->setFlag(lsfPassive);
         if (bSell)
-            sle.setFlag(lsfSell);
-    }));
+            sle->setFlag(lsfSell);
+        sb.insert(sle);
+    }
 
     if (!bookExisted)
         ctx_.app.getOrderBookDB().addOrderBook(book);
