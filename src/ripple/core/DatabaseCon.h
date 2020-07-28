@@ -134,6 +134,8 @@ public:
     {
     }
 
+    ~DatabaseCon();
+
     soci::session&
     getSession()
     {
@@ -182,8 +184,13 @@ private:
     LockedSociSession::mutex lock_;
 
     soci::session session_;
-    std::unique_ptr<Checkpointer> checkpointer_;
+    std::shared_ptr<Checkpointer> checkpointer_;
 };
+
+// Return the checkpointer from its id. If the checkpointer no longer exists, an
+// nullptr is returned
+std::shared_ptr<Checkpointer>
+checkpointerFromId(std::uint64_t id);
 
 DatabaseCon::Setup
 setup_DatabaseCon(

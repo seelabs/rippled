@@ -131,10 +131,17 @@ convert(std::vector<std::uint8_t> const& from, soci::blob& to);
 void
 convert(std::string const& from, soci::blob& to);
 
-class Checkpointer
+class Checkpointer : public std::enable_shared_from_this<Checkpointer>
 {
 public:
+    virtual std::uintptr_t
+    id() const = 0;
     virtual ~Checkpointer() = default;
+
+    virtual void
+    scheduleCheckpoint() = 0;
+    virtual void
+    checkpoint() = 0;
 };
 
 /** Returns a new checkpointer which makes checkpoints of a
@@ -143,8 +150,8 @@ public:
     The Checkpointer contains references to the session and job queue
     and so must outlive them both.
  */
-std::unique_ptr<Checkpointer>
-makeCheckpointer(soci::session&, JobQueue&, Logs&);
+std::shared_ptr<Checkpointer>
+makeCheckpointer(std::uintptr_t id, soci::session&, JobQueue&, Logs&);
 
 }  // namespace ripple
 

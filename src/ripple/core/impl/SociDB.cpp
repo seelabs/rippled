@@ -26,6 +26,7 @@
 #include <ripple/basics/contract.h>
 #include <ripple/core/Config.h>
 #include <ripple/core/ConfigSections.h>
+#include <ripple/core/DatabaseCon.h>
 #include <ripple/core/SociDB.h>
 #include <boost/filesystem.hpp>
 #include <memory>
@@ -196,44 +197,33 @@ namespace {
     is the default behavior of sqlite. We may be able to remove this
     class.
 */
+
 class WALCheckpointer : public Checkpointer
 {
 public:
-    WALCheckpointer(sqlite_api::sqlite3& conn, JobQueue& q, Logs& logs)
-        : conn_(conn), jobQueue_(q), j_(logs.journal("WALCheckpointer"))
+    WALCheckpointer(
+        std::uint64_t id,
+        sqlite_api::sqlite3& conn,
+        JobQueue& q,
+        Logs& logs)
+        : Id_(id)
+        , conn_(conn)
+        , jobQueue_(q)
+        , j_(logs.journal("WALCheckpointer"))
     {
-        sqlite_api::sqlite3_wal_hook(&conn_, &sqliteWALHook, this);
+        sqlite_api::sqlite3_wal_hook(&conn_, &sqliteWALHook, (void*)Id_);
+    }
+
+    std::uintptr_t
+    id() const override
+    {
+        return Id_;
     }
 
     ~WALCheckpointer() override = default;
 
-private:
-    sqlite_api::sqlite3& conn_;
-    std::mutex mutex_;
-    JobQueue& jobQueue_;
-
-    bool running_ = false;
-    beast::Journal const j_;
-
-    static int
-    sqliteWALHook(
-        void* cp,
-        sqlite_api::sqlite3*,
-        const char* dbName,
-        int walSize)
-    {
-        if (walSize >= checkpointPageCount)
-        {
-            if (auto checkpointer = reinterpret_cast<WALCheckpointer*>(cp))
-                checkpointer->scheduleCheckpoint();
-            else
-                Throw<std::logic_error>("Didn't get a WALCheckpointer");
-        }
-        return SQLITE_OK;
-    }
-
     void
-    scheduleCheckpoint()
+    scheduleCheckpoint() override
     {
         {
             std::lock_guard lock(mutex_);
@@ -243,7 +233,13 @@ private:
         }
 
         // If the Job is not added to the JobQueue then we're not running_.
-        if (!jobQueue_.addJob(jtWAL, "WAL", [this](Job&) { checkpoint(); }))
+        if (!jobQueue_.addJob(
+                jtWAL,
+                "WAL",
+                [wp = std::weak_ptr<Checkpointer>{shared_from_this()}](Job&) {
+                    if (auto self = wp.lock())
+                        self->checkpoint();
+                }))
         {
             std::lock_guard lock(mutex_);
             running_ = false;
@@ -251,7 +247,7 @@ private:
     }
 
     void
-    checkpoint()
+    checkpoint() override
     {
         int log = 0, ckpt = 0;
         int ret = sqlite3_wal_checkpoint_v2(
@@ -272,15 +268,50 @@ private:
         std::lock_guard lock(mutex_);
         running_ = false;
     }
+
+protected:
+    std::uint64_t const Id_;
+    sqlite_api::sqlite3& conn_;
+    std::mutex mutex_;
+    JobQueue& jobQueue_;
+
+    bool running_ = false;
+    beast::Journal const j_;
+
+    static int
+    sqliteWALHook(
+        void* cpId,
+        sqlite_api::sqlite3* conn,
+        const char* dbName,
+        int walSize)
+    {
+        if (walSize >= checkpointPageCount)
+        {
+            if (auto checkpointer =
+                    checkpointerFromId(reinterpret_cast<std::uintptr_t>(cpId)))
+            {
+                checkpointer->scheduleCheckpoint();
+            }
+            else
+            {
+                sqlite_api::sqlite3_wal_hook(conn, nullptr, nullptr);
+            }
+        }
+        return SQLITE_OK;
+    }
 };
 
 }  // namespace
 
-std::unique_ptr<Checkpointer>
-makeCheckpointer(soci::session& session, JobQueue& queue, Logs& logs)
+std::shared_ptr<Checkpointer>
+makeCheckpointer(
+    std::uintptr_t id,
+    soci::session& session,
+    JobQueue& queue,
+    Logs& logs)
 {
     if (auto conn = getConnection(session))
-        return std::make_unique<WALCheckpointer>(*conn, queue, logs);
+        return std::make_shared<WALCheckpointer>(id, *conn, queue, logs);
     return {};
 }
 
