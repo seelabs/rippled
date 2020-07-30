@@ -105,10 +105,16 @@ public:
         static std::unique_ptr<std::vector<std::string> const> globalPragma;
     };
 
+    struct CheckpointerSetup
+    {
+        JobQueue* jq;
+        Logs* logs;
+    };
+
     template <std::size_t N, std::size_t M>
     DatabaseCon(
         Setup const& setup,
-        std::string const& DBName,
+        std::string const& dbName,
         std::array<char const*, N> const& pragma,
         std::array<char const*, M> const& initSQL)
         // Use temporary files or regular DB files?
@@ -117,21 +123,47 @@ public:
                       setup.startUp != Config::LOAD_FILE &&
                       setup.startUp != Config::REPLAY
                   ? ""
-                  : (setup.dataDir / DBName),
+                  : (setup.dataDir / dbName),
               setup.commonPragma(),
               pragma,
               initSQL)
     {
     }
 
+    // Use this constructor to setup checkpointing
+    template <std::size_t N, std::size_t M>
+    DatabaseCon(
+        Setup const& setup,
+        std::string const& dbName,
+        std::array<char const*, N> const& pragma,
+        std::array<char const*, M> const& initSQL,
+        CheckpointerSetup const& checkpointerSetup)
+        : DatabaseCon(setup, dbName, pragma, initSQL)
+    {
+        setupCheckpointing(checkpointerSetup.jq, *checkpointerSetup.logs);
+    }
+
     template <std::size_t N, std::size_t M>
     DatabaseCon(
         boost::filesystem::path const& dataDir,
-        std::string const& DBName,
+        std::string const& dbName,
         std::array<char const*, N> const& pragma,
         std::array<char const*, M> const& initSQL)
-        : DatabaseCon(dataDir / DBName, nullptr, pragma, initSQL)
+        : DatabaseCon(dataDir / dbName, nullptr, pragma, initSQL)
     {
+    }
+
+    // Use this constructor to setup checkpointing
+    template <std::size_t N, std::size_t M>
+    DatabaseCon(
+        boost::filesystem::path const& dataDir,
+        std::string const& dbName,
+        std::array<char const*, N> const& pragma,
+        std::array<char const*, M> const& initSQL,
+        CheckpointerSetup const& checkpointerSetup)
+        : DatabaseCon(dataDir, dbName, pragma, initSQL)
+    {
+        setupCheckpointing(checkpointerSetup.jq, *checkpointerSetup.logs);
     }
 
     ~DatabaseCon();
@@ -148,10 +180,10 @@ public:
         return LockedSociSession(&session_, lock_);
     }
 
+private:
     void
     setupCheckpointing(JobQueue*, Logs&);
 
-private:
     template <std::size_t N, std::size_t M>
     DatabaseCon(
         boost::filesystem::path const& pPath,
