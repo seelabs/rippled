@@ -542,8 +542,8 @@ Shard::finalize(
             return fail("missing root TXN node");
         }
 
-        if (!valLedger(ledger, next))
-            return fail("failed to validate ledger");
+        // if (!valLedger(ledger, next))
+        //     return fail("failed to validate ledger");
 
         if (writeSQLite)
         {
