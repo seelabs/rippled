@@ -202,28 +202,29 @@ class WALCheckpointer : public Checkpointer
 {
 public:
     WALCheckpointer(
-        std::uint64_t id,
+        std::uintptr_t id,
         sqlite_api::sqlite3& conn,
         JobQueue& q,
         Logs& logs)
-        : Id_(id)
+        : id_(id)
         , conn_(conn)
         , jobQueue_(q)
         , j_(logs.journal("WALCheckpointer"))
     {
-        sqlite_api::sqlite3_wal_hook(&conn_, &sqliteWALHook, (void*)Id_);
+        sqlite_api::sqlite3_wal_hook(
+            &conn_, &sqliteWALHook, reinterpret_cast<void*>(id_));
     }
 
     std::uintptr_t
     id() const override
     {
-        return Id_;
+        return id_;
     }
 
     ~WALCheckpointer() override = default;
 
     void
-    scheduleCheckpoint() override
+    schedule() override
     {
         {
             std::lock_guard lock(mutex_);
@@ -270,7 +271,7 @@ public:
     }
 
 protected:
-    std::uint64_t const Id_;
+    std::uintptr_t const id_;
     sqlite_api::sqlite3& conn_;
     std::mutex mutex_;
     JobQueue& jobQueue_;
@@ -290,7 +291,7 @@ protected:
             if (auto checkpointer =
                     checkpointerFromId(reinterpret_cast<std::uintptr_t>(cpId)))
             {
-                checkpointer->scheduleCheckpoint();
+                checkpointer->schedule();
             }
             else
             {

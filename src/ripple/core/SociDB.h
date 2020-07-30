@@ -139,7 +139,8 @@ public:
     virtual ~Checkpointer() = default;
 
     virtual void
-    scheduleCheckpoint() = 0;
+    schedule() = 0;
+
     virtual void
     checkpoint() = 0;
 };
