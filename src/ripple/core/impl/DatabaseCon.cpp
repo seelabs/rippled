@@ -21,9 +21,12 @@
 #include <ripple/basics/contract.h>
 #include <ripple/core/DatabaseCon.h>
 #include <ripple/core/SociDB.h>
+
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
+
 #include <memory>
+#include <unordered_map>
 
 namespace ripple {
 
@@ -35,7 +38,8 @@ class CheckpointersCollection
     // Each checkpointer is given a unique id. All the checkpointers that are
     // part of a DatabaseCon are part of this collection. When the DatabaseCon
     // is destroyed, its checkpointer is removed from the collection
-    std::map<std::uintptr_t, std::shared_ptr<Checkpointer>> checkpointers_;
+    std::unordered_map<std::uintptr_t, std::shared_ptr<Checkpointer>>
+        checkpointers_;
 
 public:
     std::shared_ptr<Checkpointer>
