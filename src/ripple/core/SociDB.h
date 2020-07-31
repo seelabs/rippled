@@ -148,7 +148,7 @@ public:
 /** Returns a new checkpointer which makes checkpoints of a
     soci database every checkpointPageCount pages, using a job on the job queue.
 
-    The Checkpointer contains references to the session and job queue
+    The checkpointer contains references to the session and job queue
     and so must outlive them both.
  */
 std::shared_ptr<Checkpointer>

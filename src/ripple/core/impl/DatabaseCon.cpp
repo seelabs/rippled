@@ -31,7 +31,7 @@ class CheckpointersCollection
 {
     std::uintptr_t nextId_{0};
     // Mutex protects the CheckpointersCollection
-    std::mutex m_;
+    std::mutex mutex_;
     // Each checkpointer is given a unique id. All the checkpointers that are
     // part of a DatabaseCon are part of this collection. When the DatabaseCon
     // is destroyed, its checkpointer is removed from the collection
@@ -41,7 +41,7 @@ public:
     std::shared_ptr<Checkpointer>
     fromId(std::uintptr_t id)
     {
-        std::lock_guard l{m_};
+        std::lock_guard l{mutex_};
         auto it = checkpointers_.find(id);
         if (it != checkpointers_.end())
             return it->second;
@@ -51,16 +51,16 @@ public:
     void
     erase(std::uintptr_t id)
     {
-        std::lock_guard l{m_};
+        std::lock_guard lock{mutex_};
         checkpointers_.erase(id);
     }
 
     std::shared_ptr<Checkpointer>
-    create(soci::session& s, JobQueue& q, Logs& l)
+    create(soci::session& session, JobQueue& jobQueue, Logs& logs)
     {
-        std::lock_guard lock{m_};
+        std::lock_guard lock{mutex_};
         auto const id = nextId_++;
-        auto const r = makeCheckpointer(id, s, q, l);
+        auto const r = makeCheckpointer(id, session, jobQueue, logs);
         checkpointers_[id] = r;
         return r;
     }

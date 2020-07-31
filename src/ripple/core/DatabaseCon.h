@@ -107,7 +107,7 @@ public:
 
     struct CheckpointerSetup
     {
-        JobQueue* jq;
+        JobQueue* jobQueue;
         Logs* logs;
     };
 
@@ -140,7 +140,7 @@ public:
         CheckpointerSetup const& checkpointerSetup)
         : DatabaseCon(setup, dbName, pragma, initSQL)
     {
-        setupCheckpointing(checkpointerSetup.jq, *checkpointerSetup.logs);
+        setupCheckpointing(checkpointerSetup.jobQueue, *checkpointerSetup.logs);
     }
 
     template <std::size_t N, std::size_t M>
@@ -163,7 +163,7 @@ public:
         CheckpointerSetup const& checkpointerSetup)
         : DatabaseCon(dataDir, dbName, pragma, initSQL)
     {
-        setupCheckpointing(checkpointerSetup.jq, *checkpointerSetup.logs);
+        setupCheckpointing(checkpointerSetup.jobQueue, *checkpointerSetup.logs);
     }
 
     ~DatabaseCon();
