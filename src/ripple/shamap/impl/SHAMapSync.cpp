@@ -103,6 +103,7 @@ SHAMap::visitNodes(
 
 void
 SHAMap::visitDifferences(
+    bool cache,
     SHAMap const* have,
     std::function<bool(SHAMapAbstractNode&)> function) const
 {
@@ -128,14 +129,20 @@ SHAMap::visitDifferences(
         return;
     }
     // contains unexplored non-matching inner node entries
-    using StackEntry = std::pair<SHAMapInnerNode*, SHAMapNodeID>;
+    using StackEntry = std::tuple<
+        SHAMapInnerNode*,
+        SHAMapNodeID,
+        std::shared_ptr<SHAMapAbstractNode>>;
     std::stack<StackEntry, std::vector<StackEntry>> stack;
 
-    stack.push({static_cast<SHAMapInnerNode*>(root_.get()), SHAMapNodeID{}});
+    stack.push(
+        {static_cast<SHAMapInnerNode*>(root_.get()),
+         SHAMapNodeID{},
+         std::shared_ptr<SHAMapInnerNode>{}});
 
     while (!stack.empty())
     {
-        auto const [node, nodeID] = stack.top();
+        auto const [node, nodeID, keepAlivePtr] = stack.top();
         stack.pop();
 
         // 1) Add this node to the pack
@@ -149,13 +156,26 @@ SHAMap::visitDifferences(
             {
                 auto const& childHash = node->getChildHash(i);
                 SHAMapNodeID childID = nodeID.getChildNodeID(i);
-                auto next = descendThrow(node, i);
+                auto [next, ka] = [&, &node = node]()
+                    -> std::pair<
+                        SHAMapAbstractNode*,
+                        std::shared_ptr<SHAMapAbstractNode>> {
+                    if (cache)
+                        return {
+                            descendThrow(node, i),
+                            std::shared_ptr<SHAMapAbstractNode>{}};
+
+                    auto r = descendThrowNoStore(node, i);
+                    return {r.get(), r};
+                }();
 
                 if (next->isInner())
                 {
                     if (!have || !have->hasInnerNode(childID, childHash))
+                    {
                         stack.push(
-                            {static_cast<SHAMapInnerNode*>(next), childID});
+                            {static_cast<SHAMapInnerNode*>(next), childID, ka});
+                    }
                 }
                 else if (
                     !have ||
@@ -824,7 +844,9 @@ SHAMap::getFetchPack(
     std::function<void(SHAMapHash const&, const Blob&)> func) const
 {
     visitDifferences(
-        have, [includeLeaves, &max, &func](SHAMapAbstractNode& smn) -> bool {
+        true,
+        have,
+        [includeLeaves, &max, &func](SHAMapAbstractNode& smn) -> bool {
             if (includeLeaves || smn.isInner())
             {
                 Serializer s;

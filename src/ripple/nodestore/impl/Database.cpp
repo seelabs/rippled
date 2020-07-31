@@ -308,7 +308,7 @@ Database::storeLedger(
         {
             auto have = next->stateMap().snapShot(false);
             srcLedger.stateMap().snapShot(false)->visitDifferences(
-                &(*have), visit);
+                true, &(*have), visit);
         }
         else
             srcLedger.stateMap().snapShot(false)->visitNodes(visit);

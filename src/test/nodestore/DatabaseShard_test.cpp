@@ -299,7 +299,7 @@ class DatabaseShard_test : public TestBase
             {
                 auto have = next->stateMap().snapShot(false);
                 ledger.stateMap().snapShot(false)->visitDifferences(
-                    &(*have), visitAcc);
+                    false, &(*have), visitAcc);
             }
             else
                 ledger.stateMap().snapShot(false)->visitNodes(visitAcc);

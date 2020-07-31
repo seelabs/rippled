@@ -264,6 +264,17 @@ SHAMap::descendThrow(SHAMapInnerNode* parent, int branch) const
 }
 
 std::shared_ptr<SHAMapAbstractNode>
+SHAMap::descendThrowNoStore(SHAMapInnerNode* parent, int branch) const
+{
+    auto ret = descendNoStore(parent, branch);
+
+    if (!ret && !parent->isEmptyBranch(branch))
+        Throw<SHAMapMissingNode>(type_, parent->getChildHash(branch));
+
+    return ret;
+}
+
+std::shared_ptr<SHAMapAbstractNode>
 SHAMap::descendThrow(std::shared_ptr<SHAMapInnerNode> const& parent, int branch)
     const
 {
@@ -313,6 +324,15 @@ std::shared_ptr<SHAMapAbstractNode>
 SHAMap::descendNoStore(
     std::shared_ptr<SHAMapInnerNode> const& parent,
     int branch) const
+{
+    std::shared_ptr<SHAMapAbstractNode> ret = parent->getChild(branch);
+    if (!ret && backed_)
+        ret = fetchNode(parent->getChildHash(branch));
+    return ret;
+}
+
+std::shared_ptr<SHAMapAbstractNode>
+SHAMap::descendNoStore(SHAMapInnerNode* parent, int branch) const
 {
     std::shared_ptr<SHAMapAbstractNode> ret = parent->getChild(branch);
     if (!ret && backed_)

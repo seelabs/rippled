@@ -963,7 +963,8 @@ Shard::valLedger(
         try
         {
             if (next && next->info().parentHash == ledger->info().hash)
-                ledger->stateMap().visitDifferences(&next->stateMap(), visit);
+                ledger->stateMap().visitDifferences(
+                    false, &next->stateMap(), visit);
             else
                 ledger->stateMap().visitNodes(visit);
         }

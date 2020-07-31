@@ -203,6 +203,7 @@ public:
     */
     void
     visitDifferences(
+        bool cache,
         SHAMap const* have,
         std::function<bool(SHAMapAbstractNode&)>) const;
 
@@ -368,6 +369,8 @@ private:
     descend(SHAMapInnerNode*, int branch) const;
     SHAMapAbstractNode*
     descendThrow(SHAMapInnerNode*, int branch) const;
+    std ::shared_ptr<SHAMapAbstractNode>
+    descendThrowNoStore(SHAMapInnerNode*, int branch) const;
     std::shared_ptr<SHAMapAbstractNode>
     descend(std::shared_ptr<SHAMapInnerNode> const&, int branch) const;
     std::shared_ptr<SHAMapAbstractNode>
@@ -392,6 +395,8 @@ private:
     // Does not hook the returned node to its parent
     std::shared_ptr<SHAMapAbstractNode>
     descendNoStore(std::shared_ptr<SHAMapInnerNode> const&, int branch) const;
+    std::shared_ptr<SHAMapAbstractNode>
+    descendNoStore(SHAMapInnerNode*, int branch) const;
 
     /** If there is only one leaf below this node, get its contents */
     std::shared_ptr<SHAMapItem const> const&
