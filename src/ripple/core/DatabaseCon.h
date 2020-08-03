@@ -34,51 +34,49 @@ class session;
 
 namespace ripple {
 
-template <class T, class TMutex>
-class LockedPointer
+class LockedSociSession
 {
 public:
-    using mutex = TMutex;
+    using mutex = std::recursive_mutex;
 
 private:
-    T* it_;
+    std::shared_ptr<soci::session> session_;
     std::unique_lock<mutex> lock_;
 
 public:
-    LockedPointer(T* it, mutex& m) : it_(it), lock_(m)
+    LockedSociSession(std::shared_ptr<soci::session> it, mutex& m)
+        : session_(std::move(it)), lock_(m)
     {
     }
-    LockedPointer(LockedPointer&& rhs) noexcept
-        : it_(rhs.it_), lock_(std::move(rhs.lock_))
+    LockedSociSession(LockedSociSession&& rhs) noexcept
+        : session_(std::move(rhs.session_)), lock_(std::move(rhs.lock_))
     {
     }
-    LockedPointer() = delete;
-    LockedPointer(LockedPointer const& rhs) = delete;
-    LockedPointer&
-    operator=(LockedPointer const& rhs) = delete;
+    LockedSociSession() = delete;
+    LockedSociSession(LockedSociSession const& rhs) = delete;
+    LockedSociSession&
+    operator=(LockedSociSession const& rhs) = delete;
 
-    T*
+    soci::session*
     get()
     {
-        return it_;
+        return session_.get();
     }
-    T&
+    soci::session&
     operator*()
     {
-        return *it_;
+        return *session_;
     }
-    T*
+    soci::session*
     operator->()
     {
-        return it_;
+        return session_.get();
     }
     explicit operator bool() const
     {
-        return bool(it_);
+        return bool(session_);
     }
 };
-
-using LockedSociSession = LockedPointer<soci::session, std::recursive_mutex>;
 
 class DatabaseCon
 {
@@ -171,13 +169,13 @@ public:
     soci::session&
     getSession()
     {
-        return session_;
+        return *session_;
     }
 
     LockedSociSession
     checkoutDb()
     {
-        return LockedSociSession(&session_, lock_);
+        return LockedSociSession(session_, lock_);
     }
 
 private:
@@ -190,32 +188,39 @@ private:
         std::vector<std::string> const* commonPragma,
         std::array<char const*, N> const& pragma,
         std::array<char const*, M> const& initSQL)
+        : session_(std::make_shared<soci::session>())
     {
-        open(session_, "sqlite", pPath.string());
+        open(*session_, "sqlite", pPath.string());
 
         if (commonPragma)
         {
             for (auto const& p : *commonPragma)
             {
-                soci::statement st = session_.prepare << p;
+                soci::statement st = session_->prepare << p;
                 st.execute(true);
             }
         }
         for (auto const& p : pragma)
         {
-            soci::statement st = session_.prepare << p;
+            soci::statement st = session_->prepare << p;
             st.execute(true);
         }
         for (auto const& sql : initSQL)
         {
-            soci::statement st = session_.prepare << sql;
+            soci::statement st = session_->prepare << sql;
             st.execute(true);
         }
     }
 
     LockedSociSession::mutex lock_;
 
-    soci::session session_;
+    // checkpointer may outlive the DatabaseCon when the checkpointer jobQueue
+    // callback locks a weak pointer and the DatabaseCon is then destroyed. In
+    // this case, the checkpointer needs to make sure it doesn't use an already
+    // destroyed session. Thus this class keeps a shared_ptr to the session (so
+    // the checkpointer can keep a weak_ptr) and the checkpointer is a
+    // shared_ptr in this class. session_ will never be null.
+    std::shared_ptr<soci::session> const session_;
     std::shared_ptr<Checkpointer> checkpointer_;
 };
 

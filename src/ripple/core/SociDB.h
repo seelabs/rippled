@@ -152,7 +152,11 @@ public:
     and so must outlive them both.
  */
 std::shared_ptr<Checkpointer>
-makeCheckpointer(std::uintptr_t id, soci::session&, JobQueue&, Logs&);
+makeCheckpointer(
+    std::uintptr_t id,
+    std::weak_ptr<soci::session>,
+    JobQueue&,
+    Logs&);
 
 }  // namespace ripple
 

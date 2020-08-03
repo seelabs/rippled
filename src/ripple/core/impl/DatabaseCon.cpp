@@ -60,7 +60,10 @@ public:
     }
 
     std::shared_ptr<Checkpointer>
-    create(soci::session& session, JobQueue& jobQueue, Logs& logs)
+    create(
+        std::shared_ptr<soci::session> const& session,
+        JobQueue& jobQueue,
+        Logs& logs)
     {
         std::lock_guard lock{mutex_};
         auto const id = nextId_++;
