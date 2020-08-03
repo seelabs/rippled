@@ -212,8 +212,11 @@ public:
         , j_(logs.journal("WALCheckpointer"))
     {
         if (auto [conn, keepAlive] = getConnection(); conn)
+        {
+            (void)keepAlive;
             sqlite_api::sqlite3_wal_hook(
                 conn, &sqliteWALHook, reinterpret_cast<void*>(id_));
+        }
     }
 
     std::pair<sqlite_api::sqlite3*, std::shared_ptr<soci::session>>
@@ -267,6 +270,7 @@ public:
     checkpoint() override
     {
         auto [conn, keepAlive] = getConnection();
+        (void)keepAlive;
         if (!conn)
             return;
 
