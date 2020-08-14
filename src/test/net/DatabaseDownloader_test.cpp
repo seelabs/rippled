@@ -80,8 +80,6 @@ class DatabaseDownloader_test : public beast::unit_test::suite
     {
         test::StreamSink sink_;
         beast::Journal journal_;
-        // The DatabaseDownloader must be created as shared_ptr
-        // because it uses shared_from_this
         std::shared_ptr<DatabaseDownloader> ptr_;
 
         Downloader(jtx::Env& env)
@@ -91,6 +89,11 @@ class DatabaseDownloader_test : public beast::unit_test::suite
                   journal_,
                   env.app().config())}
         {
+        }
+
+        ~Downloader()
+        {
+            ptr_->onStop();
         }
 
         DatabaseDownloader*

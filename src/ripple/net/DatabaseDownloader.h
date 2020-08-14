@@ -33,6 +33,8 @@ public:
         beast::Journal j,
         Config const& config);
 
+    virtual ~DatabaseDownloader() = default;
+
 private:
     static const std::uint8_t MAX_PATH_LEN =
         std::numeric_limits<std::uint8_t>::max();

@@ -283,7 +283,7 @@ ShardArchiveHandler::start()
         if (!downloader_)
         {
             // will throw if can't initialize ssl context
-            downloader_ = std::make_unique<DatabaseDownloader>(
+            downloader_ = std::make_shared<DatabaseDownloader>(
                 app_.getIOService(), j_, app_.config());
         }
     }
@@ -307,14 +307,14 @@ ShardArchiveHandler::release()
 bool
 ShardArchiveHandler::next(std::lock_guard<std::mutex> const& l)
 {
+    if (isStopping())
+        return false;
+
     if (archives_.empty())
     {
         doRelease(l);
         return false;
     }
-
-    if (isStopping())
-        return false;
 
     auto const shardIndex{archives_.begin()->first};
 

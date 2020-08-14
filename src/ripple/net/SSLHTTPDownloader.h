@@ -41,7 +41,7 @@ namespace ripple {
 
 /** Provides an asynchronous HTTPS file downloader
  */
-class SSLHTTPDownloader
+class SSLHTTPDownloader : public std::enable_shared_from_this<SSLHTTPDownloader>
 {
 public:
     using error_code = boost::system::error_code;
@@ -63,6 +63,9 @@ public:
     void
     onStop();
 
+    // NOTE: Classes that inherit from SSLHTTPDownloader
+    // must invoke SSLHTTPDownloader::onStop from the
+    // destructor of the most derived class.
     virtual ~SSLHTTPDownloader() = default;
 
 protected:
@@ -73,7 +76,6 @@ protected:
     void
     fail(
         boost::filesystem::path dstPath,
-        std::function<void(boost::filesystem::path)> const& complete,
         boost::system::error_code const& ec,
         std::string const& errMsg,
         std::shared_ptr<parser> parser);

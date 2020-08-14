@@ -42,11 +42,9 @@ DatabaseDownloader::getParser(
     auto p = std::make_shared<http::response_parser<DatabaseBody>>();
     p->body_limit(std::numeric_limits<std::uint64_t>::max());
     p->get().body().open(dstPath, config_, io_service_, ec);
+
     if (ec)
-    {
         p->get().body().close();
-        fail(dstPath, complete, ec, "open", nullptr);
-    }
 
     return p;
 }

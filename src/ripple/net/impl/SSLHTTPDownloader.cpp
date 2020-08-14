@@ -58,7 +58,7 @@ SSLHTTPDownloader::download(
     if (!strand_.running_in_this_thread())
         strand_.post(std::bind(
             &SSLHTTPDownloader::download,
-            this,
+            shared_from_this(),
             host,
             port,
             target,
@@ -70,7 +70,7 @@ SSLHTTPDownloader::download(
             strand_,
             std::bind(
                 &SSLHTTPDownloader::do_session,
-                this,
+                shared_from_this(),
                 host,
                 port,
                 target,
@@ -79,20 +79,6 @@ SSLHTTPDownloader::download(
                 complete,
                 std::placeholders::_1));
     return true;
-}
-
-void
-SSLHTTPDownloader::onStop()
-{
-    std::unique_lock lock(m_);
-
-    cancelDownloads_ = true;
-
-    if (sessionActive_)
-    {
-        // Wait for the handler to exit.
-        c_.wait(lock, [this]() { return !sessionActive_; });
-    }
 }
 
 void
@@ -135,7 +121,10 @@ SSLHTTPDownloader::do_session(
     // because the server is shutting down,
     // this method notifies a 'Stoppable'
     // object that the session has ended.
-    auto exit = [this]() {
+    auto exit = [this, &dstPath, complete](bool invokeComplete) {
+        if (invokeComplete)
+            complete(std::move(dstPath));
+
         std::lock_guard<std::mutex> lock(m_);
         sessionActive_ = false;
         c_.notify_one();
@@ -143,14 +132,14 @@ SSLHTTPDownloader::do_session(
 
     auto failAndExit = [&exit, &dstPath, complete, &ec, this](
                            std::string const& errMsg, auto p) {
-        exit();
-        fail(dstPath, complete, ec, errMsg, p);
+        fail(dstPath, ec, errMsg, p);
+        exit(true);
     };
     // end lambdas
     ////////////////////////////////////////////////////////////
 
     if (cancelDownloads_.load())
-        return exit();
+        return exit(false);
 
     auto p = this->getParser(dstPath, complete, ec);
     if (ec)
@@ -296,7 +285,7 @@ SSLHTTPDownloader::do_session(
         if (cancelDownloads_.load())
         {
             close(p);
-            return exit();
+            return exit(false);
         }
 
         http::async_read_some(*stream_, read_buf_, *p, yield[ec]);
@@ -305,16 +294,26 @@ SSLHTTPDownloader::do_session(
     JLOG(j_.trace()) << "download completed: " << dstPath.string();
 
     close(p);
-    exit();
+    exit(true);
+}
 
-    // Notify the completion handler
-    complete(std::move(dstPath));
+void
+SSLHTTPDownloader::onStop()
+{
+    std::unique_lock lock(m_);
+
+    cancelDownloads_ = true;
+
+    if (sessionActive_)
+    {
+        // Wait for the handler to exit.
+        c_.wait(lock, [this]() { return !sessionActive_; });
+    }
 }
 
 void
 SSLHTTPDownloader::fail(
     boost::filesystem::path dstPath,
-    std::function<void(boost::filesystem::path)> const& complete,
     boost::system::error_code const& ec,
     std::string const& errMsg,
     std::shared_ptr<parser> parser)
@@ -340,7 +339,6 @@ SSLHTTPDownloader::fail(
         JLOG(j_.error()) << "exception: " << e.what()
                          << " in function: " << __func__;
     }
-    complete(std::move(dstPath));
 }
 
 }  // namespace ripple
