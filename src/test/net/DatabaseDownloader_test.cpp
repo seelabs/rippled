@@ -84,10 +84,10 @@ class DatabaseDownloader_test : public beast::unit_test::suite
 
         Downloader(jtx::Env& env)
             : journal_{sink_}
-            , ptr_{std::make_shared<DatabaseDownloader>(
+            , ptr_{make_DatabaseDownloader(
                   env.app().getIOService(),
-                  journal_,
-                  env.app().config())}
+                  env.app().config(),
+                  journal_)}
         {
         }
 

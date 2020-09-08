@@ -24,8 +24,8 @@ namespace ripple {
 
 SSLHTTPDownloader::SSLHTTPDownloader(
     boost::asio::io_service& io_service,
-    beast::Journal j,
-    Config const& config)
+    Config const& config,
+    beast::Journal j)
     : j_(j)
     , ssl_ctx_(config, j, boost::asio::ssl::context::tlsv12_client)
     , strand_(io_service)

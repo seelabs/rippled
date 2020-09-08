@@ -46,11 +46,6 @@ class SSLHTTPDownloader : public std::enable_shared_from_this<SSLHTTPDownloader>
 public:
     using error_code = boost::system::error_code;
 
-    SSLHTTPDownloader(
-        boost::asio::io_service& io_service,
-        beast::Journal j,
-        Config const& config);
-
     bool
     download(
         std::string const& host,
@@ -63,12 +58,16 @@ public:
     void
     onStop();
 
-    // NOTE: Classes that inherit from SSLHTTPDownloader
-    // must invoke SSLHTTPDownloader::onStop from the
-    // destructor of the most derived class.
     virtual ~SSLHTTPDownloader() = default;
 
 protected:
+    // must be accessed through a shared_ptr
+    // use make_XXX functions to create
+    SSLHTTPDownloader(
+        boost::asio::io_service& io_service,
+        Config const& config,
+        beast::Journal j);
+
     using parser = boost::beast::http::basic_parser<false>;
 
     beast::Journal const j_;
