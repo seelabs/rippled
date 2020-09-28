@@ -56,14 +56,26 @@ getTxFormat(TxType type)
     return format;
 }
 
-STTx::STTx(STObject&& object) noexcept(false) : STObject(std::move(object))
+STTx::STTx(STTx const& other, allocator_type allocator)
+    : STObject(other, allocator), tid_{other.tid_}, tx_type_{other.tx_type_}
+{
+}
+
+STTx::STTx(STObject&& object, allocator_type allocator) noexcept(false)
+    : STObject(std::move(object), allocator)
 {
     tx_type_ = safe_cast<TxType>(getFieldU16(sfTransactionType));
     applyTemplate(getTxFormat(tx_type_)->getSOTemplate());  //  may throw
     tid_ = getHash(HashPrefix::transactionID);
 }
 
-STTx::STTx(SerialIter& sit) noexcept(false) : STObject(sfTransaction)
+STTx::STTx(STObject&& object) noexcept(false)
+    : STTx(std::move(object), object.get_allocator())
+{
+}
+
+STTx::STTx(SerialIter& sit, allocator_type allocator) noexcept(false)
+    : STObject(sfTransaction, allocator)
 {
     int length = sit.getBytesLeft();
 
@@ -79,8 +91,11 @@ STTx::STTx(SerialIter& sit) noexcept(false) : STObject(sfTransaction)
     tid_ = getHash(HashPrefix::transactionID);
 }
 
-STTx::STTx(TxType type, std::function<void(STObject&)> assembler)
-    : STObject(sfTransaction)
+STTx::STTx(
+    TxType type,
+    std::function<void(STObject&)> assembler,
+    allocator_type allocator)
+    : STObject(sfTransaction, allocator)
 {
     auto format = getTxFormat(type);
 

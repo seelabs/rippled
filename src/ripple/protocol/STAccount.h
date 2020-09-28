@@ -46,15 +46,27 @@ public:
     STAccount(SField const& n, AccountID const& v);
 
     STBase*
-    copy(std::size_t n, void* buf) const override
+    copy(
+        std::size_t n,
+        void* buf,
+        pmr_polymorphic_allocator<std::byte> allocator = {}) const override
     {
-        return emplace(n, buf, *this);
+        return emplace(n, buf, *this, allocator);
     }
 
     STBase*
-    move(std::size_t n, void* buf) override
+    move(
+        std::size_t n,
+        void* buf,
+        pmr_polymorphic_allocator<std::byte> allocator = {}) override
     {
-        return emplace(n, buf, std::move(*this));
+        return emplace(n, buf, std::move(*this), allocator);
+    }
+
+    void
+    destroy(pmr_polymorphic_allocator<std::byte> allocator = {}) override
+    {
+        destroy_helper(this, allocator);
     }
 
     SerializedTypeID

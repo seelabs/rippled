@@ -28,8 +28,8 @@
 
 namespace ripple {
 
-STLedgerEntry::STLedgerEntry(Keylet const& k)
-    : STObject(sfLedgerEntry), key_(k.key), type_(k.type)
+STLedgerEntry::STLedgerEntry(Keylet const& k, allocator_type allocator)
+    : STObject(sfLedgerEntry, allocator), key_(k.key), type_(k.type)
 {
     if (!(0u <= type_ &&
           type_ <= std::min<unsigned>(
@@ -47,15 +47,21 @@ STLedgerEntry::STLedgerEntry(Keylet const& k)
     setFieldU16(sfLedgerEntryType, static_cast<std::uint16_t>(type_));
 }
 
-STLedgerEntry::STLedgerEntry(SerialIter& sit, uint256 const& index)
-    : STObject(sfLedgerEntry), key_(index)
+STLedgerEntry::STLedgerEntry(
+    SerialIter& sit,
+    uint256 const& index,
+    allocator_type allocator)
+    : STObject(sfLedgerEntry, allocator), key_(index)
 {
     set(sit);
     setSLEType();
 }
 
-STLedgerEntry::STLedgerEntry(STObject const& object, uint256 const& index)
-    : STObject(object), key_(index)
+STLedgerEntry::STLedgerEntry(
+    STObject const& object,
+    uint256 const& index,
+    allocator_type allocator)
+    : STObject(object, allocator), key_(index)
 {
     setSLEType();
 }

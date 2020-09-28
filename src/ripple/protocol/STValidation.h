@@ -49,6 +49,33 @@ public:
         return "STValidation";
     }
 
+    STValidation(STValidation&& other) noexcept
+        : STObject{std::move(other)}
+        , CountedObject<STValidation>{other}
+        // OK to use moved from object in CountedObject ctor
+        , nodeID_{other.nodeID_}
+        , mTrusted{other.mTrusted}
+        , seenTime_{other.seenTime_}
+    {
+    }
+    STValidation(STValidation&& other, allocator_type allocator)
+        : STObject{std::move(other), allocator}
+        , CountedObject<STValidation>{other}
+        // OK to use moved from object in CountedObject ctor
+        , nodeID_{other.nodeID_}
+        , mTrusted{other.mTrusted}
+        , seenTime_{other.seenTime_}
+    {
+    }
+    STValidation(STValidation const& other, allocator_type allocator = {})
+        : STObject(other, allocator)
+        , CountedObject<STValidation>{other}
+        , nodeID_{other.nodeID_}
+        , mTrusted{other.mTrusted}
+        , seenTime_{other.seenTime_}
+    {
+    }
+
     /** Construct a STValidation from a peer.
 
         Construct a STValidation from serialized data previously shared by a
@@ -69,8 +96,9 @@ public:
     STValidation(
         SerialIter& sit,
         LookupNodeID&& lookupNodeID,
-        bool checkSignature)
-        : STObject(validationFormat(), sit, sfValidation)
+        bool checkSignature,
+        allocator_type allocator = {})
+        : STObject(validationFormat(), sit, sfValidation, allocator)
     {
         auto const spk = getFieldVL(sfSigningPubKey);
 
@@ -106,8 +134,9 @@ public:
         PublicKey const& pk,
         SecretKey const& sk,
         NodeID const& nodeID,
-        F&& f)
-        : STObject(validationFormat(), sfValidation)
+        F&& f,
+        allocator_type allocator = {})
+        : STObject(validationFormat(), sfValidation, allocator)
         , nodeID_(nodeID)
         , seenTime_(signTime)
     {
@@ -138,15 +167,27 @@ public:
     }
 
     STBase*
-    copy(std::size_t n, void* buf) const override
+    copy(
+        std::size_t n,
+        void* buf,
+        pmr_polymorphic_allocator<std::byte> allocator = {}) const override
     {
-        return emplace(n, buf, *this);
+        return emplace(n, buf, *this, allocator);
     }
 
     STBase*
-    move(std::size_t n, void* buf) override
+    move(
+        std::size_t n,
+        void* buf,
+        pmr_polymorphic_allocator<std::byte> allocator = {}) override
     {
-        return emplace(n, buf, std::move(*this));
+        return emplace(n, buf, std::move(*this), allocator);
+    }
+
+    void
+    destroy(pmr_polymorphic_allocator<std::byte> allocator = {}) override
+    {
+        destroy_helper(this, allocator);
     }
 
     // Hash of the validated ledger

@@ -27,16 +27,30 @@ class SHAMap;
 SHAMapItem::SHAMapItem(uint256 const& tag, Blob const& data)
     : tag_(tag), data_(data)
 {
+    updateSizeDeltaBytes(bytesUsed());
 }
 
 SHAMapItem::SHAMapItem(uint256 const& tag, const Serializer& data)
     : tag_(tag), data_(data.peekData())
 {
+    updateSizeDeltaBytes(bytesUsed());
 }
 
 SHAMapItem::SHAMapItem(uint256 const& tag, Serializer&& data)
     : tag_(tag), data_(std::move(data.modData()))
 {
+    updateSizeDeltaBytes(bytesUsed());
+}
+
+SHAMapItem::~SHAMapItem()
+{
+    updateSizeDeltaBytes(-bytesUsed());
+}
+
+std::int64_t
+SHAMapItem::bytesUsed() const noexcept
+{
+    return sizeof(*this) + size();
 }
 
 }  // namespace ripple

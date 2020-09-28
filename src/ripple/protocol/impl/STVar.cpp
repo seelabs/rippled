@@ -38,18 +38,23 @@ nonPresentObject_t nonPresentObject;
 
 //------------------------------------------------------------------------------
 
+STVar::STVar(allocator_type allocator) : mem_resource_{allocator.resource()}
+{
+}
+
 STVar::~STVar()
 {
     destroy();
 }
 
-STVar::STVar(STVar const& other)
+STVar::STVar(STVar const& other, allocator_type allocator)
+    : mem_resource_{allocator.resource()}
 {
     if (other.p_ != nullptr)
-        p_ = other.p_->copy(max_size, &d_);
+        p_ = other.p_->copy(max_size, &d_, allocator);
 }
 
-STVar::STVar(STVar&& other)
+STVar::STVar(STVar&& other) : mem_resource_{other.mem_resource_}
 {
     if (other.on_heap())
     {
@@ -58,7 +63,21 @@ STVar::STVar(STVar&& other)
     }
     else
     {
-        p_ = other.p_->move(max_size, &d_);
+        p_ = other.p_->move(max_size, &d_, mem_resource_);
+    }
+}
+
+STVar::STVar(STVar&& other, allocator_type allocator)
+    : mem_resource_{allocator.resource()}
+{
+    if (other.on_heap())
+    {
+        p_ = other.p_;
+        other.p_ = nullptr;
+    }
+    else
+    {
+        p_ = other.p_->move(max_size, &d_, mem_resource_);
     }
 }
 
@@ -69,7 +88,7 @@ STVar::operator=(STVar const& rhs)
     {
         destroy();
         if (rhs.p_)
-            p_ = rhs.p_->copy(max_size, &d_);
+            p_ = rhs.p_->copy(max_size, &d_, mem_resource_);
         else
             p_ = nullptr;
     }
@@ -90,127 +109,135 @@ STVar::operator=(STVar&& rhs)
         }
         else
         {
-            p_ = rhs.p_->move(max_size, &d_);
+            // do _not_ use rhs's mem_resource_
+            p_ = rhs.p_->move(max_size, &d_, mem_resource_);
         }
     }
 
     return *this;
 }
 
-STVar::STVar(defaultObject_t, SField const& name) : STVar(name.fieldType, name)
+STVar::STVar(defaultObject_t, SField const& name, allocator_type allocator)
+    : STVar(name.fieldType, name, allocator)
 {
 }
 
-STVar::STVar(nonPresentObject_t, SField const& name)
-    : STVar(STI_NOTPRESENT, name)
+STVar::STVar(nonPresentObject_t, SField const& name, allocator_type allocator)
+    : STVar(STI_NOTPRESENT, name, allocator)
 {
 }
 
-STVar::STVar(SerialIter& sit, SField const& name, int depth)
+STVar::STVar(
+    SerialIter& sit,
+    SField const& name,
+    int depth,
+    allocator_type allocator)
+    : mem_resource_{allocator.resource()}
 {
     if (depth > 10)
         Throw<std::runtime_error>("Maximum nesting depth of STVar exceeded");
     switch (name.fieldType)
     {
         case STI_NOTPRESENT:
-            construct<STBase>(name);
+            construct<STBase>(allocator, name);
             return;
         case STI_UINT8:
-            construct<STUInt8>(sit, name);
+            construct<STUInt8>(allocator, sit, name);
             return;
         case STI_UINT16:
-            construct<STUInt16>(sit, name);
+            construct<STUInt16>(allocator, sit, name);
             return;
         case STI_UINT32:
-            construct<STUInt32>(sit, name);
+            construct<STUInt32>(allocator, sit, name);
             return;
         case STI_UINT64:
-            construct<STUInt64>(sit, name);
+            construct<STUInt64>(allocator, sit, name);
             return;
         case STI_AMOUNT:
-            construct<STAmount>(sit, name);
+            construct<STAmount>(allocator, sit, name);
             return;
         case STI_HASH128:
-            construct<STHash128>(sit, name);
+            construct<STHash128>(allocator, sit, name);
             return;
         case STI_HASH160:
-            construct<STHash160>(sit, name);
+            construct<STHash160>(allocator, sit, name);
             return;
         case STI_HASH256:
-            construct<STHash256>(sit, name);
+            construct<STHash256>(allocator, sit, name);
             return;
         case STI_VECTOR256:
-            construct<STVector256>(sit, name);
+            construct<STVector256>(allocator, sit, name);
             return;
         case STI_VL:
-            construct<STBlob>(sit, name);
+            construct<STBlob>(allocator, sit, name);
             return;
         case STI_ACCOUNT:
-            construct<STAccount>(sit, name);
+            construct<STAccount>(allocator, sit, name);
             return;
         case STI_PATHSET:
-            construct<STPathSet>(sit, name);
+            construct<STPathSet>(allocator, sit, name);
             return;
         case STI_OBJECT:
-            construct<STObject>(sit, name, depth);
+            construct<STObject>(allocator, sit, name, depth);
             return;
         case STI_ARRAY:
-            construct<STArray>(sit, name, depth);
+            construct<STArray>(allocator, sit, name, depth);
             return;
         default:
             Throw<std::runtime_error>("Unknown object type");
     }
 }
 
-STVar::STVar(SerializedTypeID id, SField const& name)
+STVar::STVar(SerializedTypeID id, SField const& name, allocator_type allocator)
+    : mem_resource_{allocator.resource()}
 {
     assert((id == STI_NOTPRESENT) || (id == name.fieldType));
     switch (id)
     {
         case STI_NOTPRESENT:
-            construct<STBase>(name);
+            construct<STBase>(allocator, name);
             return;
         case STI_UINT8:
-            construct<STUInt8>(name);
+            construct<STUInt8>(allocator, name);
             return;
         case STI_UINT16:
-            construct<STUInt16>(name);
+            construct<STUInt16>(allocator, name);
             return;
         case STI_UINT32:
-            construct<STUInt32>(name);
+            construct<STUInt32>(allocator, name);
             return;
         case STI_UINT64:
-            construct<STUInt64>(name);
+            construct<STUInt64>(allocator, name);
             return;
         case STI_AMOUNT:
-            construct<STAmount>(name);
+            construct<STAmount>(allocator, name);
             return;
         case STI_HASH128:
-            construct<STHash128>(name);
+            construct<STHash128>(allocator, name);
             return;
         case STI_HASH160:
-            construct<STHash160>(name);
+            construct<STHash160>(allocator, name);
             return;
         case STI_HASH256:
-            construct<STHash256>(name);
+            construct<STHash256>(allocator, name);
             return;
         case STI_VECTOR256:
-            construct<STVector256>(name);
+            construct<STVector256>(allocator, name);
             return;
         case STI_VL:
-            construct<STBlob>(name);
+            construct<STBlob>(allocator, name);
             return;
         case STI_ACCOUNT:
-            construct<STAccount>(name);
+            construct<STAccount>(allocator, name);
             return;
         case STI_PATHSET:
-            construct<STPathSet>(name);
+            construct<STPathSet>(allocator, name);
             return;
         case STI_OBJECT:
-            construct<STObject>(name);
+            construct<STObject>(allocator, name);
             return;
         case STI_ARRAY:
-            construct<STArray>(name);
+            construct<STArray>(allocator, name);
             return;
         default:
             Throw<std::runtime_error>("Unknown object type");
@@ -221,7 +248,7 @@ void
 STVar::destroy()
 {
     if (on_heap())
-        delete p_;
+        p_->destroy();
     else
         p_->~STBase();
 

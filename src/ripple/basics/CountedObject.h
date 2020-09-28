@@ -70,6 +70,18 @@ public:
             return m_count.load();
         }
 
+        void
+        updateSizeDeltaBytes(std::int64_t delta)
+        {
+            m_bytes += delta;
+        }
+
+        std::uint64_t
+        getBytes() const noexcept
+        {
+            return m_bytes.load();
+        }
+
         CounterBase*
         getNext() const noexcept
         {
@@ -85,6 +97,8 @@ public:
 
     protected:
         std::atomic<int> m_count;
+        // allow negative values to detect errors
+        std::atomic<std::int64_t> m_bytes;
         CounterBase* m_next;
     };
 
@@ -128,6 +142,12 @@ public:
         getCounter().decrement();
     }
 
+    void
+    updateSizeDeltaBytes(std::int64_t s) noexcept
+    {
+        getCounter().updateSizeDeltaBytes(s);
+    }
+
 private:
     class Counter : public CountedObjects::CounterBase
     {
@@ -149,6 +169,7 @@ private:
     };
 
 private:
+    friend class InstrumentedAllocator;
     static Counter&
     getCounter() noexcept
     {

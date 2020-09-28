@@ -21,6 +21,7 @@
 #define RIPPLE_PROTOCOL_STBASE_H_INCLUDED
 
 #include <ripple/basics/contract.h>
+#include <ripple/beast/cxx17/pmr.h>
 #include <ripple/protocol/SField.h>
 #include <ripple/protocol/Serializer.h>
 #include <memory>
@@ -78,15 +79,28 @@ public:
     operator!=(const STBase& t) const;
 
     virtual STBase*
-    copy(std::size_t n, void* buf) const
+    copy(
+        std::size_t n,
+        void* buf,
+        pmr_polymorphic_allocator<std::byte> allocator = {}) const
     {
-        return emplace(n, buf, *this);
+        return emplace(n, buf, *this, allocator);
     }
 
     virtual STBase*
-    move(std::size_t n, void* buf)
+    move(
+        std::size_t n,
+        void* buf,
+        pmr_polymorphic_allocator<std::byte> allocator = {})
     {
-        return emplace(n, buf, std::move(*this));
+        return emplace(n, buf, std::move(*this), allocator);
+    }
+
+    // run the destructor and release the memory
+    virtual void
+    destroy(pmr_polymorphic_allocator<std::byte> allocator = {})
+    {
+        destroy_helper(this, allocator);
     }
 
     template <class D>
@@ -146,12 +160,39 @@ protected:
 
     template <class T>
     static STBase*
-    emplace(std::size_t n, void* buf, T&& val)
+    emplace(
+        std::size_t n,
+        void* buf,
+        T&& val,
+        pmr_polymorphic_allocator<std::decay_t<T>> allocator)
     {
         using U = std::decay_t<T>;
         if (sizeof(U) > n)
-            return new U(std::forward<T>(val));
-        return new (buf) U(std::forward<T>(val));
+        {
+            U* p = allocator.allocate(1);
+            try
+            {
+                allocator.construct(p, std::forward<T>(val));
+            }
+            catch (...)
+            {
+                allocator.deallocate(p, 1);
+                throw;
+            }
+            return p;
+        }
+        if constexpr (is_pmr_enabled<U>{})
+            return new (buf) U(std::forward<T>(val), allocator);
+        else
+            return new (buf) U(std::forward<T>(val));
+    }
+
+    template <class T>
+    static void
+    destroy_helper(T* p, pmr_polymorphic_allocator<std::decay_t<T>> allocator)
+    {
+        p->~STBase();
+        allocator.deallocate(p, 1);
     }
 };
 

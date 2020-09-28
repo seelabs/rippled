@@ -98,6 +98,18 @@ RCLCxPeerPos::Data::Data(
     , suppression_{suppress}
     , proposal_{std::move(proposal)}
 {
+    updateSizeDeltaBytes(bytesUsed());
+}
+
+RCLCxPeerPos::Data::~Data()
+{
+    updateSizeDeltaBytes(-bytesUsed());
+}
+
+std::int64_t
+RCLCxPeerPos::Data::bytesUsed() const noexcept
+{
+    return sizeof(*this) + signature_.size();
 }
 
 }  // namespace ripple

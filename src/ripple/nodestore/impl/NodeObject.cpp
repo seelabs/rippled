@@ -31,6 +31,12 @@ NodeObject::NodeObject(
     PrivateAccess)
     : mType(type), mHash(hash), mData(std::move(data))
 {
+    updateSizeDeltaBytes(bytesUsed());
+}
+
+NodeObject::~NodeObject()
+{
+    updateSizeDeltaBytes(-bytesUsed());
 }
 
 std::shared_ptr<NodeObject>
@@ -56,6 +62,12 @@ Blob const&
 NodeObject::getData() const
 {
     return mData;
+}
+
+std::int64_t
+NodeObject::bytesUsed() const noexcept
+{
+    return sizeof(*this) + mData.size();
 }
 
 }  // namespace ripple

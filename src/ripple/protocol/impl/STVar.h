@@ -20,9 +20,11 @@
 #ifndef RIPPLE_PROTOCOL_STVAR_H_INCLUDED
 #define RIPPLE_PROTOCOL_STVAR_H_INCLUDED
 
+#include <ripple/beast/cxx17/pmr.h>
 #include <ripple/protocol/SField.h>
 #include <ripple/protocol/STBase.h>
 #include <ripple/protocol/Serializer.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <typeinfo>
@@ -52,13 +54,26 @@ private:
     // The largest "small object" we can accomodate
     static std::size_t constexpr max_size = 72;
 
+    // Callers are responsible for insuring the lifetime of the mem_resource_
+    // outlives this object
+    pmr_memory_resource* mem_resource_ = pmr_get_default_resource();
     std::aligned_storage<max_size>::type d_;
     STBase* p_ = nullptr;
 
 public:
+    // opt into pmr allocators
+    using allocator_type = pmr_polymorphic_allocator<std::byte>;
+
+    allocator_type
+    get_allocator() const noexcept
+    {
+        return mem_resource_;
+    }
+
     ~STVar();
-    STVar(STVar const& other);
+    STVar(STVar const& other, allocator_type allocator = {});
     STVar(STVar&& other);
+    STVar(STVar&& other, allocator_type allocator);
     STVar&
     operator=(STVar const& rhs);
     STVar&
@@ -69,14 +84,26 @@ public:
         p_ = t.move(max_size, &d_);
     }
 
-    STVar(STBase const& t)
+    STVar(STBase&& t, allocator_type allocator)
+    {
+        p_ = t.move(max_size, &d_);
+    }
+
+    STVar(STBase const& t, allocator_type allocator = {})
     {
         p_ = t.copy(max_size, &d_);
     }
 
-    STVar(defaultObject_t, SField const& name);
-    STVar(nonPresentObject_t, SField const& name);
-    STVar(SerialIter& sit, SField const& name, int depth = 0);
+    STVar(defaultObject_t, SField const& name, allocator_type allocator = {});
+    STVar(
+        nonPresentObject_t,
+        SField const& name,
+        allocator_type allocator = {});
+    STVar(
+        SerialIter& sit,
+        SField const& name,
+        int depth = 0,
+        allocator_type allocator = {});
 
     STBase&
     get()
@@ -114,21 +141,42 @@ public:
     make_stvar(Args&&... args);
 
 private:
-    STVar() = default;
+    explicit STVar(allocator_type allocator = {});
 
-    STVar(SerializedTypeID id, SField const& name);
+    STVar(SerializedTypeID id, SField const& name, allocator_type allocator);
 
     void
     destroy();
 
     template <class T, class... Args>
     void
-    construct(Args&&... args)
+    construct(pmr_polymorphic_allocator<T> allocator, Args&&... args)
     {
         if (sizeof(T) > max_size)
-            p_ = new T(std::forward<Args>(args)...);
+        {
+            T* newObj = allocator.allocate(1);
+            try
+            {
+                allocator.construct(newObj, std::forward<Args>(args)...);
+            }
+            catch (...)
+            {
+                allocator.deallocate(newObj, 1);
+                throw;
+            }
+            p_ = newObj;
+        }
         else
-            p_ = new (&d_) T(std::forward<Args>(args)...);
+        {
+            if constexpr (is_pmr_enabled<T>{})
+            {
+                p_ = new (&d_) T(std::forward<Args>(args)..., allocator);
+            }
+            else
+            {
+                p_ = new (&d_) T(std::forward<Args>(args)...);
+            }
+        }
     }
 
     bool
@@ -143,7 +191,8 @@ inline STVar
 make_stvar(Args&&... args)
 {
     STVar st;
-    st.construct<T>(std::forward<Args>(args)...);
+    STVar::allocator_type allocator;  // default allocator
+    st.construct<T>(allocator, std::forward<Args>(args)...);
     return st;
 }
 

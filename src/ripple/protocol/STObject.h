@@ -25,14 +25,17 @@
 #include <ripple/basics/Slice.h>
 #include <ripple/basics/chrono.h>
 #include <ripple/basics/contract.h>
+#include <ripple/beast/cxx17/pmr.h>
 #include <ripple/protocol/HashPrefix.h>
 #include <ripple/protocol/SOTemplate.h>
 #include <ripple/protocol/STAmount.h>
 #include <ripple/protocol/STPathSet.h>
 #include <ripple/protocol/STVector256.h>
 #include <ripple/protocol/impl/STVar.h>
+
 #include <boost/iterator/transform_iterator.hpp>
 #include <boost/optional.hpp>
+
 #include <cassert>
 #include <stdexcept>
 #include <type_traits>
@@ -246,12 +249,22 @@ private:
         }
     };
 
-    using list_type = std::vector<detail::STVar>;
+    using list_type = pmr_vector<detail::STVar>;
 
+    static pmr_memory_resource* default_mem_resource_;
     list_type v_;
     SOTemplate const* mType;
 
 public:
+    // opt into pmr allocators
+    using allocator_type = pmr_polymorphic_allocator<std::byte>;
+
+    allocator_type
+    get_allocator() const noexcept
+    {
+        return v_.get_allocator();
+    }
+
     using iterator = boost::
         transform_iterator<Transform, STObject::list_type::const_iterator>;
 
@@ -266,16 +279,27 @@ public:
         return "STObject";
     }
 
-    STObject(STObject&&);
-    STObject(STObject const&) = default;
-    STObject(const SOTemplate& type, SField const& name);
+    STObject(STObject&&) noexcept;
+    STObject(STObject&&, allocator_type allocator);
+    STObject(STObject const&, allocator_type allocator = default_mem_resource_);
+    STObject(
+        const SOTemplate& type,
+        SField const& name,
+        allocator_type allocator = default_mem_resource_);
     STObject(
         const SOTemplate& type,
         SerialIter& sit,
-        SField const& name) noexcept(false);
-    STObject(SerialIter& sit, SField const& name, int depth = 0) noexcept(
-        false);
-    STObject(SerialIter&& sit, SField const& name) noexcept(false)
+        SField const& name,
+        allocator_type allocator = default_mem_resource_) noexcept(false);
+    STObject(
+        SerialIter& sit,
+        SField const& name,
+        int depth = 0,
+        allocator_type allocator = default_mem_resource_) noexcept(false);
+    STObject(
+        SerialIter&& sit,
+        SField const& name,
+        allocator_type allocator = default_mem_resource_) noexcept(false)
         : STObject(sit, name)
     {
     }
@@ -284,20 +308,34 @@ public:
     STObject&
     operator=(STObject&& other);
 
-    explicit STObject(SField const& name);
+    explicit STObject(
+        SField const& name,
+        allocator_type allocator = default_mem_resource_);
 
     virtual ~STObject() = default;
 
     STBase*
-    copy(std::size_t n, void* buf) const override
+    copy(
+        std::size_t n,
+        void* buf,
+        pmr_polymorphic_allocator<std::byte> allocator = {}) const override
     {
-        return emplace(n, buf, *this);
+        return emplace(n, buf, *this, allocator);
     }
 
     STBase*
-    move(std::size_t n, void* buf) override
+    move(
+        std::size_t n,
+        void* buf,
+        pmr_polymorphic_allocator<std::byte> allocator = {}) override
     {
-        return emplace(n, buf, std::move(*this));
+        return emplace(n, buf, std::move(*this), allocator);
+    }
+
+    void
+    destroy(pmr_polymorphic_allocator<std::byte> allocator = {}) override
+    {
+        destroy_helper(this, allocator);
     }
 
     iterator

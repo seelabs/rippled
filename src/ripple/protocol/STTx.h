@@ -57,13 +57,19 @@ public:
     operator=(STTx const& other) = delete;
 
     STTx(STTx const& other) = default;
+    STTx(STTx const& other, allocator_type allocator);
 
-    explicit STTx(SerialIter& sit) noexcept(false);
-    explicit STTx(SerialIter&& sit) noexcept(false) : STTx(sit)
+    explicit STTx(SerialIter& sit, allocator_type allocator = {}) noexcept(
+        false);
+    explicit STTx(SerialIter&& sit, allocator_type allocator = {}) noexcept(
+        false)
+        : STTx(sit, allocator)
     {
     }
 
     explicit STTx(STObject&& object) noexcept(false);
+
+    explicit STTx(STObject&& object, allocator_type allocator) noexcept(false);
 
     /** Constructs a transaction.
 
@@ -71,18 +77,33 @@ public:
         any fields that the callback function adds to the object
         that's passed in.
     */
-    STTx(TxType type, std::function<void(STObject&)> assembler);
+    STTx(
+        TxType type,
+        std::function<void(STObject&)> assembler,
+        allocator_type allocator = {});
 
     STBase*
-    copy(std::size_t n, void* buf) const override
+    copy(
+        std::size_t n,
+        void* buf,
+        pmr_polymorphic_allocator<std::byte> allocator = {}) const override
     {
-        return emplace(n, buf, *this);
+        return emplace(n, buf, *this, allocator);
     }
 
     STBase*
-    move(std::size_t n, void* buf) override
+    move(
+        std::size_t n,
+        void* buf,
+        pmr_polymorphic_allocator<std::byte> allocator = {}) override
     {
-        return emplace(n, buf, std::move(*this));
+        return emplace(n, buf, std::move(*this), allocator);
+    }
+
+    void
+    destroy(pmr_polymorphic_allocator<std::byte> allocator = {}) override
+    {
+        destroy_helper(this, allocator);
     }
 
     // STObject functions.
@@ -134,7 +155,8 @@ public:
     sign(PublicKey const& publicKey, SecretKey const& secretKey);
 
     /** Check the signature.
-        @return `true` if valid signature. If invalid, the error message string.
+        @return `true` if valid signature. If invalid, the error message
+       string.
     */
     enum class RequireFullyCanonicalSig : bool { no, yes };
     std::pair<bool, std::string>

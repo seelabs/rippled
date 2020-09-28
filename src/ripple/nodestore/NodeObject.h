@@ -72,6 +72,7 @@ public:
         Blob&& data,
         uint256 const& hash,
         PrivateAccess);
+    ~NodeObject();
 
     /** Create an object from fields.
 
@@ -100,6 +101,9 @@ public:
     getData() const;
 
 private:
+    std::int64_t
+    bytesUsed() const noexcept;
+
     NodeObjectType const mType;
     uint256 const mHash;
     Blob const mData;

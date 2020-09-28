@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <ripple/basics/InstrumentedAllocator.h>
 #include <ripple/basics/Log.h>
 #include <ripple/protocol/InnerObjectFormats.h>
 #include <ripple/protocol/STAccount.h>
@@ -26,16 +27,46 @@
 
 namespace ripple {
 
-STObject::STObject(STObject&& other)
-    : STBase(other.getFName()), v_(std::move(other.v_)), mType(other.mType)
+pmr_memory_resource* STObject::default_mem_resource_ = [] {
+    static InstrumentedAllocator allocator =
+        InstrumentedAllocator::make_InstrumentedAllocator<STObject>();
+    return &allocator;
+}();
+
+STObject::STObject(STObject const& other, allocator_type allocator)
+    : STBase(other.getFName())
+    , CountedObject<STObject>(other)
+    , v_(other.v_, allocator)
+    , mType(other.mType)
 {
 }
 
-STObject::STObject(SField const& name) : STBase(name), mType(nullptr)
+STObject::STObject(STObject&& other) noexcept
+    : STBase(other.getFName())
+    , CountedObject<STObject>(other)
+    , v_(std::move(other.v_))
+    , mType(other.mType)
 {
 }
 
-STObject::STObject(SOTemplate const& type, SField const& name) : STBase(name)
+STObject::STObject(STObject&& other, allocator_type allocator)
+    : STBase(other.getFName())
+    , CountedObject<STObject>(other)
+    , v_(std::move(other.v_), allocator)
+    , mType(other.mType)
+{
+}
+
+STObject::STObject(SField const& name, allocator_type allocator)
+    : STBase(name), v_(allocator), mType(nullptr)
+{
+}
+
+STObject::STObject(
+    SOTemplate const& type,
+    SField const& name,
+    allocator_type allocator)
+    : STBase(name), v_(allocator)
 {
     set(type);
 }
@@ -43,17 +74,21 @@ STObject::STObject(SOTemplate const& type, SField const& name) : STBase(name)
 STObject::STObject(
     SOTemplate const& type,
     SerialIter& sit,
-    SField const& name) noexcept(false)
-    : STBase(name)
+    SField const& name,
+    allocator_type allocator) noexcept(false)
+    : STBase(name), v_(allocator)
 {
     v_.reserve(type.size());
     set(sit);
     applyTemplate(type);  // May throw
 }
 
-STObject::STObject(SerialIter& sit, SField const& name, int depth) noexcept(
-    false)
-    : STBase(name), mType(nullptr)
+STObject::STObject(
+    SerialIter& sit,
+    SField const& name,
+    int depth,
+    allocator_type allocator) noexcept(false)
+    : STBase(name), v_(allocator), mType(nullptr)
 {
     if (depth > 10)
         Throw<std::runtime_error>("Maximum nesting depth of STObject exceeded");

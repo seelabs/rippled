@@ -67,7 +67,7 @@ CountedObjects::getCounts(int minimumThreshold) const
 
 //------------------------------------------------------------------------------
 
-CountedObjects::CounterBase::CounterBase() noexcept : m_count(0)
+CountedObjects::CounterBase::CounterBase() noexcept : m_count(0), m_bytes(0)
 {
     // Insert ourselves at the front of the lock-free linked list
 

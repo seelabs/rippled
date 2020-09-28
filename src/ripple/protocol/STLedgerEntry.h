@@ -41,32 +41,80 @@ public:
     using pointer = std::shared_ptr<STLedgerEntry>;
     using ref = const std::shared_ptr<STLedgerEntry>&;
 
+    STLedgerEntry(STLedgerEntry&& other) noexcept
+        : STObject{std::move(other)}
+        , CountedObject<STLedgerEntry>{other}
+        // OK to use moved from object in the CountedObject constructor
+        , key_{other.key_}
+        , type_{other.type_}
+    {
+    }
+    STLedgerEntry(STLedgerEntry&& other, allocator_type allocator)
+        : STObject{std::move(other), allocator}
+        , CountedObject<STLedgerEntry>{other}
+        // OK to use moved from object in the CountedObject constructor
+        , key_{other.key_}
+        , type_{other.type_}
+    {
+    }
+    STLedgerEntry(STLedgerEntry const& other, allocator_type allocator = {})
+        : STObject{other, allocator}
+        , CountedObject<STLedgerEntry>{other}
+        , key_{other.key_}
+        , type_{other.type_}
+    {
+    }
     /** Create an empty object with the given key and type. */
-    explicit STLedgerEntry(Keylet const& k);
+    explicit STLedgerEntry(Keylet const& k, allocator_type allocator = {});
 
-    STLedgerEntry(LedgerEntryType type, uint256 const& key)
-        : STLedgerEntry(Keylet(type, key))
+    STLedgerEntry(
+        LedgerEntryType type,
+        uint256 const& key,
+        allocator_type allocator = {})
+        : STLedgerEntry(Keylet(type, key), allocator)
     {
     }
 
-    STLedgerEntry(SerialIter& sit, uint256 const& index);
-    STLedgerEntry(SerialIter&& sit, uint256 const& index)
-        : STLedgerEntry(sit, index)
+    STLedgerEntry(
+        SerialIter& sit,
+        uint256 const& index,
+        allocator_type allocator = {});
+
+    STLedgerEntry(
+        SerialIter&& sit,
+        uint256 const& index,
+        allocator_type allocator = {})
+        : STLedgerEntry(sit, index, allocator)
     {
     }
 
-    STLedgerEntry(STObject const& object, uint256 const& index);
+    STLedgerEntry(
+        STObject const& object,
+        uint256 const& index,
+        allocator_type allocator = {});
 
     STBase*
-    copy(std::size_t n, void* buf) const override
+    copy(
+        std::size_t n,
+        void* buf,
+        pmr_polymorphic_allocator<std::byte> allocator = {}) const override
     {
-        return emplace(n, buf, *this);
+        return emplace(n, buf, *this, allocator);
     }
 
     STBase*
-    move(std::size_t n, void* buf) override
+    move(
+        std::size_t n,
+        void* buf,
+        pmr_polymorphic_allocator<std::byte> allocator = {}) override
     {
-        return emplace(n, buf, std::move(*this));
+        return emplace(n, buf, std::move(*this), allocator);
+    }
+
+    void
+    destroy(pmr_polymorphic_allocator<std::byte> allocator = {}) override
+    {
+        destroy_helper(this, allocator);
     }
 
     SerializedTypeID

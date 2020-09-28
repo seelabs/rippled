@@ -21,6 +21,7 @@
 #define RIPPLE_SHAMAP_SHAMAPITEM_H_INCLUDED
 
 #include <ripple/basics/Blob.h>
+#include <ripple/basics/CountedObject.h>
 #include <ripple/basics/Slice.h>
 #include <ripple/basics/base_uint.h>
 #include <ripple/beast/utility/Journal.h>
@@ -31,16 +32,33 @@
 namespace ripple {
 
 // an item stored in a SHAMap
-class SHAMapItem
+class SHAMapItem : public CountedObject<SHAMapItem>
 {
+public:
+    static char const*
+    getCountedObjectName()
+    {
+        return "SHAMapItem";
+    }
+
 private:
     uint256 tag_;
     Blob data_;
+
+    std::int64_t
+    bytesUsed() const noexcept;
 
 public:
     SHAMapItem(uint256 const& tag, Blob const& data);
     SHAMapItem(uint256 const& tag, Serializer const& s);
     SHAMapItem(uint256 const& tag, Serializer&& s);
+    SHAMapItem(SHAMapItem const&) = default;
+    SHAMapItem(SHAMapItem&&) = default;
+    SHAMapItem&
+    operator=(SHAMapItem const&) = default;
+    SHAMapItem&
+    operator=(SHAMapItem&&) = default;
+    ~SHAMapItem();
 
     Slice
     slice() const;
