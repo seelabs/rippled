@@ -2612,6 +2612,14 @@ NetworkOPsImp::getServerInfo(bool human, bool admin, bool counters)
         info[jss::current_activities] = app_.getPerfLog().currentJson();
     }
 
+    {
+        auto const hist = getInnerNodeNumChildrenHistogram();
+        Json::Value a = Json::arrayValue;
+        for (std::uint32_t i = 0; i < 17; ++i)
+            a[i] = hist[i];
+        info["InnerNodeNumChildrenHistogram"] = a;
+    }
+
     info[jss::pubkey_node] =
         toBase58(TokenType::NodePublic, app_.nodeIdentity().first);
 

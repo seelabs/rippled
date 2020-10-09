@@ -25,6 +25,7 @@
 #include <ripple/shamap/SHAMapItem.h>
 #include <ripple/shamap/SHAMapNodeID.h>
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -214,7 +215,9 @@ class SHAMapInnerNode : public SHAMapAbstractNode
     static std::mutex childLock;
 
 public:
+    SHAMapInnerNode(SHAMapInnerNode const&) = delete;
     SHAMapInnerNode(std::uint32_t seq);
+    ~SHAMapInnerNode() override;
     std::shared_ptr<SHAMapAbstractNode>
     clone(std::uint32_t seq) const override;
 
@@ -381,11 +384,6 @@ SHAMapAbstractNode::isInBounds(SHAMapNodeID const& id) const
 
 // SHAMapInnerNode
 
-inline SHAMapInnerNode::SHAMapInnerNode(std::uint32_t seq)
-    : SHAMapAbstractNode(tnINNER, seq)
-{
-}
-
 inline bool
 SHAMapInnerNode::isEmptyBranch(int m) const
 {
@@ -424,6 +422,9 @@ SHAMapTreeNode::peekItem() const
 {
     return mItem;
 }
+
+std::array<int, 17>
+getInnerNodeNumChildrenHistogram();
 
 }  // namespace ripple
 

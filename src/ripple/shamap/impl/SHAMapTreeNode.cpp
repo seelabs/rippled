@@ -25,11 +25,26 @@
 #include <ripple/protocol/HashPrefix.h>
 #include <ripple/protocol/digest.h>
 #include <ripple/shamap/SHAMapTreeNode.h>
+
+#include <array>
+#include <atomic>
 #include <mutex>
 
 #include <openssl/sha.h>
 
 namespace ripple {
+
+// Histogram of the number of children for each inner node
+static std::array<std::atomic<int>, 17> InnerNodeNumChildrenHistogram{};
+
+std::array<int, 17>
+getInnerNodeNumChildrenHistogram()
+{
+    std::array<int, 17> result{};
+    for (int i = 0; i < 17; ++i)
+        result[i] = InnerNodeNumChildrenHistogram[i].load();
+    return result;
+}
 
 std::mutex SHAMapInnerNode::childLock;
 
@@ -46,6 +61,10 @@ SHAMapInnerNode::clone(std::uint32_t seq) const
     std::lock_guard lock(childLock);
     for (int i = 0; i < 16; ++i)
         p->mChildren[i] = mChildren[i];
+
+    --InnerNodeNumChildrenHistogram[0];
+    ++InnerNodeNumChildrenHistogram[p->getBranchCount()];
+
     return p;
 }
 
@@ -161,6 +180,17 @@ SHAMapAbstractNode::makeAccountState(
         std::move(item), tnACCOUNT_STATE, seq);
 }
 
+SHAMapInnerNode::SHAMapInnerNode(std::uint32_t seq)
+    : SHAMapAbstractNode(tnINNER, seq)
+{
+    ++InnerNodeNumChildrenHistogram[0];
+}
+
+SHAMapInnerNode::~SHAMapInnerNode()
+{
+    --InnerNodeNumChildrenHistogram[getBranchCount()];
+}
+
 std::shared_ptr<SHAMapAbstractNode>
 SHAMapInnerNode::makeFullInner(
     Slice data,
@@ -182,6 +212,9 @@ SHAMapInnerNode::makeFullInner(
         if (ret->mHashes[i].isNonZero())
             ret->mIsBranch |= (1 << i);
     }
+
+    --InnerNodeNumChildrenHistogram[0];
+    ++InnerNodeNumChildrenHistogram[ret->getBranchCount()];
 
     if (hashValid)
         ret->mHash = hash;
@@ -214,6 +247,9 @@ SHAMapInnerNode::makeCompressedInner(Slice data, std::uint32_t seq)
         if (ret->mHashes[pos].isNonZero())
             ret->mIsBranch |= (1 << pos);
     }
+
+    --InnerNodeNumChildrenHistogram[0];
+    ++InnerNodeNumChildrenHistogram[ret->getBranchCount()];
 
     ret->updateHash();
 
@@ -550,11 +586,17 @@ SHAMapInnerNode::setChild(
     assert(child.get() != this);
     mHashes[m].zero();
     mHash.zero();
+
+    --InnerNodeNumChildrenHistogram[getBranchCount()];
+
     if (child)
         mIsBranch |= (1 << m);
     else
         mIsBranch &= ~(1 << m);
+
     mChildren[m] = child;
+
+    ++InnerNodeNumChildrenHistogram[getBranchCount()];
 }
 
 // finished modifying, now make shareable
