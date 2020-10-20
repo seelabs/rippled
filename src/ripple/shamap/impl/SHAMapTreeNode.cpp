@@ -67,7 +67,7 @@ SHAMapTreeNode::SHAMapTreeNode(
     std::shared_ptr<SHAMapItem const> item,
     SHAMapNodeType type,
     std::uint32_t seq)
-    : SHAMapAbstractNode(type, seq), mItem(std::move(item))
+    : SHAMapAbstractNode(seq), mItem(std::move(item)), mType(type)
 {
     assert(mItem->peekData().size() >= 12);
     updateHash();
@@ -78,7 +78,7 @@ SHAMapTreeNode::SHAMapTreeNode(
     SHAMapNodeType type,
     std::uint32_t seq,
     SHAMapHash const& hash)
-    : SHAMapAbstractNode(type, seq, hash), mItem(std::move(item))
+    : SHAMapAbstractNode(seq, hash), mItem(std::move(item)), mType(type)
 {
     assert(mItem->peekData().size() >= 12);
 }
@@ -333,6 +333,7 @@ bool
 SHAMapTreeNode::updateHash()
 {
     uint256 nh;
+
     if (mType == SHAMapNodeType::tnTRANSACTION_NM)
     {
         nh =
@@ -361,7 +362,6 @@ SHAMapTreeNode::updateHash()
 void
 SHAMapInnerNode::serializeForWire(Serializer& s) const
 {
-    assert(mType == SHAMapNodeType::tnINNER);
     assert(!isEmpty());
 
     // If the node is sparse, then only send non-empty branches:
@@ -391,7 +391,6 @@ SHAMapInnerNode::serializeForWire(Serializer& s) const
 void
 SHAMapInnerNode::serializeWithPrefix(Serializer& s) const
 {
-    assert(mType == SHAMapNodeType::tnINNER);
     assert(!isEmpty());
 
     s.add32(HashPrefix::innerNode);
@@ -499,6 +498,7 @@ std::string
 SHAMapTreeNode::getString(const SHAMapNodeID& id) const
 {
     std::string ret = SHAMapAbstractNode::getString(id);
+
     if (mType == SHAMapNodeType::tnTRANSACTION_NM)
         ret += ",txn\n";
     else if (mType == SHAMapNodeType::tnTRANSACTION_MD)
@@ -524,7 +524,6 @@ SHAMapInnerNode::setChild(
     std::shared_ptr<SHAMapAbstractNode> const& child)
 {
     assert((m >= 0) && (m < 16));
-    assert(mType == SHAMapNodeType::tnINNER);
     assert(mSeq != 0);
     assert(child.get() != this);
     mHashes[m].zero();
@@ -543,7 +542,6 @@ SHAMapInnerNode::shareChild(
     std::shared_ptr<SHAMapAbstractNode> const& child)
 {
     assert((m >= 0) && (m < 16));
-    assert(mType == SHAMapNodeType::tnINNER);
     assert(mSeq != 0);
     assert(child);
     assert(child.get() != this);
@@ -612,7 +610,6 @@ SHAMapTreeNode::key() const
 void
 SHAMapInnerNode::invariants(bool is_root) const
 {
-    assert(mType == SHAMapNodeType::tnINNER);
     unsigned count = 0;
     for (int i = 0; i < 16; ++i)
     {

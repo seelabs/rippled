@@ -124,7 +124,6 @@ enum class SHAMapNodeType {
 class SHAMapAbstractNode
 {
 protected:
-    SHAMapNodeType mType;
     SHAMapHash mHash;
     std::uint32_t mSeq;
 
@@ -134,8 +133,14 @@ protected:
     SHAMapAbstractNode&
     operator=(SHAMapAbstractNode const&) = delete;
 
-    SHAMapAbstractNode(SHAMapNodeType type, std::uint32_t seq);
-    SHAMapAbstractNode(SHAMapNodeType type, std::uint32_t seq, SHAMapHash const& hash);
+    explicit SHAMapAbstractNode(std::uint32_t seq) : mSeq(seq)
+    {
+    }
+
+    explicit SHAMapAbstractNode(std::uint32_t seq, SHAMapHash const& hash)
+        : mHash(hash), mSeq(seq)
+    {
+    }
 
 public:
     std::uint32_t
@@ -144,8 +149,10 @@ public:
     setSeq(std::uint32_t s);
     SHAMapHash const&
     getNodeHash() const;
-    SHAMapNodeType
-    getType() const;
+
+    /** Determines the type of node. */
+    virtual SHAMapNodeType
+    getType() const = 0;
 
     /** Determines if this is a leaf node. */
     virtual bool
@@ -219,14 +226,18 @@ public:
     std::shared_ptr<SHAMapAbstractNode>
     clone(std::uint32_t seq) const override;
 
-    /** Determines if this is a leaf node. */
+    SHAMapNodeType
+    getType() const override
+    {
+        return SHAMapNodeType::tnINNER;
+    }
+
     bool
     isLeaf() const override
     {
         return false;
     }
 
-    /** Determines if this is an inner node. */
     bool
     isInner() const override
     {
@@ -295,6 +306,7 @@ class SHAMapTreeNode : public SHAMapAbstractNode,
 {
 private:
     std::shared_ptr<SHAMapItem const> mItem;
+    SHAMapNodeType mType;
 
 public:
     SHAMapTreeNode(const SHAMapTreeNode&) = delete;
@@ -313,14 +325,18 @@ public:
     std::shared_ptr<SHAMapAbstractNode>
     clone(std::uint32_t seq) const override;
 
-    /** Determines if this is a leaf node. */
+    SHAMapNodeType
+    getType() const override
+    {
+        return mType;
+    }
+
     bool
     isLeaf() const override
     {
         return true;
     }
 
-    /** Determines if this is an inner node. */
     bool
     isInner() const override
     {
@@ -354,20 +370,6 @@ public:  // public only to SHAMap
 };
 
 // SHAMapAbstractNode
-
-inline SHAMapAbstractNode::SHAMapAbstractNode(SHAMapNodeType type, std::uint32_t seq)
-    : mType(type), mSeq(seq)
-{
-}
-
-inline SHAMapAbstractNode::SHAMapAbstractNode(
-    SHAMapNodeType type,
-    std::uint32_t seq,
-    SHAMapHash const& hash)
-    : mType(type), mHash(hash), mSeq(seq)
-{
-}
-
 inline std::uint32_t
 SHAMapAbstractNode::getSeq() const
 {
@@ -386,16 +388,10 @@ SHAMapAbstractNode::getNodeHash() const
     return mHash;
 }
 
-inline SHAMapNodeType
-SHAMapAbstractNode::getType() const
-{
-    return mType;
-}
-
 // SHAMapInnerNode
 
 inline SHAMapInnerNode::SHAMapInnerNode(std::uint32_t seq)
-    : SHAMapAbstractNode(SHAMapNodeType::tnINNER, seq)
+    : SHAMapAbstractNode(seq)
 {
 }
 
