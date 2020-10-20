@@ -552,7 +552,7 @@ SHAMap::peekItem(uint256 const& id) const
 }
 
 std::shared_ptr<SHAMapItem const> const&
-SHAMap::peekItem(uint256 const& id, SHAMapTreeNode::TNType& type) const
+SHAMap::peekItem(uint256 const& id, SHAMapNodeType& type) const
 {
     SHAMapTreeNode* leaf = findKey(id);
 
@@ -641,7 +641,7 @@ SHAMap::delItem(uint256 const& id)
     if (!leaf || (leaf->peekItem()->key() != id))
         return false;
 
-    SHAMapTreeNode::TNType type = leaf->getType();
+    SHAMapNodeType type = leaf->getType();
 
     // What gets attached to the end of the chain
     // (For now, nothing, since we deleted the leaf)
@@ -709,10 +709,10 @@ SHAMap::addGiveItem(
 {
     // add the specified item, does not update
     uint256 tag = item->key();
-    SHAMapTreeNode::TNType type = !isTransaction
-        ? SHAMapTreeNode::tnACCOUNT_STATE
-        : (hasMeta ? SHAMapTreeNode::tnTRANSACTION_MD
-                   : SHAMapTreeNode::tnTRANSACTION_NM);
+    SHAMapNodeType type = !isTransaction
+        ? SHAMapNodeType::tnACCOUNT_STATE
+        : (hasMeta ? SHAMapNodeType::tnTRANSACTION_MD
+                   : SHAMapNodeType::tnTRANSACTION_NM);
 
     assert(state_ != SHAMapState::Immutable);
 
@@ -836,9 +836,9 @@ SHAMap::updateGiveItem(
 
     if (!node->setItem(
             std::move(item),
-            !isTransaction ? SHAMapTreeNode::tnACCOUNT_STATE
-                           : (hasMeta ? SHAMapTreeNode::tnTRANSACTION_MD
-                                      : SHAMapTreeNode::tnTRANSACTION_NM)))
+            !isTransaction ? SHAMapNodeType::tnACCOUNT_STATE
+                           : (hasMeta ? SHAMapNodeType::tnTRANSACTION_MD
+                                      : SHAMapNodeType::tnTRANSACTION_NM)))
     {
         JLOG(journal_.trace()) << "SHAMap setItem, no change";
         return true;

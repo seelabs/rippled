@@ -65,7 +65,7 @@ public:
             SHAMapHash const& nodeHash,
             std::uint32_t ledgerSeq,
             Blob&& nodeData,
-            SHAMapTreeNode::TNType type) const override
+            SHAMapNodeType type) const override
         {
         }
 

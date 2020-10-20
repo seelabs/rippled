@@ -52,13 +52,13 @@ isValidated(LedgerMaster& ledgerMaster, std::uint32_t seq, uint256 const& hash)
 bool
 getMetaHex(Ledger const& ledger, uint256 const& transID, std::string& hex)
 {
-    SHAMapTreeNode::TNType type;
+    SHAMapNodeType type;
     auto const item = ledger.txMap().peekItem(transID, type);
 
     if (!item)
         return false;
 
-    if (type != SHAMapTreeNode::tnTRANSACTION_MD)
+    if (type != SHAMapNodeType::tnTRANSACTION_MD)
         return false;
 
     SerialIter it(item->slice());

@@ -114,18 +114,17 @@ operator!=(SHAMapHash const& x, SHAMapHash const& y)
     return !(x == y);
 }
 
+enum class SHAMapNodeType {
+    tnINNER = 1,
+    tnTRANSACTION_NM = 2,  // transaction, no metadata
+    tnTRANSACTION_MD = 3,  // transaction, with metadata
+    tnACCOUNT_STATE = 4
+};
+
 class SHAMapAbstractNode
 {
-public:
-    enum TNType {
-        tnINNER = 1,
-        tnTRANSACTION_NM = 2,  // transaction, no metadata
-        tnTRANSACTION_MD = 3,  // transaction, with metadata
-        tnACCOUNT_STATE = 4
-    };
-
 protected:
-    TNType mType;
+    SHAMapNodeType mType;
     SHAMapHash mHash;
     std::uint32_t mSeq;
 
@@ -135,8 +134,8 @@ protected:
     SHAMapAbstractNode&
     operator=(SHAMapAbstractNode const&) = delete;
 
-    SHAMapAbstractNode(TNType type, std::uint32_t seq);
-    SHAMapAbstractNode(TNType type, std::uint32_t seq, SHAMapHash const& hash);
+    SHAMapAbstractNode(SHAMapNodeType type, std::uint32_t seq);
+    SHAMapAbstractNode(SHAMapNodeType type, std::uint32_t seq, SHAMapHash const& hash);
 
 public:
     std::uint32_t
@@ -145,7 +144,7 @@ public:
     setSeq(std::uint32_t s);
     SHAMapHash const&
     getNodeHash() const;
-    TNType
+    SHAMapNodeType
     getType() const;
     bool
     isLeaf() const;
@@ -288,11 +287,11 @@ public:
 
     SHAMapTreeNode(
         std::shared_ptr<SHAMapItem const> item,
-        TNType type,
+        SHAMapNodeType type,
         std::uint32_t seq);
     SHAMapTreeNode(
         std::shared_ptr<SHAMapItem const> item,
-        TNType type,
+        SHAMapNodeType type,
         std::uint32_t seq,
         SHAMapHash const& hash);
     std::shared_ptr<SHAMapAbstractNode>
@@ -316,7 +315,7 @@ public:  // public only to SHAMap
     std::shared_ptr<SHAMapItem const> const&
     peekItem() const;
     bool
-    setItem(std::shared_ptr<SHAMapItem const> i, TNType type);
+    setItem(std::shared_ptr<SHAMapItem const> i, SHAMapNodeType type);
 
     std::string
     getString(SHAMapNodeID const&) const override;
@@ -326,13 +325,13 @@ public:  // public only to SHAMap
 
 // SHAMapAbstractNode
 
-inline SHAMapAbstractNode::SHAMapAbstractNode(TNType type, std::uint32_t seq)
+inline SHAMapAbstractNode::SHAMapAbstractNode(SHAMapNodeType type, std::uint32_t seq)
     : mType(type), mSeq(seq)
 {
 }
 
 inline SHAMapAbstractNode::SHAMapAbstractNode(
-    TNType type,
+    SHAMapNodeType type,
     std::uint32_t seq,
     SHAMapHash const& hash)
     : mType(type), mHash(hash), mSeq(seq)
@@ -357,7 +356,7 @@ SHAMapAbstractNode::getNodeHash() const
     return mHash;
 }
 
-inline SHAMapAbstractNode::TNType
+inline SHAMapNodeType
 SHAMapAbstractNode::getType() const
 {
     return mType;
@@ -366,14 +365,14 @@ SHAMapAbstractNode::getType() const
 inline bool
 SHAMapAbstractNode::isLeaf() const
 {
-    return (mType == tnTRANSACTION_NM) || (mType == tnTRANSACTION_MD) ||
-        (mType == tnACCOUNT_STATE);
+    return (mType == SHAMapNodeType::tnTRANSACTION_NM) || (mType == SHAMapNodeType::tnTRANSACTION_MD) ||
+        (mType == SHAMapNodeType::tnACCOUNT_STATE);
 }
 
 inline bool
 SHAMapAbstractNode::isInner() const
 {
-    return mType == tnINNER;
+    return mType == SHAMapNodeType::tnINNER;
 }
 
 inline bool
@@ -386,7 +385,7 @@ SHAMapAbstractNode::isInBounds(SHAMapNodeID const& id) const
 // SHAMapInnerNode
 
 inline SHAMapInnerNode::SHAMapInnerNode(std::uint32_t seq)
-    : SHAMapAbstractNode(tnINNER, seq)
+    : SHAMapAbstractNode(SHAMapNodeType::tnINNER, seq)
 {
 }
 
@@ -399,7 +398,7 @@ SHAMapInnerNode::isEmptyBranch(int m) const
 inline SHAMapHash const&
 SHAMapInnerNode::getChildHash(int m) const
 {
-    assert((m >= 0) && (m < 16) && (getType() == tnINNER));
+    assert((m >= 0) && (m < 16) && (getType() == SHAMapNodeType::tnINNER));
     return mHashes[m];
 }
 

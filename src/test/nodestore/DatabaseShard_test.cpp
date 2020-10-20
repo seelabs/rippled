@@ -287,7 +287,7 @@ class DatabaseShard_test : public TestBase
             Serializer s;
             node.serializeWithPrefix(s);
             db.store(
-                node.getType() == SHAMapAbstractNode::TNType::tnINNER
+                node.getType() == SHAMapNodeType::tnINNER
                     ? hotUNKNOWN
                     : hotACCOUNT_NODE,
                 std::move(s.modData()),
@@ -315,7 +315,7 @@ class DatabaseShard_test : public TestBase
             Serializer s;
             node.serializeWithPrefix(s);
             db.store(
-                node.getType() == SHAMapAbstractNode::TNType::tnINNER
+                node.getType() == SHAMapNodeType::tnINNER
                     ? hotUNKNOWN
                     : hotTRANSACTION_NODE,
                 std::move(s.modData()),
@@ -361,7 +361,7 @@ class DatabaseShard_test : public TestBase
             Serializer s;
             node.serializeWithPrefix(s);
             auto nSrc{NodeObject::createObject(
-                node.getType() == SHAMapAbstractNode::TNType::tnINNER
+                node.getType() == SHAMapNodeType::tnINNER
                     ? hotUNKNOWN
                     : hotACCOUNT_NODE,
                 std::move(s.modData()),
@@ -385,7 +385,7 @@ class DatabaseShard_test : public TestBase
             Serializer s;
             node.serializeWithPrefix(s);
             auto nSrc{NodeObject::createObject(
-                node.getType() == SHAMapAbstractNode::TNType::tnINNER
+                node.getType() == SHAMapNodeType::tnINNER
                     ? hotUNKNOWN
                     : hotTRANSACTION_NODE,
                 std::move(s.modData()),
