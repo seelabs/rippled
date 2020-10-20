@@ -146,10 +146,15 @@ public:
     getNodeHash() const;
     SHAMapNodeType
     getType() const;
-    bool
-    isLeaf() const;
-    bool
-    isInner() const;
+
+    /** Determines if this is a leaf node. */
+    virtual bool
+    isLeaf() const = 0;
+
+    /** Determines if this is an inner node. */
+    virtual bool
+    isInner() const = 0;
+
     bool
     isInBounds(SHAMapNodeID const& id) const;
 
@@ -216,6 +221,20 @@ public:
     SHAMapInnerNode(std::uint32_t seq);
     std::shared_ptr<SHAMapAbstractNode>
     clone(std::uint32_t seq) const override;
+
+    /** Determines if this is a leaf node. */
+    bool
+    isLeaf() const override
+    {
+        return false;
+    }
+
+    /** Determines if this is an inner node. */
+    bool
+    isInner() const override
+    {
+        return true;
+    }
 
     bool
     isEmpty() const;
@@ -297,6 +316,20 @@ public:
     std::shared_ptr<SHAMapAbstractNode>
     clone(std::uint32_t seq) const override;
 
+    /** Determines if this is a leaf node. */
+    bool
+    isLeaf() const override
+    {
+        return true;
+    }
+
+    /** Determines if this is an inner node. */
+    bool
+    isInner() const override
+    {
+        return false;
+    }
+
     void
     serializeForWire(Serializer&) const override;
 
@@ -360,19 +393,6 @@ inline SHAMapNodeType
 SHAMapAbstractNode::getType() const
 {
     return mType;
-}
-
-inline bool
-SHAMapAbstractNode::isLeaf() const
-{
-    return (mType == SHAMapNodeType::tnTRANSACTION_NM) || (mType == SHAMapNodeType::tnTRANSACTION_MD) ||
-        (mType == SHAMapNodeType::tnACCOUNT_STATE);
-}
-
-inline bool
-SHAMapAbstractNode::isInner() const
-{
-    return mType == SHAMapNodeType::tnINNER;
 }
 
 inline bool
