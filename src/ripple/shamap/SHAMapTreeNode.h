@@ -155,9 +155,6 @@ public:
     virtual bool
     isInner() const = 0;
 
-    bool
-    isInBounds(SHAMapNodeID const& id) const;
-
     virtual bool
     updateHash() = 0;
 
@@ -393,13 +390,6 @@ inline SHAMapNodeType
 SHAMapAbstractNode::getType() const
 {
     return mType;
-}
-
-inline bool
-SHAMapAbstractNode::isInBounds(SHAMapNodeID const& id) const
-{
-    // Nodes at depth 64 must be leaves
-    return (!isInner() || (id.getDepth() < 64));
 }
 
 // SHAMapInnerNode

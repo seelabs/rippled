@@ -632,7 +632,10 @@ SHAMap::addKnownNode(
                 return SHAMapAddNode::invalid();
             }
 
-            if (!newNode->isInBounds(iNodeID))
+            // Inner nodes must be at a level strictly less than 64
+            // but leaf nodes (while notionally at level 64) can be
+            // at any depth:
+            if (newNode->isInner() && iNodeID.getDepth() == 64)
             {
                 // Map is provably invalid
                 state_ = SHAMapState::Invalid;
