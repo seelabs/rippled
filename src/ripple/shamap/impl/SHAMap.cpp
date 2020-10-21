@@ -189,8 +189,8 @@ SHAMap::fetchNodeFromDB(SHAMapHash const& hash) const
         }
         else if (full_)
         {
+            full_ = false;
             f_.missingNode(ledgerSeq_);
-            const_cast<bool&>(full_) = false;
         }
     }
 
@@ -719,9 +719,7 @@ SHAMap::delItem(uint256 const& id)
 }
 
 bool
-SHAMap::addGiveItem(
-    SHAMapNodeType type,
-    std::shared_ptr<SHAMapItem const> item)
+SHAMap::addGiveItem(SHAMapNodeType type, std::shared_ptr<SHAMapItem const> item)
 {
     assert(state_ != SHAMapState::Immutable);
 
@@ -779,15 +777,9 @@ SHAMap::addGiveItem(
         // we can add the two leaf nodes here
         assert(node->isInner());
 
-        if (auto inner = static_cast<SHAMapInnerNode*>(node.get()))
-        {
-            inner->setChild(
-                b1,
-                makeTypedLeaf(type, std::move(item), seq_));
-            inner->setChild(
-                b2,
-                makeTypedLeaf(type, std::move(otherItem), seq_));
-        }
+        auto inner = static_cast<SHAMapInnerNode*>(node.get());
+        inner->setChild(b1, makeTypedLeaf(type, std::move(item), seq_));
+        inner->setChild(b2, makeTypedLeaf(type, std::move(otherItem), seq_));
     }
 
     dirtyUp(stack, tag, node);
@@ -795,13 +787,9 @@ SHAMap::addGiveItem(
 }
 
 bool
-SHAMap::addItem(
-    SHAMapNodeType type,
-    SHAMapItem&& i)
+SHAMap::addItem(SHAMapNodeType type, SHAMapItem&& i)
 {
-    return addGiveItem(
-        type,
-        std::make_shared<SHAMapItem const>(std::move(i)));
+    return addGiveItem(type, std::make_shared<SHAMapItem const>(std::move(i)));
 }
 
 SHAMapHash

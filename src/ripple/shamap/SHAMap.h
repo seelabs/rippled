@@ -104,7 +104,7 @@ private:
     mutable SHAMapState state_;
     SHAMapType type_;
     bool backed_ = true;  // Map is backed by the database
-    bool full_ = false;   // Map is believed complete in database
+    mutable bool full_ = false;   // Map is believed complete in database
 
 public:
     /** Each non-leaf node has 16 children (the 'radix tree' part of the map) */
