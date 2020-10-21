@@ -838,13 +838,9 @@ SHAMap::updateGiveItem(
 
     node = unshareNode(std::move(node), nodeID);
 
-    if (!node->setItem(std::move(item)))
-    {
-        JLOG(journal_.trace()) << "SHAMap::setItem: no change";
-        return true;
-    }
+    if (node->setItem(std::move(item)))
+        dirtyUp(stack, tag, node);
 
-    dirtyUp(stack, tag, node);
     return true;
 }
 

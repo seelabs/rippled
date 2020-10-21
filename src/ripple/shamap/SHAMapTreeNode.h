@@ -162,7 +162,8 @@ public:
     virtual bool
     isInner() const = 0;
 
-    virtual bool
+    /** Recalculate the hash of this node. */
+    virtual void
     updateHash() = 0;
 
     /** Serialize the node in a format appropriate for sending over the wire */
@@ -270,8 +271,10 @@ public:
     void
     setFullBelowGen(std::uint32_t gen);
 
-    bool
+    void
     updateHash() override;
+
+    /** Recalculate the hash of all children and this node. */
     void
     updateHashDeep();
 
@@ -338,6 +341,13 @@ public:  // public only to SHAMap
     // item node function
     std::shared_ptr<SHAMapItem const> const&
     peekItem() const;
+
+    /** Set the item that this node points to and update the node's hash.
+
+        @param i the new item
+        @return false if the change was, effectively, a noop (that is, if the
+                hash was unchanged); true otherwise.
+     */
     bool
     setItem(std::shared_ptr<SHAMapItem const> i);
 
@@ -376,7 +386,7 @@ public:
         return SHAMapNodeType::tnTRANSACTION_NM;
     }
 
-    bool
+    void
     updateHash() override;
 
     void
@@ -419,7 +429,7 @@ public:
         return SHAMapNodeType::tnTRANSACTION_MD;
     }
 
-    bool
+    void
     updateHash() override;
 
     void
@@ -463,7 +473,7 @@ public:
         return SHAMapNodeType::tnACCOUNT_STATE;
     }
 
-    bool
+    void
     updateHash() override;
 
     void

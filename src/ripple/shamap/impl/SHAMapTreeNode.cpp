@@ -286,7 +286,7 @@ SHAMapAbstractNode::makeFromPrefix(Slice rawNode, SHAMapHash const& hash)
         ")");
 }
 
-bool
+void
 SHAMapInnerNode::updateHash()
 {
     uint256 nh;
@@ -299,10 +299,7 @@ SHAMapInnerNode::updateHash()
             hash_append(h, hh);
         nh = static_cast<typename sha512_half_hasher::result_type>(h);
     }
-    if (nh == mHash.as_uint256())
-        return false;
     mHash = SHAMapHash{nh};
-    return true;
 }
 
 void
@@ -316,44 +313,25 @@ SHAMapInnerNode::updateHashDeep()
     updateHash();
 }
 
-bool
+void
 SHAMapTxLeafNode::updateHash()
 {
-    uint256 nh;
-
-    nh = sha512Half(HashPrefix::transactionID, makeSlice(mItem->peekData()));
-
-    if (nh == mHash.as_uint256())
-        return false;
-
-    mHash = SHAMapHash{nh};
-    return true;
+    mHash = SHAMapHash{
+        sha512Half(HashPrefix::transactionID, makeSlice(mItem->peekData()))};
 }
 
-bool
+void
 SHAMapTxPlusMetaLeafNode::updateHash()
 {
-    uint256 nh = sha512Half(
-        HashPrefix::txNode, makeSlice(mItem->peekData()), mItem->key());
-
-    if (nh == mHash.as_uint256())
-        return false;
-
-    mHash = SHAMapHash{nh};
-    return true;
+    mHash = SHAMapHash{sha512Half(
+        HashPrefix::txNode, makeSlice(mItem->peekData()), mItem->key())};
 }
 
-bool
+void
 SHAMapAccountStateLeafNode::updateHash()
 {
-    uint256 nh = sha512Half(
-        HashPrefix::leafNode, makeSlice(mItem->peekData()), mItem->key());
-
-    if (nh == mHash.as_uint256())
-        return false;
-
-    mHash = SHAMapHash{nh};
-    return true;
+    mHash = SHAMapHash{sha512Half(
+        HashPrefix::leafNode, makeSlice(mItem->peekData()), mItem->key())};
 }
 
 void
@@ -445,7 +423,12 @@ SHAMapTreeNode::setItem(std::shared_ptr<SHAMapItem const> i)
     assert(isLeaf());
     assert(mSeq != 0);
     mItem = std::move(i);
-    return updateHash();
+
+    auto const oldHash = mHash;
+
+    updateHash();
+
+    return (oldHash != mHash);
 }
 
 bool
@@ -595,8 +578,6 @@ uint256 const&
 SHAMapInnerNode::key() const
 {
     Throw<std::logic_error>("SHAMapInnerNode::key() should never be called");
-    static uint256 x;
-    return x;
 }
 
 uint256 const&
