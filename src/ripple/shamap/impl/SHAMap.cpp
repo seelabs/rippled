@@ -24,6 +24,24 @@
 
 namespace ripple {
 
+std::shared_ptr<SHAMapTreeNode>
+makeTypedLeaf(
+    SHAMapNodeType type,
+    std::shared_ptr<SHAMapItem const> item,
+    std::uint32_t seq)
+{
+    if (type == SHAMapNodeType::tnTRANSACTION_NM)
+        return std::make_shared<SHAMapTxLeafNode>(item, seq);
+
+    if (type == SHAMapNodeType::tnTRANSACTION_MD)
+        return std::make_shared<SHAMapTxPlusMetaLeafNode>(item, seq);
+
+    if (type == SHAMapNodeType::tnACCOUNT_STATE)
+        return std::make_shared<SHAMapAccountStateLeafNode>(item, seq);
+
+    Throw<std::logic_error>("Attempt to create leaf node of non-leaf type!");
+}
+
 SHAMap::SHAMap(SHAMapType t, Family& f)
     : f_(f)
     , journal_(f.journal())
@@ -491,9 +509,8 @@ SHAMap::onlyBelow(SHAMapAbstractNode* node) const
 
     // An inner node must have at least one leaf
     // below it, unless it's the root_
-    auto leaf = static_cast<SHAMapTreeNode*>(node);
-    assert(leaf->hasItem() || (leaf == root_.get()));
-
+    auto const leaf = static_cast<SHAMapTreeNode const*>(node);
+    assert(leaf->peekItem() || (leaf == root_.get()));
     return leaf->peekItem();
 }
 
@@ -682,8 +699,8 @@ SHAMap::delItem(uint256 const& id)
                             break;
                         }
                     }
-                    prevNode = std::make_shared<SHAMapTreeNode>(
-                        item, type, node->getSeq());
+
+                    prevNode = makeTypedLeaf(type, item, node->getSeq());
                 }
                 else
                 {
@@ -733,8 +750,7 @@ SHAMap::addGiveItem(
         auto inner = std::static_pointer_cast<SHAMapInnerNode>(node);
         int branch = selectBranch(nodeID, tag);
         assert(inner->isEmptyBranch(branch));
-        auto newNode =
-            std::make_shared<SHAMapTreeNode>(std::move(item), type, seq_);
+        auto newNode = makeTypedLeaf(type, std::move(item), seq_);
         inner->setChild(branch, newNode);
     }
     else
@@ -747,7 +763,7 @@ SHAMap::addGiveItem(
 
         node = std::make_shared<SHAMapInnerNode>(node->getSeq());
 
-        int b1, b2;
+        unsigned int b1, b2;
 
         while ((b1 = selectBranch(nodeID, tag)) ==
                (b2 = selectBranch(nodeID, otherItem->key())))
@@ -763,16 +779,15 @@ SHAMap::addGiveItem(
         // we can add the two leaf nodes here
         assert(node->isInner());
 
-        std::shared_ptr<SHAMapTreeNode> newNode =
-            std::make_shared<SHAMapTreeNode>(std::move(item), type, seq_);
-        assert(newNode->isLeaf());
-        auto inner = std::static_pointer_cast<SHAMapInnerNode>(node);
-        inner->setChild(b1, newNode);
-
-        newNode =
-            std::make_shared<SHAMapTreeNode>(std::move(otherItem), type, seq_);
-        assert(newNode->isLeaf());
-        inner->setChild(b2, newNode);
+        if (auto inner = static_cast<SHAMapInnerNode*>(node.get()))
+        {
+            inner->setChild(
+                b1,
+                makeTypedLeaf(type, std::move(item), seq_));
+            inner->setChild(
+                b2,
+                makeTypedLeaf(type, std::move(otherItem), seq_));
+        }
     }
 
     dirtyUp(stack, tag, node);
@@ -803,9 +818,8 @@ SHAMap::getHash() const
 
 bool
 SHAMap::updateGiveItem(
-    std::shared_ptr<SHAMapItem const> item,
-    bool isTransaction,
-    bool hasMeta)
+    SHAMapNodeType type,
+    std::shared_ptr<SHAMapItem const> item)
 {
     // can't change the tag but can change the hash
     uint256 tag = item->key();
@@ -828,15 +842,17 @@ SHAMap::updateGiveItem(
         return false;
     }
 
+    if (node->getType() != type)
+    {
+        JLOG(journal_.fatal()) << "SHAMap::setItem: cross-type change!";
+        return false;
+    }
+
     node = unshareNode(std::move(node), nodeID);
 
-    if (!node->setItem(
-            std::move(item),
-            !isTransaction ? SHAMapNodeType::tnACCOUNT_STATE
-                           : (hasMeta ? SHAMapNodeType::tnTRANSACTION_MD
-                                      : SHAMapNodeType::tnTRANSACTION_NM)))
+    if (!node->setItem(std::move(item)))
     {
-        JLOG(journal_.trace()) << "SHAMap setItem, no change";
+        JLOG(journal_.trace()) << "SHAMap::setItem: no change";
         return true;
     }
 

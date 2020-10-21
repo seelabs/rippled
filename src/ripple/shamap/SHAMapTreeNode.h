@@ -301,35 +301,21 @@ public:
 
 // SHAMapTreeNode represents a leaf, and may eventually be renamed to reflect
 // that.
-class SHAMapTreeNode : public SHAMapAbstractNode,
-                       public CountedObject<SHAMapTreeNode>
+class SHAMapTreeNode : public SHAMapAbstractNode
 {
-private:
+protected:
     std::shared_ptr<SHAMapItem const> mItem;
-    SHAMapNodeType mType;
 
 public:
     SHAMapTreeNode(const SHAMapTreeNode&) = delete;
     SHAMapTreeNode&
     operator=(const SHAMapTreeNode&) = delete;
 
+    SHAMapTreeNode(std::shared_ptr<SHAMapItem const> item, std::uint32_t seq);
     SHAMapTreeNode(
         std::shared_ptr<SHAMapItem const> item,
-        SHAMapNodeType type,
-        std::uint32_t seq);
-    SHAMapTreeNode(
-        std::shared_ptr<SHAMapItem const> item,
-        SHAMapNodeType type,
         std::uint32_t seq,
         SHAMapHash const& hash);
-    std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t seq) const override;
-
-    SHAMapNodeType
-    getType() const override
-    {
-        return mType;
-    }
 
     bool
     isLeaf() const override
@@ -356,17 +342,116 @@ public:
 
 public:  // public only to SHAMap
     // item node function
-    bool
-    hasItem() const;
     std::shared_ptr<SHAMapItem const> const&
     peekItem() const;
     bool
-    setItem(std::shared_ptr<SHAMapItem const> i, SHAMapNodeType type);
+    setItem(std::shared_ptr<SHAMapItem const> i);
 
     std::string
     getString(SHAMapNodeID const&) const override;
     bool
     updateHash() override;
+};
+
+/** A leaf node for a transaction. No metadata is included. */
+class SHAMapTxLeafNode : public SHAMapTreeNode,
+                         public CountedObject<SHAMapTxLeafNode>
+{
+public:
+    SHAMapTxLeafNode(std::shared_ptr<SHAMapItem const> item, std::uint32_t seq)
+        : SHAMapTreeNode(item, seq)
+    {
+        updateHash();
+    }
+
+    SHAMapTxLeafNode(
+        std::shared_ptr<SHAMapItem const> item,
+        std::uint32_t seq,
+        SHAMapHash const& hash)
+        : SHAMapTreeNode(item, seq, hash)
+    {
+    }
+
+    std::shared_ptr<SHAMapAbstractNode>
+    clone(std::uint32_t seq) const override
+    {
+        return std::make_shared<SHAMapTxLeafNode>(mItem, seq, mHash);
+    }
+
+    SHAMapNodeType
+    getType() const override
+    {
+        return SHAMapNodeType::tnTRANSACTION_NM;
+    }
+};
+
+/** A leaf node for a transaction and its associated metadata. */
+class SHAMapTxPlusMetaLeafNode : public SHAMapTreeNode,
+                                 public CountedObject<SHAMapTxPlusMetaLeafNode>
+{
+public:
+    SHAMapTxPlusMetaLeafNode(
+        std::shared_ptr<SHAMapItem const> item,
+        std::uint32_t seq)
+        : SHAMapTreeNode(item, seq)
+    {
+        updateHash();
+    }
+
+    SHAMapTxPlusMetaLeafNode(
+        std::shared_ptr<SHAMapItem const> item,
+        std::uint32_t seq,
+        SHAMapHash const& hash)
+        : SHAMapTreeNode(item, seq, hash)
+    {
+    }
+
+    std::shared_ptr<SHAMapAbstractNode>
+    clone(std::uint32_t seq) const override
+    {
+        return std::make_shared<SHAMapTxPlusMetaLeafNode>(mItem, seq, mHash);
+    }
+
+    SHAMapNodeType
+    getType() const override
+    {
+        return SHAMapNodeType::tnTRANSACTION_MD;
+    }
+};
+
+/** A leaf node for a state object. */
+class SHAMapAccountStateLeafNode
+    : public SHAMapTreeNode,
+      public CountedObject<SHAMapAccountStateLeafNode>
+{
+public:
+    SHAMapAccountStateLeafNode(
+        std::shared_ptr<SHAMapItem const> item,
+        std::uint32_t seq)
+        : SHAMapTreeNode(item, seq)
+    {
+        updateHash();
+    }
+
+    SHAMapAccountStateLeafNode(
+        std::shared_ptr<SHAMapItem const> item,
+        std::uint32_t seq,
+        SHAMapHash const& hash)
+        : SHAMapTreeNode(item, seq, hash)
+    {
+    }
+
+    std::shared_ptr<SHAMapAbstractNode>
+    clone(std::uint32_t seq) const override
+    {
+        return std::make_shared<SHAMapAccountStateLeafNode>(mItem, seq, mHash);
+    }
+
+    SHAMapNodeType
+    getType() const override
+    {
+        return SHAMapNodeType::tnACCOUNT_STATE;
+    }
 };
 
 // SHAMapAbstractNode
@@ -421,13 +506,6 @@ SHAMapInnerNode::setFullBelowGen(std::uint32_t gen)
 }
 
 // SHAMapTreeNode
-
-inline bool
-SHAMapTreeNode::hasItem() const
-{
-    return bool(mItem);
-}
-
 inline std::shared_ptr<SHAMapItem const> const&
 SHAMapTreeNode::peekItem() const
 {

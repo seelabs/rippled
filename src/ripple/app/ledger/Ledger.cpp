@@ -510,9 +510,9 @@ Ledger::rawReplace(std::shared_ptr<SLE> const& sle)
 {
     Serializer ss;
     sle->add(ss);
-    auto item = std::make_shared<SHAMapItem const>(sle->key(), std::move(ss));
-
-    if (!stateMap_->updateGiveItem(std::move(item), false, false))
+    if (!stateMap_->updateGiveItem(
+            SHAMapNodeType::tnACCOUNT_STATE,
+            std::make_shared<SHAMapItem const>(sle->key(), std::move(ss))))
         LogicError("Ledger::rawReplace: key not found");
 }
 

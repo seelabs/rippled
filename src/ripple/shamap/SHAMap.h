@@ -186,9 +186,8 @@ public:
     // save a copy if you have a temporary anyway
     bool
     updateGiveItem(
-        std::shared_ptr<SHAMapItem const>,
-        bool isTransaction,
-        bool hasMeta);
+        SHAMapNodeType type,
+        std::shared_ptr<SHAMapItem const>);
 
 
     bool
