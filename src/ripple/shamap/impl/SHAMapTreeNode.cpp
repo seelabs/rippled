@@ -396,51 +396,47 @@ SHAMapInnerNode::serializeWithPrefix(Serializer& s) const
 }
 
 void
-SHAMapTreeNode::serializeForWire(Serializer& s) const
+SHAMapTxLeafNode::serializeForWire(Serializer& s) const
 {
-    auto const type = getType();
-
-    if (type == SHAMapNodeType::tnACCOUNT_STATE)
-    {
-        s.addRaw(mItem->peekData());
-        s.addBitString(mItem->key());
-        s.add8(wireTypeAccountState);
-    }
-    else if (type == SHAMapNodeType::tnTRANSACTION_NM)
-    {
-        s.addRaw(mItem->peekData());
-        s.add8(wireTypeTransaction);
-    }
-    else if (type == SHAMapNodeType::tnTRANSACTION_MD)
-    {
-        s.addRaw(mItem->peekData());
-        s.addBitString(mItem->key());
-        s.add8(wireTypeTransactionWithMeta);
-    }
+    s.addRaw(mItem->peekData());
+    s.add8(wireTypeTransaction);
+}
+void
+SHAMapTxPlusMetaLeafNode::serializeForWire(Serializer& s) const
+{
+    s.addRaw(mItem->peekData());
+    s.addBitString(mItem->key());
+    s.add8(wireTypeTransactionWithMeta);
+}
+void
+SHAMapAccountStateLeafNode::serializeForWire(Serializer& s) const
+{
+    s.addRaw(mItem->peekData());
+    s.addBitString(mItem->key());
+    s.add8(wireTypeAccountState);
 }
 
 void
-SHAMapTreeNode::serializeWithPrefix(Serializer& s) const
+SHAMapTxLeafNode::serializeWithPrefix(Serializer& s) const
 {
-    auto const type = getType();
+    s.add32(HashPrefix::transactionID);
+    s.addRaw(mItem->peekData());
+}
 
-    if (type == SHAMapNodeType::tnACCOUNT_STATE)
-    {
-        s.add32(HashPrefix::leafNode);
-        s.addRaw(mItem->peekData());
-        s.addBitString(mItem->key());
-    }
-    else if (type == SHAMapNodeType::tnTRANSACTION_NM)
-    {
-        s.add32(HashPrefix::transactionID);
-        s.addRaw(mItem->peekData());
-    }
-    else if (type == SHAMapNodeType::tnTRANSACTION_MD)
-    {
-        s.add32(HashPrefix::txNode);
-        s.addRaw(mItem->peekData());
-        s.addBitString(mItem->key());
-    }
+void
+SHAMapTxPlusMetaLeafNode::serializeWithPrefix(Serializer& s) const
+{
+    s.add32(HashPrefix::txNode);
+    s.addRaw(mItem->peekData());
+    s.addBitString(mItem->key());
+}
+
+void
+SHAMapAccountStateLeafNode::serializeWithPrefix(Serializer& s) const
+{
+    s.add32(HashPrefix::leafNode);
+    s.addRaw(mItem->peekData());
+    s.addBitString(mItem->key());
 }
 
 bool

@@ -329,12 +329,6 @@ public:
         return false;
     }
 
-    void
-    serializeForWire(Serializer&) const override;
-
-    void
-    serializeWithPrefix(Serializer&) const override;
-
     uint256 const&
     key() const override;
     void
@@ -384,6 +378,12 @@ public:
 
     bool
     updateHash() override;
+
+    void
+    serializeForWire(Serializer&) const override;
+
+    void
+    serializeWithPrefix(Serializer&) const override;
 };
 
 /** A leaf node for a transaction and its associated metadata. */
@@ -421,6 +421,12 @@ public:
 
     bool
     updateHash() override;
+
+    void
+    serializeForWire(Serializer&) const override;
+
+    void
+    serializeWithPrefix(Serializer&) const override;
 };
 
 /** A leaf node for a state object. */
@@ -459,6 +465,12 @@ public:
 
     bool
     updateHash() override;
+
+    void
+    serializeForWire(Serializer&) const override;
+
+    void
+    serializeWithPrefix(Serializer&) const override;
 };
 
 // SHAMapAbstractNode
