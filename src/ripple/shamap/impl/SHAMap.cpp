@@ -703,18 +703,13 @@ SHAMap::delItem(uint256 const& id)
 
 bool
 SHAMap::addGiveItem(
-    std::shared_ptr<SHAMapItem const> item,
-    bool isTransaction,
-    bool hasMeta)
+    SHAMapNodeType type,
+    std::shared_ptr<SHAMapItem const> item)
 {
+    assert(state_ != SHAMapState::Immutable);
+
     // add the specified item, does not update
     uint256 tag = item->key();
-    SHAMapNodeType type = !isTransaction
-        ? SHAMapNodeType::tnACCOUNT_STATE
-        : (hasMeta ? SHAMapNodeType::tnTRANSACTION_MD
-                   : SHAMapNodeType::tnTRANSACTION_NM);
-
-    assert(state_ != SHAMapState::Immutable);
 
     SharedPtrNodeStack stack;
     walkTowardsKey(tag, &stack);
@@ -785,12 +780,13 @@ SHAMap::addGiveItem(
 }
 
 bool
-SHAMap::addItem(SHAMapItem&& i, bool isTransaction, bool hasMetaData)
+SHAMap::addItem(
+    SHAMapNodeType type,
+    SHAMapItem&& i)
 {
     return addGiveItem(
-        std::make_shared<SHAMapItem const>(std::move(i)),
-        isTransaction,
-        hasMetaData);
+        type,
+        std::make_shared<SHAMapItem const>(std::move(i)));
 }
 
 SHAMapHash

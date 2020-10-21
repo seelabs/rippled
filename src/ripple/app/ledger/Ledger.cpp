@@ -354,7 +354,7 @@ bool
 Ledger::addSLE(SLE const& sle)
 {
     SHAMapItem item(sle.key(), sle.getSerializer());
-    return stateMap_->addItem(std::move(item), false, false);
+    return stateMap_->addItem(SHAMapNodeType::tnACCOUNT_STATE, std::move(item));
 }
 
 //------------------------------------------------------------------------------
@@ -499,8 +499,9 @@ Ledger::rawInsert(std::shared_ptr<SLE> const& sle)
 {
     Serializer ss;
     sle->add(ss);
-    auto item = std::make_shared<SHAMapItem const>(sle->key(), std::move(ss));
-    if (!stateMap_->addGiveItem(std::move(item), false, false))
+    if (!stateMap_->addGiveItem(
+            SHAMapNodeType::tnACCOUNT_STATE,
+            std::make_shared<SHAMapItem const>(sle->key(), std::move(ss))))
         LogicError("Ledger::rawInsert: key already exists");
 }
 
@@ -527,8 +528,9 @@ Ledger::rawTxInsert(
     Serializer s(txn->getDataLength() + metaData->getDataLength() + 16);
     s.addVL(txn->peekData());
     s.addVL(metaData->peekData());
-    auto item = std::make_shared<SHAMapItem const>(key, std::move(s));
-    if (!txMap().addGiveItem(std::move(item), true, true))
+    if (!txMap().addGiveItem(
+            SHAMapNodeType::tnTRANSACTION_MD,
+            std::make_shared<SHAMapItem const>(key, std::move(s))))
         LogicError("duplicate_tx: " + to_string(key));
 }
 

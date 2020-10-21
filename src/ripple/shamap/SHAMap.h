@@ -179,7 +179,7 @@ public:
     bool
     delItem(uint256 const& id);
     bool
-    addItem(SHAMapItem&& i, bool isTransaction, bool hasMeta);
+    addItem(SHAMapNodeType type, SHAMapItem&& i);
     SHAMapHash
     getHash() const;
 
@@ -189,11 +189,12 @@ public:
         std::shared_ptr<SHAMapItem const>,
         bool isTransaction,
         bool hasMeta);
+
+
     bool
     addGiveItem(
-        std::shared_ptr<SHAMapItem const>,
-        bool isTransaction,
-        bool hasMeta);
+        SHAMapNodeType type,
+        std::shared_ptr<SHAMapItem const> item);
 
     // Save a copy if you need to extend the life
     // of the SHAMapItem beyond this SHAMap
