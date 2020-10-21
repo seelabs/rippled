@@ -317,29 +317,37 @@ SHAMapInnerNode::updateHashDeep()
 }
 
 bool
-SHAMapTreeNode::updateHash()
+SHAMapTxLeafNode::updateHash()
 {
     uint256 nh;
 
-    auto const type = getType();
+    nh = sha512Half(HashPrefix::transactionID, makeSlice(mItem->peekData()));
 
-    if (type == SHAMapNodeType::tnTRANSACTION_NM)
-    {
-        nh =
-            sha512Half(HashPrefix::transactionID, makeSlice(mItem->peekData()));
-    }
-    else if (type == SHAMapNodeType::tnACCOUNT_STATE)
-    {
-        nh = sha512Half(
-            HashPrefix::leafNode, makeSlice(mItem->peekData()), mItem->key());
-    }
-    else if (type == SHAMapNodeType::tnTRANSACTION_MD)
-    {
-        nh = sha512Half(
-            HashPrefix::txNode, makeSlice(mItem->peekData()), mItem->key());
-    }
-    else
-        assert(false);
+    if (nh == mHash.as_uint256())
+        return false;
+
+    mHash = SHAMapHash{nh};
+    return true;
+}
+
+bool
+SHAMapTxPlusMetaLeafNode::updateHash()
+{
+    uint256 nh = sha512Half(
+        HashPrefix::txNode, makeSlice(mItem->peekData()), mItem->key());
+
+    if (nh == mHash.as_uint256())
+        return false;
+
+    mHash = SHAMapHash{nh};
+    return true;
+}
+
+bool
+SHAMapAccountStateLeafNode::updateHash()
+{
+    uint256 nh = sha512Half(
+        HashPrefix::leafNode, makeSlice(mItem->peekData()), mItem->key());
 
     if (nh == mHash.as_uint256())
         return false;

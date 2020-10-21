@@ -349,8 +349,6 @@ public:  // public only to SHAMap
 
     std::string
     getString(SHAMapNodeID const&) const override;
-    bool
-    updateHash() override;
 };
 
 /** A leaf node for a transaction. No metadata is included. */
@@ -383,6 +381,9 @@ public:
     {
         return SHAMapNodeType::tnTRANSACTION_NM;
     }
+
+    bool
+    updateHash() override;
 };
 
 /** A leaf node for a transaction and its associated metadata. */
@@ -417,6 +418,9 @@ public:
     {
         return SHAMapNodeType::tnTRANSACTION_MD;
     }
+
+    bool
+    updateHash() override;
 };
 
 /** A leaf node for a state object. */
@@ -452,6 +456,9 @@ public:
     {
         return SHAMapNodeType::tnACCOUNT_STATE;
     }
+
+    bool
+    updateHash() override;
 };
 
 // SHAMapAbstractNode
