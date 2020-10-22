@@ -212,8 +212,6 @@ public:
     virtual std::string
     getString(SHAMapNodeID const&) const;
 
-    virtual uint256 const&
-    key() const = 0;
     virtual void
     invariants(bool is_root = false) const = 0;
 
@@ -320,8 +318,7 @@ public:
 
     std::string
     getString(SHAMapNodeID const&) const override;
-    uint256 const&
-    key() const override;
+
     void
     invariants(bool is_root = false) const override;
 
@@ -366,8 +363,6 @@ public:
         return false;
     }
 
-    uint256 const&
-    key() const override;
     void
     invariants(bool is_root = false) const override;
 
@@ -395,7 +390,7 @@ class SHAMapTxLeafNode : public SHAMapTreeNode,
 {
 public:
     SHAMapTxLeafNode(std::shared_ptr<SHAMapItem const> item, std::uint32_t seq)
-        : SHAMapTreeNode(item, seq)
+        : SHAMapTreeNode(std::move(item), seq)
     {
         updateHash();
     }
@@ -404,7 +399,7 @@ public:
         std::shared_ptr<SHAMapItem const> item,
         std::uint32_t seq,
         SHAMapHash const& hash)
-        : SHAMapTreeNode(item, seq, hash)
+        : SHAMapTreeNode(std::move(item), seq, hash)
     {
     }
 
@@ -438,7 +433,7 @@ public:
     SHAMapTxPlusMetaLeafNode(
         std::shared_ptr<SHAMapItem const> item,
         std::uint32_t seq)
-        : SHAMapTreeNode(item, seq)
+        : SHAMapTreeNode(std::move(item), seq)
     {
         updateHash();
     }
@@ -447,7 +442,7 @@ public:
         std::shared_ptr<SHAMapItem const> item,
         std::uint32_t seq,
         SHAMapHash const& hash)
-        : SHAMapTreeNode(item, seq, hash)
+        : SHAMapTreeNode(std::move(item), seq, hash)
     {
     }
 
@@ -482,7 +477,7 @@ public:
     SHAMapAccountStateLeafNode(
         std::shared_ptr<SHAMapItem const> item,
         std::uint32_t seq)
-        : SHAMapTreeNode(item, seq)
+        : SHAMapTreeNode(std::move(item), seq)
     {
         updateHash();
     }
@@ -491,7 +486,7 @@ public:
         std::shared_ptr<SHAMapItem const> item,
         std::uint32_t seq,
         SHAMapHash const& hash)
-        : SHAMapTreeNode(item, seq, hash)
+        : SHAMapTreeNode(std::move(item), seq, hash)
     {
     }
 

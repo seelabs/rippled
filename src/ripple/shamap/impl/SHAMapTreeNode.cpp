@@ -574,18 +574,6 @@ SHAMapInnerNode::canonicalizeChild(
     return node;
 }
 
-uint256 const&
-SHAMapInnerNode::key() const
-{
-    Throw<std::logic_error>("SHAMapInnerNode::key() should never be called");
-}
-
-uint256 const&
-SHAMapTreeNode::key() const
-{
-    return mItem->key();
-}
-
 void
 SHAMapInnerNode::invariants(bool is_root) const
 {
