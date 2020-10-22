@@ -42,10 +42,10 @@ static constexpr unsigned char const wireTypeTransactionWithMeta = 4;
 std::mutex SHAMapInnerNode::childLock;
 
 std::shared_ptr<SHAMapAbstractNode>
-SHAMapInnerNode::clone(std::uint32_t seq) const
+SHAMapInnerNode::clone(std::uint32_t owner) const
 {
-    auto p = std::make_shared<SHAMapInnerNode>(seq);
-    p->mHash = mHash;
+    auto p = std::make_shared<SHAMapInnerNode>(owner);
+    p->hash_ = hash_;
     p->mIsBranch = mIsBranch;
     p->mFullBelowGen = mFullBelowGen;
     p->mHashes = mHashes;
@@ -177,7 +177,7 @@ SHAMapInnerNode::makeFullInner(
     }
 
     if (hashValid)
-        ret->mHash = hash;
+        ret->hash_ = hash;
     else
         ret->updateHash();
     return ret;
@@ -297,7 +297,7 @@ SHAMapInnerNode::updateHash()
             hash_append(h, hh);
         nh = static_cast<typename sha512_half_hasher::result_type>(h);
     }
-    mHash = SHAMapHash{nh};
+    hash_ = SHAMapHash{nh};
 }
 
 void
@@ -314,21 +314,21 @@ SHAMapInnerNode::updateHashDeep()
 void
 SHAMapTxLeafNode::updateHash()
 {
-    mHash = SHAMapHash{
+    hash_ = SHAMapHash{
         sha512Half(HashPrefix::transactionID, makeSlice(mItem->peekData()))};
 }
 
 void
 SHAMapTxPlusMetaLeafNode::updateHash()
 {
-    mHash = SHAMapHash{sha512Half(
+    hash_ = SHAMapHash{sha512Half(
         HashPrefix::txNode, makeSlice(mItem->peekData()), mItem->key())};
 }
 
 void
 SHAMapAccountStateLeafNode::updateHash()
 {
-    mHash = SHAMapHash{sha512Half(
+    hash_ = SHAMapHash{sha512Half(
         HashPrefix::leafNode, makeSlice(mItem->peekData()), mItem->key())};
 }
 
@@ -419,14 +419,14 @@ bool
 SHAMapTreeNode::setItem(std::shared_ptr<SHAMapItem const> i)
 {
     assert(isLeaf());
-    assert(mSeq != 0);
+    assert(cowid_ != 0);
     mItem = std::move(i);
 
-    auto const oldHash = mHash;
+    auto const oldHash = hash_;
 
     updateHash();
 
-    return (oldHash != mHash);
+    return (oldHash != hash_);
 }
 
 bool
@@ -490,7 +490,7 @@ SHAMapTreeNode::getString(const SHAMapNodeID& id) const
     ret += "  Tag=";
     ret += to_string(peekItem()->key());
     ret += "\n  Hash=";
-    ret += to_string(mHash);
+    ret += to_string(hash_);
     ret += "/";
     ret += std::to_string(mItem->size());
     return ret;
@@ -503,10 +503,10 @@ SHAMapInnerNode::setChild(
     std::shared_ptr<SHAMapAbstractNode> const& child)
 {
     assert((m >= 0) && (m < 16));
-    assert(mSeq != 0);
+    assert(cowid_ != 0);
     assert(child.get() != this);
     mHashes[m].zero();
-    mHash.zero();
+    hash_.zero();
     if (child)
         mIsBranch |= (1 << m);
     else
@@ -521,7 +521,7 @@ SHAMapInnerNode::shareChild(
     std::shared_ptr<SHAMapAbstractNode> const& child)
 {
     assert((m >= 0) && (m < 16));
-    assert(mSeq != 0);
+    assert(cowid_ != 0);
     assert(child);
     assert(child.get() != this);
 
@@ -592,16 +592,16 @@ SHAMapInnerNode::invariants(bool is_root) const
     }
     if (!is_root)
     {
-        assert(mHash.isNonZero());
+        assert(hash_.isNonZero());
         assert(count >= 1);
     }
-    assert((count == 0) ? mHash.isZero() : mHash.isNonZero());
+    assert((count == 0) ? hash_.isZero() : hash_.isNonZero());
 }
 
 void
 SHAMapTreeNode::invariants(bool) const
 {
-    assert(mHash.isNonZero());
+    assert(hash_.isNonZero());
     assert(mItem != nullptr);
 }
 

@@ -124,20 +124,27 @@ enum class SHAMapNodeType {
 class SHAMapAbstractNode
 {
 protected:
-    SHAMapHash mHash;
-    std::uint32_t mSeq;
+    SHAMapHash hash_;
+
+    /** Determines the owning SHAMap, if any. Used for copy-on-write semantics.
+
+        If this value is 0, the node is not dirty and does not need to be
+        flushed. It is eligible for sharing and may be included multiple
+        SHAMap instances.
+     */
+    std::uint32_t cowid_;
 
 protected:
     SHAMapAbstractNode(SHAMapAbstractNode const&) = delete;
     SHAMapAbstractNode&
     operator=(SHAMapAbstractNode const&) = delete;
 
-    explicit SHAMapAbstractNode(std::uint32_t seq) : mSeq(seq)
+    explicit SHAMapAbstractNode(std::uint32_t seq) : cowid_(seq)
     {
     }
 
     explicit SHAMapAbstractNode(std::uint32_t seq, SHAMapHash const& hash)
-        : mHash(hash), mSeq(seq)
+        : hash_(hash), cowid_(seq)
     {
     }
 
@@ -180,7 +187,7 @@ public:
 
     /** Make a copy of this node, setting the owner. */
     virtual std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t seq) const = 0;
+    clone(std::uint32_t owner) const = 0;
     /** @} */
 
     /** Recalculate the hash of this node. */
@@ -259,7 +266,7 @@ class SHAMapInnerNode : public SHAMapAbstractNode,
 public:
     SHAMapInnerNode(std::uint32_t seq);
     std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t seq) const override;
+    clone(std::uint32_t owner) const override;
 
     SHAMapNodeType
     getType() const override
@@ -406,9 +413,9 @@ public:
     }
 
     std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t seq) const override
+    clone(std::uint32_t owner) const override
     {
-        return std::make_shared<SHAMapTxLeafNode>(mItem, seq, mHash);
+        return std::make_shared<SHAMapTxLeafNode>(mItem, owner, hash_);
     }
 
     SHAMapNodeType
@@ -449,9 +456,9 @@ public:
     }
 
     std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t seq) const override
+    clone(std::uint32_t owner) const override
     {
-        return std::make_shared<SHAMapTxPlusMetaLeafNode>(mItem, seq, mHash);
+        return std::make_shared<SHAMapTxPlusMetaLeafNode>(mItem, owner, hash_);
     }
 
     SHAMapNodeType
@@ -493,9 +500,9 @@ public:
     }
 
     std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t seq) const override
+    clone(std::uint32_t owner) const override
     {
-        return std::make_shared<SHAMapAccountStateLeafNode>(mItem, seq, mHash);
+        return std::make_shared<SHAMapAccountStateLeafNode>(mItem, owner, hash_);
     }
 
     SHAMapNodeType
@@ -518,19 +525,19 @@ public:
 inline std::uint32_t
 SHAMapAbstractNode::owner() const
 {
-    return mSeq;
+    return cowid_;
 }
 
 inline void
 SHAMapAbstractNode::share()
 {
-    mSeq = 0;
+    cowid_ = 0;
 }
 
 inline SHAMapHash const&
 SHAMapAbstractNode::getHash() const
 {
-    return mHash;
+    return hash_;
 }
 
 // SHAMapInnerNode
