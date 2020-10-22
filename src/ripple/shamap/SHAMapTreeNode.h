@@ -556,7 +556,7 @@ SHAMapInnerNode::isEmptyBranch(int m) const
 inline SHAMapHash const&
 SHAMapInnerNode::getChildHash(int m) const
 {
-    assert((m >= 0) && (m < 16) && (getType() == SHAMapNodeType::tnINNER));
+    assert(m >= 0 && m < 16);
     return mHashes[m];
 }
 

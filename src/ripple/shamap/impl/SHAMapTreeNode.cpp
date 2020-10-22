@@ -418,7 +418,6 @@ SHAMapAccountStateLeafNode::serializeWithPrefix(Serializer& s) const
 bool
 SHAMapTreeNode::setItem(std::shared_ptr<SHAMapItem const> i)
 {
-    assert(isLeaf());
     assert(cowid_ != 0);
     mItem = std::move(i);
 
@@ -438,7 +437,6 @@ SHAMapInnerNode::isEmpty() const
 int
 SHAMapInnerNode::getBranchCount() const
 {
-    assert(isInner());
     int count = 0;
 
     for (int i = 0; i < 16; ++i)
@@ -532,7 +530,6 @@ SHAMapAbstractNode*
 SHAMapInnerNode::getChildPointer(int branch)
 {
     assert(branch >= 0 && branch < 16);
-    assert(isInner());
 
     std::lock_guard lock(childLock);
     return mChildren[branch].get();
@@ -542,7 +539,6 @@ std::shared_ptr<SHAMapAbstractNode>
 SHAMapInnerNode::getChild(int branch)
 {
     assert(branch >= 0 && branch < 16);
-    assert(isInner());
 
     std::lock_guard lock(childLock);
     return mChildren[branch];
@@ -554,7 +550,6 @@ SHAMapInnerNode::canonicalizeChild(
     std::shared_ptr<SHAMapAbstractNode> node)
 {
     assert(branch >= 0 && branch < 16);
-    assert(isInner());
     assert(node);
     assert(node->getHash() == mHashes[branch]);
 
