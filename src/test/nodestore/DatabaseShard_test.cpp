@@ -291,7 +291,7 @@ class DatabaseShard_test : public TestBase
                     ? hotUNKNOWN
                     : hotACCOUNT_NODE,
                 std::move(s.modData()),
-                node.getNodeHash().as_uint256(),
+                node.getHash().as_uint256(),
                 ledger.info().seq);
             return true;
         };
@@ -319,7 +319,7 @@ class DatabaseShard_test : public TestBase
                     ? hotUNKNOWN
                     : hotTRANSACTION_NODE,
                 std::move(s.modData()),
-                node.getNodeHash().as_uint256(),
+                node.getHash().as_uint256(),
                 ledger.info().seq);
             return true;
         };
@@ -365,12 +365,12 @@ class DatabaseShard_test : public TestBase
                     ? hotUNKNOWN
                     : hotACCOUNT_NODE,
                 std::move(s.modData()),
-                node.getNodeHash().as_uint256())};
+                node.getHash().as_uint256())};
             if (!BEAST_EXPECT(nSrc))
                 return false;
 
             auto nDst = db.fetchNodeObject(
-                node.getNodeHash().as_uint256(), ledger.info().seq);
+                node.getHash().as_uint256(), ledger.info().seq);
             if (!BEAST_EXPECT(nDst))
                 return false;
 
@@ -389,12 +389,12 @@ class DatabaseShard_test : public TestBase
                     ? hotUNKNOWN
                     : hotTRANSACTION_NODE,
                 std::move(s.modData()),
-                node.getNodeHash().as_uint256())};
+                node.getHash().as_uint256())};
             if (!BEAST_EXPECT(nSrc))
                 return false;
 
             auto nDst = db.fetchNodeObject(
-                node.getNodeHash().as_uint256(), ledger.info().seq);
+                node.getHash().as_uint256(), ledger.info().seq);
             if (!BEAST_EXPECT(nDst))
                 return false;
 

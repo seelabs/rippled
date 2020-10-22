@@ -304,8 +304,7 @@ SHAMapStoreImp::copyNode(
     // Copy a single record from node to dbRotating_
     // FIXME: node.owner() is the wrong thing to pass: fetchNodeObject expects
     //        a ledger sequence, not a copy-on-write identifier.
-    dbRotating_->fetchNodeObject(
-        node.getNodeHash().as_uint256(), node.owner());
+    dbRotating_->fetchNodeObject(node.getHash().as_uint256(), node.owner());
     if (!(++nodeCount % checkHealthInterval_))
     {
         if (health())

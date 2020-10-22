@@ -257,7 +257,7 @@ public:
                 newNode->serializeWithPrefix(s);
 
                 app_.getLedgerMaster().addFetchPack(
-                    newNode->getNodeHash().as_uint256(),
+                    newNode->getHash().as_uint256(),
                     std::make_shared<Blob>(s.begin(), s.end()));
             }
         }

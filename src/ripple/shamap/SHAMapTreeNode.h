@@ -128,7 +128,6 @@ protected:
     std::uint32_t mSeq;
 
 protected:
-    virtual ~SHAMapAbstractNode() = 0;
     SHAMapAbstractNode(SHAMapAbstractNode const&) = delete;
     SHAMapAbstractNode&
     operator=(SHAMapAbstractNode const&) = delete;
@@ -143,6 +142,8 @@ protected:
     }
 
 public:
+    virtual ~SHAMapAbstractNode() = default;
+
     /** \defgroup SHAMap Copy-on-Write Support
 
         By nature, a node may appear in multiple SHAMap instances. Rather than
@@ -182,8 +183,13 @@ public:
     clone(std::uint32_t seq) const = 0;
     /** @} */
 
+    /** Recalculate the hash of this node. */
+    virtual void
+    updateHash() = 0;
+
+    /** Return the hash of this node. */
     SHAMapHash const&
-    getNodeHash() const;
+    getHash() const;
 
     /** Determines the type of node. */
     virtual SHAMapNodeType
@@ -196,10 +202,6 @@ public:
     /** Determines if this is an inner node. */
     virtual bool
     isInner() const = 0;
-
-    /** Recalculate the hash of this node. */
-    virtual void
-    updateHash() = 0;
 
     /** Serialize the node in a format appropriate for sending over the wire */
     virtual void
@@ -526,7 +528,7 @@ SHAMapAbstractNode::share()
 }
 
 inline SHAMapHash const&
-SHAMapAbstractNode::getNodeHash() const
+SHAMapAbstractNode::getHash() const
 {
     return mHash;
 }

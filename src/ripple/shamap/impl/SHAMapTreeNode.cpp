@@ -41,8 +41,6 @@ static constexpr unsigned char const wireTypeTransactionWithMeta = 4;
 
 std::mutex SHAMapInnerNode::childLock;
 
-SHAMapAbstractNode::~SHAMapAbstractNode() = default;
-
 std::shared_ptr<SHAMapAbstractNode>
 SHAMapInnerNode::clone(std::uint32_t seq) const
 {
@@ -308,7 +306,7 @@ SHAMapInnerNode::updateHashDeep()
     for (auto pos = 0; pos < 16; ++pos)
     {
         if (mChildren[pos] != nullptr)
-            mHashes[pos] = mChildren[pos]->getNodeHash();
+            mHashes[pos] = mChildren[pos]->getHash();
     }
     updateHash();
 }
@@ -558,7 +556,7 @@ SHAMapInnerNode::canonicalizeChild(
     assert(branch >= 0 && branch < 16);
     assert(isInner());
     assert(node);
-    assert(node->getNodeHash() == mHashes[branch]);
+    assert(node->getHash() == mHashes[branch]);
 
     std::lock_guard lock(childLock);
     if (mChildren[branch])

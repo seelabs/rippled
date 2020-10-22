@@ -404,7 +404,7 @@ Shard::storeLedger(
         if (!stop_)
         {
             if (auto nodeObject = srcDB.fetchNodeObject(
-                    node.getNodeHash().as_uint256(), srcLedger->info().seq))
+                    node.getHash().as_uint256(), srcLedger->info().seq))
             {
                 batch.emplace_back(std::move(nodeObject));
                 if (batch.size() < batchWritePreallocationSize || storeBatch())
@@ -1286,7 +1286,7 @@ Shard::verifyLedger(
     auto visit = [this, &error](SHAMapAbstractNode& node) {
         if (stop_)
             return false;
-        if (!verifyFetch(node.getNodeHash().as_uint256()))
+        if (!verifyFetch(node.getHash().as_uint256()))
             error = true;
         return !error;
     };

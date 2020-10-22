@@ -108,17 +108,17 @@ SHAMap::visitDifferences(
     if (!root_)
         return;
 
-    if (root_->getNodeHash().isZero())
+    if (root_->getHash().isZero())
         return;
 
-    if (have && (root_->getNodeHash() == have->root_->getNodeHash()))
+    if (have && (root_->getHash() == have->root_->getHash()))
         return;
 
     if (root_->isLeaf())
     {
         auto leaf = std::static_pointer_cast<SHAMapTreeNode>(root_);
         if (!have ||
-            !have->hasLeafNode(leaf->peekItem()->key(), leaf->getNodeHash()))
+            !have->hasLeafNode(leaf->peekItem()->key(), leaf->getHash()))
             function(*root_);
         return;
     }
@@ -242,7 +242,7 @@ SHAMap::gmn_ProcessNodes(MissingNodes& mn, MissingNodes::StackEntry& se)
         if (backed_)
         {
             f_.getFullBelowCache(ledgerSeq_)
-                ->insert(node->getNodeHash().as_uint256());
+                ->insert(node->getHash().as_uint256());
         }
     }
 
@@ -315,7 +315,7 @@ SHAMap::gmn_ProcessDeferredReads(MissingNodes& mn)
 std::vector<std::pair<SHAMapNodeID, uint256>>
 SHAMap::getMissingNodes(int max, SHAMapSyncFilter* filter)
 {
-    assert(root_->getNodeHash().isNonZero());
+    assert(root_->getHash().isNonZero());
     assert(max > 0);
 
     MissingNodes mn(
@@ -547,16 +547,16 @@ SHAMap::addRootNode(
     SHAMapSyncFilter* filter)
 {
     // we already have a root_ node
-    if (root_->getNodeHash().isNonZero())
+    if (root_->getHash().isNonZero())
     {
         JLOG(journal_.trace()) << "got root node, already have one";
-        assert(root_->getNodeHash() == hash);
+        assert(root_->getHash() == hash);
         return SHAMapAddNode::duplicate();
     }
 
     assert(cowid_ >= 1);
     auto node = SHAMapAbstractNode::makeFromWire(rootNode);
-    if (!node || node->getNodeHash() != hash)
+    if (!node || node->getHash() != hash)
         return SHAMapAddNode::invalid();
 
     if (backed_)
@@ -573,7 +573,7 @@ SHAMap::addRootNode(
         root_->serializeWithPrefix(s);
         filter->gotNode(
             false,
-            root_->getNodeHash(),
+            root_->getHash(),
             ledgerSeq_,
             std::move(s.modData()),
             root_->getType());
@@ -626,7 +626,7 @@ SHAMap::addKnownNode(
 
         if (iNode == nullptr)
         {
-            if (!newNode || childHash != newNode->getNodeHash())
+            if (!newNode || childHash != newNode->getHash())
             {
                 JLOG(journal_.warn()) << "Corrupt node received";
                 return SHAMapAddNode::invalid();
@@ -695,7 +695,7 @@ SHAMap::deepCompare(SHAMap& other) const
             JLOG(journal_.info()) << "unable to fetch node";
             return false;
         }
-        else if (otherNode->getNodeHash() != node->getNodeHash())
+        else if (otherNode->getHash() != node->getHash())
         {
             JLOG(journal_.warn()) << "node hash mismatch";
             return false;
@@ -768,7 +768,7 @@ SHAMap::hasInnerNode(
         nodeID = nodeID.getChildNodeID(branch);
     }
 
-    return (node->isInner()) && (node->getNodeHash() == targetNodeHash);
+    return (node->isInner()) && (node->getHash() == targetNodeHash);
 }
 
 /** Does this map have this leaf node?
@@ -780,7 +780,7 @@ SHAMap::hasLeafNode(uint256 const& tag, SHAMapHash const& targetNodeHash) const
     SHAMapNodeID nodeID;
 
     if (!node->isInner())  // only one leaf node in the tree
-        return node->getNodeHash() == targetNodeHash;
+        return node->getHash() == targetNodeHash;
 
     do
     {
@@ -823,7 +823,7 @@ SHAMap::getFetchPack(
             {
                 Serializer s;
                 smn.serializeWithPrefix(s);
-                func(smn.getNodeHash(), s.peekData());
+                func(smn.getHash(), s.peekData());
 
                 if (--max <= 0)
                     return false;

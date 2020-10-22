@@ -581,7 +581,7 @@ SHAMap::peekItem(uint256 const& id, SHAMapHash& hash) const
     if (!leaf)
         return no_item;
 
-    hash = leaf->getNodeHash();
+    hash = leaf->getHash();
     return leaf->peekItem();
 }
 
@@ -788,11 +788,11 @@ SHAMap::addItem(SHAMapNodeType type, SHAMapItem&& i)
 SHAMapHash
 SHAMap::getHash() const
 {
-    auto hash = root_->getNodeHash();
+    auto hash = root_->getHash();
     if (hash.isZero())
     {
         const_cast<SHAMap&>(*this).unshare();
-        hash = root_->getNodeHash();
+        hash = root_->getHash();
     }
     return hash;
 }
@@ -840,7 +840,7 @@ SHAMap::updateGiveItem(
 bool
 SHAMap::fetchRoot(SHAMapHash const& hash, SHAMapSyncFilter* filter)
 {
-    if (hash == root_->getNodeHash())
+    if (hash == root_->getHash())
         return true;
 
     if (auto stream = journal_.trace())
@@ -864,7 +864,7 @@ SHAMap::fetchRoot(SHAMapHash const& hash, SHAMapSyncFilter* filter)
     if (newRoot)
     {
         root_ = newRoot;
-        assert(root_->getNodeHash() == hash);
+        assert(root_->getHash() == hash);
         return true;
     }
 
@@ -891,14 +891,13 @@ SHAMap::writeNode(
     assert(backed_);
     node->share();
 
-    canonicalize(node->getNodeHash(), node);
+    canonicalize(node->getHash(), node);
 
     Serializer s;
     node->serializeWithPrefix(s);
     f_.db().store(
         t,
-        std::move(s.modData()),
-        node->getNodeHash().as_uint256(),
+        std::move(s.modData()), node->getHash().as_uint256(),
         ledgerSeq_);
     return node;
 }
@@ -1079,7 +1078,7 @@ SHAMap::dump(bool hash) const
         JLOG(journal_.info()) << node->getString(nodeID);
         if (hash)
         {
-            JLOG(journal_.info()) << "Hash: " << node->getNodeHash();
+            JLOG(journal_.info()) << "Hash: " << node->getHash();
         }
 
         if (node->isInner())
@@ -1092,7 +1091,7 @@ SHAMap::dump(bool hash) const
                     auto child = inner->getChildPointer(i);
                     if (child)
                     {
-                        assert(child->getNodeHash() == inner->getChildHash(i));
+                        assert(child->getHash() == inner->getChildHash(i));
                         stack.push({child, nodeID.getChildNodeID(i)});
                     }
                 }
@@ -1120,7 +1119,7 @@ SHAMap::canonicalize(
 {
     assert(backed_);
     assert(node->owner() == 0);
-    assert(node->getNodeHash() == hash);
+    assert(node->getHash() == hash);
 
     f_.getTreeNodeCache(ledgerSeq_)
         ->canonicalize_replace_client(hash.as_uint256(), node);
