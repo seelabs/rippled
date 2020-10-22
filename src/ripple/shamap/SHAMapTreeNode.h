@@ -143,10 +143,45 @@ protected:
     }
 
 public:
+    /** \defgroup SHAMap Copy-on-Write Support
+
+        By nature, a node may appear in multiple SHAMap instances. Rather than
+        actually duplicating these nodes, SHAMap opts to be memory efficient
+        and uses copy-on-write semantics for nodes.
+
+        Only nodes that are not modified and don't need to be flushed back can
+        be shared. Once a node needs to be changed, it must first be copied and
+        the copy must marked as not shareable.
+
+        Note that just because a node may not be *owned* by a given SHAMap
+        instance does not mean that the node is NOT a part of any SHAMap. It
+        only means that the node is not owned exclusively by any one SHAMap.
+
+        For more on copy-on-write, check out:
+            https://en.wikipedia.org/wiki/Copy-on-write
+     */
+    /** @{ */
+    /** Returns the SHAMap that owns this node.
+
+        @return the ID of the SHAMap that owns this node, or 0 if the node
+                is not owned by any SHAMap and is a candidate for sharing.
+     */
     std::uint32_t
-    getSeq() const;
+    owner() const;
+
+    /** Mark this node as shareable.
+
+        Only nodes that are not modified and do not need to be flushed back
+        should be marked as shareable.
+     */
     void
-    setSeq(std::uint32_t s);
+    share();
+
+    /** Make a copy of this node, setting the owner. */
+    virtual std::shared_ptr<SHAMapAbstractNode>
+    clone(std::uint32_t seq) const = 0;
+    /** @} */
+
     SHAMapHash const&
     getNodeHash() const;
 
@@ -176,8 +211,7 @@ public:
 
     virtual std::string
     getString(SHAMapNodeID const&) const;
-    virtual std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t seq) const = 0;
+
     virtual uint256 const&
     key() const = 0;
     virtual void
@@ -485,15 +519,15 @@ public:
 
 // SHAMapAbstractNode
 inline std::uint32_t
-SHAMapAbstractNode::getSeq() const
+SHAMapAbstractNode::owner() const
 {
     return mSeq;
 }
 
 inline void
-SHAMapAbstractNode::setSeq(std::uint32_t s)
+SHAMapAbstractNode::share()
 {
-    mSeq = s;
+    mSeq = 0;
 }
 
 inline SHAMapHash const&

@@ -554,7 +554,7 @@ SHAMap::addRootNode(
         return SHAMapAddNode::duplicate();
     }
 
-    assert(seq_ >= 1);
+    assert(cowid_ >= 1);
     auto node = SHAMapAbstractNode::makeFromWire(rootNode);
     if (!node || node->getNodeHash() != hash)
         return SHAMapAddNode::invalid();

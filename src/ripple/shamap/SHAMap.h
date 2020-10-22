@@ -98,8 +98,13 @@ class SHAMap
 private:
     Family& f_;
     beast::Journal journal_;
-    std::uint32_t seq_;
-    std::uint32_t ledgerSeq_ = 0;  // sequence number of ledger this is part of
+
+    /** ID to distinguish this map for all others we're sharing nodes with. */
+    std::uint32_t cowid_ = 1;
+
+    /** The sequence of the ledger that this map references, if any. */
+    std::uint32_t ledgerSeq_ = 0;
+
     std::shared_ptr<SHAMapAbstractNode> root_;
     mutable SHAMapState state_;
     SHAMapType type_;
@@ -118,7 +123,6 @@ public:
         std::shared_ptr<SHAMapItem const>>;
     using Delta = std::map<uint256, DeltaItem>;
 
-    ~SHAMap();
     SHAMap(SHAMap const&) = delete;
     SHAMap&
     operator=(SHAMap const&) = delete;
@@ -127,6 +131,8 @@ public:
     SHAMap(SHAMapType t, Family& f);
 
     SHAMap(SHAMapType t, uint256 const& hash, Family& f);
+
+    ~SHAMap() = default;
 
     Family const&
     family() const
