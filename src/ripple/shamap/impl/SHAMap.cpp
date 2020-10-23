@@ -31,13 +31,13 @@ makeTypedLeaf(
     std::uint32_t owner)
 {
     if (type == SHAMapNodeType::tnTRANSACTION_NM)
-        return std::make_shared<SHAMapTxLeafNode>(item, owner);
+        return std::make_shared<SHAMapTxLeafNode>(std::move(item), owner);
 
     if (type == SHAMapNodeType::tnTRANSACTION_MD)
-        return std::make_shared<SHAMapTxPlusMetaLeafNode>(item, owner);
+        return std::make_shared<SHAMapTxPlusMetaLeafNode>(std::move(item), owner);
 
     if (type == SHAMapNodeType::tnACCOUNT_STATE)
-        return std::make_shared<SHAMapAccountStateLeafNode>(item, owner);
+        return std::make_shared<SHAMapAccountStateLeafNode>(std::move(item), owner);
 
     LogicError(
         "Attempt to create leaf node of unknown type " +
