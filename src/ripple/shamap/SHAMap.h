@@ -257,9 +257,9 @@ public:
 
     bool
     getNodeFat(
-        SHAMapNodeID node,
+        SHAMapNodeID const& wanted,
         std::vector<SHAMapNodeID>& nodeIDs,
-        std::vector<Blob>& rawNode,
+        std::vector<Blob>& rawNodes,
         bool fatLeaves,
         std::uint32_t depth) const;
 
@@ -267,8 +267,6 @@ public:
     void
     serializeRoot(Serializer& s) const;
 
-    std::vector<uint256>
-    getNeededHashes(int max, SHAMapSyncFilter* filter);
     SHAMapAddNode
     addRootNode(
         SHAMapHash const& hash,

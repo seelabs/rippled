@@ -423,23 +423,9 @@ SHAMap::getMissingNodes(int max, SHAMapSyncFilter* filter)
     return std::move(mn.missingNodes_);
 }
 
-std::vector<uint256>
-SHAMap::getNeededHashes(int max, SHAMapSyncFilter* filter)
-{
-    auto ret = getMissingNodes(max, filter);
-
-    std::vector<uint256> hashes;
-    hashes.reserve(ret.size());
-
-    for (auto const& n : ret)
-        hashes.push_back(n.second);
-
-    return hashes;
-}
-
 bool
 SHAMap::getNodeFat(
-    SHAMapNodeID wanted,
+    SHAMapNodeID const& wanted,
     std::vector<SHAMapNodeID>& nodeIDs,
     std::vector<Blob>& rawNodes,
     bool fatLeaves,
