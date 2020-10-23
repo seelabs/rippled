@@ -57,19 +57,19 @@ SHAMapInnerNode::clone(std::uint32_t owner) const
 
 SHAMapTreeNode::SHAMapTreeNode(
     std::shared_ptr<SHAMapItem const> item,
-    std::uint32_t seq)
-    : SHAMapAbstractNode(seq), mItem(std::move(item))
+    std::uint32_t owner)
+    : SHAMapAbstractNode(owner), item_(std::move(item))
 {
-    assert(mItem->peekData().size() >= 12);
+    assert(item_->peekData().size() >= 12);
 }
 
 SHAMapTreeNode::SHAMapTreeNode(
     std::shared_ptr<SHAMapItem const> item,
-    std::uint32_t seq,
+    std::uint32_t owner,
     SHAMapHash const& hash)
-    : SHAMapAbstractNode(seq, hash), mItem(std::move(item))
+    : SHAMapAbstractNode(owner, hash), item_(std::move(item))
 {
-    assert(mItem->peekData().size() >= 12);
+    assert(item_->peekData().size() >= 12);
 }
 
 std::shared_ptr<SHAMapAbstractNode>
@@ -315,21 +315,21 @@ void
 SHAMapTxLeafNode::updateHash()
 {
     hash_ = SHAMapHash{
-        sha512Half(HashPrefix::transactionID, makeSlice(mItem->peekData()))};
+        sha512Half(HashPrefix::transactionID, makeSlice(item_->peekData()))};
 }
 
 void
 SHAMapTxPlusMetaLeafNode::updateHash()
 {
     hash_ = SHAMapHash{sha512Half(
-        HashPrefix::txNode, makeSlice(mItem->peekData()), mItem->key())};
+        HashPrefix::txNode, makeSlice(item_->peekData()), item_->key())};
 }
 
 void
 SHAMapAccountStateLeafNode::updateHash()
 {
     hash_ = SHAMapHash{sha512Half(
-        HashPrefix::leafNode, makeSlice(mItem->peekData()), mItem->key())};
+        HashPrefix::leafNode, makeSlice(item_->peekData()), item_->key())};
 }
 
 void
@@ -374,21 +374,21 @@ SHAMapInnerNode::serializeWithPrefix(Serializer& s) const
 void
 SHAMapTxLeafNode::serializeForWire(Serializer& s) const
 {
-    s.addRaw(mItem->peekData());
+    s.addRaw(item_->peekData());
     s.add8(wireTypeTransaction);
 }
 void
 SHAMapTxPlusMetaLeafNode::serializeForWire(Serializer& s) const
 {
-    s.addRaw(mItem->peekData());
-    s.addBitString(mItem->key());
+    s.addRaw(item_->peekData());
+    s.addBitString(item_->key());
     s.add8(wireTypeTransactionWithMeta);
 }
 void
 SHAMapAccountStateLeafNode::serializeForWire(Serializer& s) const
 {
-    s.addRaw(mItem->peekData());
-    s.addBitString(mItem->key());
+    s.addRaw(item_->peekData());
+    s.addBitString(item_->key());
     s.add8(wireTypeAccountState);
 }
 
@@ -396,30 +396,30 @@ void
 SHAMapTxLeafNode::serializeWithPrefix(Serializer& s) const
 {
     s.add32(HashPrefix::transactionID);
-    s.addRaw(mItem->peekData());
+    s.addRaw(item_->peekData());
 }
 
 void
 SHAMapTxPlusMetaLeafNode::serializeWithPrefix(Serializer& s) const
 {
     s.add32(HashPrefix::txNode);
-    s.addRaw(mItem->peekData());
-    s.addBitString(mItem->key());
+    s.addRaw(item_->peekData());
+    s.addBitString(item_->key());
 }
 
 void
 SHAMapAccountStateLeafNode::serializeWithPrefix(Serializer& s) const
 {
     s.add32(HashPrefix::leafNode);
-    s.addRaw(mItem->peekData());
-    s.addBitString(mItem->key());
+    s.addRaw(item_->peekData());
+    s.addBitString(item_->key());
 }
 
 bool
 SHAMapTreeNode::setItem(std::shared_ptr<SHAMapItem const> i)
 {
     assert(cowid_ != 0);
-    mItem = std::move(i);
+    item_ = std::move(i);
 
     auto const oldHash = hash_;
 
@@ -490,7 +490,7 @@ SHAMapTreeNode::getString(const SHAMapNodeID& id) const
     ret += "\n  Hash=";
     ret += to_string(hash_);
     ret += "/";
-    ret += std::to_string(mItem->size());
+    ret += std::to_string(item_->size());
     return ret;
 }
 
@@ -597,7 +597,7 @@ void
 SHAMapTreeNode::invariants(bool) const
 {
     assert(hash_.isNonZero());
-    assert(mItem != nullptr);
+    assert(item_ != nullptr);
 }
 
 }  // namespace ripple

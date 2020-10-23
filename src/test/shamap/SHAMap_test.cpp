@@ -64,7 +64,7 @@ static_assert(std::is_copy_assignable<SHAMapHash>{}, "");
 static_assert(std::is_move_constructible<SHAMapHash>{}, "");
 static_assert(std::is_move_assignable<SHAMapHash>{}, "");
 
-static_assert(!std::is_nothrow_destructible<SHAMapAbstractNode>{}, "");
+static_assert(std::is_nothrow_destructible<SHAMapAbstractNode>{}, "");
 static_assert(!std::is_default_constructible<SHAMapAbstractNode>{}, "");
 static_assert(!std::is_copy_constructible<SHAMapAbstractNode>{}, "");
 static_assert(!std::is_copy_assignable<SHAMapAbstractNode>{}, "");
