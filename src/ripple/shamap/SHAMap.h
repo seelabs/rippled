@@ -207,8 +207,6 @@ public:
     peekItem(uint256 const& id) const;
     std::shared_ptr<SHAMapItem const> const&
     peekItem(uint256 const& id, SHAMapHash& hash) const;
-    std::shared_ptr<SHAMapItem const> const&
-    peekItem(uint256 const& id, SHAMapNodeType& type) const;
 
     // traverse functions
     const_iterator

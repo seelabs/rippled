@@ -565,18 +565,6 @@ SHAMap::peekItem(uint256 const& id) const
 }
 
 std::shared_ptr<SHAMapItem const> const&
-SHAMap::peekItem(uint256 const& id, SHAMapNodeType& type) const
-{
-    SHAMapTreeNode* leaf = findKey(id);
-
-    if (!leaf)
-        return no_item;
-
-    type = leaf->getType();
-    return leaf->peekItem();
-}
-
-std::shared_ptr<SHAMapItem const> const&
 SHAMap::peekItem(uint256 const& id, SHAMapHash& hash) const
 {
     SHAMapTreeNode* leaf = findKey(id);
