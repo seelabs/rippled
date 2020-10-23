@@ -241,25 +241,13 @@ public:
 
 private:
     static std::shared_ptr<SHAMapAbstractNode>
-    makeTransaction(
-        Slice data,
-        std::uint32_t seq,
-        SHAMapHash const& hash,
-        bool hashValid);
+    makeTransaction(Slice data, SHAMapHash const& hash, bool hashValid);
 
     static std::shared_ptr<SHAMapAbstractNode>
-    makeAccountState(
-        Slice data,
-        std::uint32_t seq,
-        SHAMapHash const& hash,
-        bool hashValid);
+    makeAccountState(Slice data, SHAMapHash const& hash, bool hashValid);
 
     static std::shared_ptr<SHAMapAbstractNode>
-    makeTransactionWithMeta(
-        Slice data,
-        std::uint32_t seq,
-        SHAMapHash const& hash,
-        bool hashValid);
+    makeTransactionWithMeta(Slice data, SHAMapHash const& hash, bool hashValid);
 };
 
 class SHAMapInnerNode : public SHAMapAbstractNode,
@@ -341,14 +329,10 @@ public:
     invariants(bool is_root = false) const override;
 
     static std::shared_ptr<SHAMapAbstractNode>
-    makeFullInner(
-        Slice data,
-        std::uint32_t seq,
-        SHAMapHash const& hash,
-        bool hashValid);
+    makeFullInner(Slice data, SHAMapHash const& hash, bool hashValid);
 
     static std::shared_ptr<SHAMapAbstractNode>
-    makeCompressedInner(Slice data, std::uint32_t seq);
+    makeCompressedInner(Slice data);
 };
 
 // SHAMapTreeNode represents a leaf, and may eventually be renamed to reflect

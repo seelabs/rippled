@@ -75,7 +75,6 @@ SHAMapTreeNode::SHAMapTreeNode(
 std::shared_ptr<SHAMapAbstractNode>
 SHAMapAbstractNode::makeTransaction(
     Slice data,
-    std::uint32_t seq,
     SHAMapHash const& hash,
     bool hashValid)
 {
@@ -86,15 +85,14 @@ SHAMapAbstractNode::makeTransaction(
         sha512Half(HashPrefix::transactionID, data), s);
 
     if (hashValid)
-        return std::make_shared<SHAMapTxLeafNode>(std::move(item), seq, hash);
+        return std::make_shared<SHAMapTxLeafNode>(std::move(item), 0, hash);
 
-    return std::make_shared<SHAMapTxLeafNode>(std::move(item), seq);
+    return std::make_shared<SHAMapTxLeafNode>(std::move(item), 0);
 }
 
 std::shared_ptr<SHAMapAbstractNode>
 SHAMapAbstractNode::makeTransactionWithMeta(
     Slice data,
-    std::uint32_t seq,
     SHAMapHash const& hash,
     bool hashValid)
 {
@@ -116,15 +114,14 @@ SHAMapAbstractNode::makeTransactionWithMeta(
 
     if (hashValid)
         return std::make_shared<SHAMapTxPlusMetaLeafNode>(
-            std::move(item), seq, hash);
+            std::move(item), 0, hash);
 
-    return std::make_shared<SHAMapTxPlusMetaLeafNode>(std::move(item), seq);
+    return std::make_shared<SHAMapTxPlusMetaLeafNode>(std::move(item), 0);
 }
 
 std::shared_ptr<SHAMapAbstractNode>
 SHAMapAbstractNode::makeAccountState(
     Slice data,
-    std::uint32_t seq,
     SHAMapHash const& hash,
     bool hashValid)
 {
@@ -149,22 +146,21 @@ SHAMapAbstractNode::makeAccountState(
 
     if (hashValid)
         return std::make_shared<SHAMapAccountStateLeafNode>(
-            std::move(item), seq, hash);
+            std::move(item), 0, hash);
 
-    return std::make_shared<SHAMapAccountStateLeafNode>(std::move(item), seq);
+    return std::make_shared<SHAMapAccountStateLeafNode>(std::move(item), 0);
 }
 
 std::shared_ptr<SHAMapAbstractNode>
 SHAMapInnerNode::makeFullInner(
     Slice data,
-    std::uint32_t seq,
     SHAMapHash const& hash,
     bool hashValid)
 {
     if (data.size() != 512)
         Throw<std::runtime_error>("Invalid FI node");
 
-    auto ret = std::make_shared<SHAMapInnerNode>(seq);
+    auto ret = std::make_shared<SHAMapInnerNode>(0);
 
     Serializer s(data.data(), data.size());
 
@@ -184,13 +180,13 @@ SHAMapInnerNode::makeFullInner(
 }
 
 std::shared_ptr<SHAMapAbstractNode>
-SHAMapInnerNode::makeCompressedInner(Slice data, std::uint32_t seq)
+SHAMapInnerNode::makeCompressedInner(Slice data)
 {
     Serializer s(data.data(), data.size());
 
     int len = s.getLength();
 
-    auto ret = std::make_shared<SHAMapInnerNode>(seq);
+    auto ret = std::make_shared<SHAMapInnerNode>(0);
 
     for (int i = 0; i < (len / 33); ++i)
     {
@@ -226,22 +222,20 @@ SHAMapAbstractNode::makeFromWire(Slice rawNode)
     bool const hashValid = false;
     SHAMapHash const hash;
 
-    std::uint32_t const seq = 0;
-
     if (type == wireTypeTransaction)
-        return makeTransaction(rawNode, seq, hash, hashValid);
+        return makeTransaction(rawNode, hash, hashValid);
 
     if (type == wireTypeAccountState)
-        return makeAccountState(rawNode, seq, hash, hashValid);
+        return makeAccountState(rawNode, hash, hashValid);
 
     if (type == wireTypeInner)
-        return SHAMapInnerNode::makeFullInner(rawNode, seq, hash, hashValid);
+        return SHAMapInnerNode::makeFullInner(rawNode, hash, hashValid);
 
     if (type == wireTypeCompressedInner)
-        return SHAMapInnerNode::makeCompressedInner(rawNode, seq);
+        return SHAMapInnerNode::makeCompressedInner(rawNode);
 
     if (type == wireTypeTransactionWithMeta)
-        return makeTransactionWithMeta(rawNode, seq, hash, hashValid);
+        return makeTransactionWithMeta(rawNode, hash, hashValid);
 
     Throw<std::runtime_error>(
         "wire: Unknown type (" + std::to_string(type) + ")");
@@ -264,19 +258,18 @@ SHAMapAbstractNode::makeFromPrefix(Slice rawNode, SHAMapHash const& hash)
     rawNode.remove_prefix(4);
 
     bool const hashValid = true;
-    std::uint32_t const seq = 0;
 
     if (type == HashPrefix::transactionID)
-        return makeTransaction(rawNode, seq, hash, hashValid);
+        return makeTransaction(rawNode, hash, hashValid);
 
     if (type == HashPrefix::leafNode)
-        return makeAccountState(rawNode, seq, hash, hashValid);
+        return makeAccountState(rawNode, hash, hashValid);
 
     if (type == HashPrefix::innerNode)
-        return SHAMapInnerNode::makeFullInner(rawNode, seq, hash, hashValid);
+        return SHAMapInnerNode::makeFullInner(rawNode, hash, hashValid);
 
     if (type == HashPrefix::txNode)
-        return makeTransactionWithMeta(rawNode, seq, hash, hashValid);
+        return makeTransactionWithMeta(rawNode, hash, hashValid);
 
     Throw<std::runtime_error>(
         "prefix: unknown type (" +
@@ -486,7 +479,7 @@ SHAMapTreeNode::getString(const SHAMapNodeID& id) const
         ret += ",leaf\n";
 
     ret += "  Tag=";
-    ret += to_string(peekItem()->key());
+    ret += to_string(item_->key());
     ret += "\n  Hash=";
     ret += to_string(hash_);
     ret += "/";
