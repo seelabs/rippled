@@ -202,7 +202,7 @@ Ledger::Ledger(
         rawInsert(sle);
     }
 
-    stateMap_->flushDirty(hotACCOUNT_NODE, info_.seq);
+    stateMap_->flushDirty(hotACCOUNT_NODE);
     setImmutable(config);
 }
 

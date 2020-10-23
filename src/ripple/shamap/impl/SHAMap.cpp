@@ -872,10 +872,8 @@ SHAMap::fetchRoot(SHAMapHash const& hash, SHAMapSyncFilter* filter)
 // 2) An unshareable node is shared. This happens when you make
 // a mutable snapshot of a mutable SHAMap.
 std::shared_ptr<SHAMapAbstractNode>
-SHAMap::writeNode(
-    NodeObjectType t,
-    std::uint32_t seq,
-    std::shared_ptr<SHAMapAbstractNode> node) const
+SHAMap::writeNode(NodeObjectType t, std::shared_ptr<SHAMapAbstractNode> node)
+    const
 {
     // Node is ours, so we can just make it shareable
     assert(node->owner() == cowid_);
@@ -917,19 +915,19 @@ int
 SHAMap::unshare()
 {
     // Don't share nodes wth parent map
-    return walkSubTree(false, hotUNKNOWN, 0);
+    return walkSubTree(false, hotUNKNOWN);
 }
 
 /** Convert all modified nodes to shared nodes */
 // If requested, write them to the node store
 int
-SHAMap::flushDirty(NodeObjectType t, std::uint32_t seq)
+SHAMap::flushDirty(NodeObjectType t)
 {
-    return walkSubTree(true, t, seq);
+    return walkSubTree(true, t);
 }
 
 int
-SHAMap::walkSubTree(bool doWrite, NodeObjectType t, std::uint32_t seq)
+SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
 {
     int flushed = 0;
     Serializer s;
@@ -942,7 +940,7 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t, std::uint32_t seq)
         root_ = preFlushNode(std::move(root_));
         root_->updateHash();
         if (doWrite && backed_)
-            root_ = writeNode(t, seq, std::move(root_));
+            root_ = writeNode(t, std::move(root_));
         else
             root_->share();
         return 1;
@@ -1008,7 +1006,7 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t, std::uint32_t seq)
                         child->updateHash();
 
                         if (doWrite && backed_)
-                            child = writeNode(t, seq, std::move(child));
+                            child = writeNode(t, std::move(child));
                         else
                             child->share();
 
@@ -1024,7 +1022,7 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t, std::uint32_t seq)
         // This inner node can now be shared
         if (doWrite && backed_)
             node = std::static_pointer_cast<SHAMapInnerNode>(
-                writeNode(t, seq, std::move(node)));
+                writeNode(t, std::move(node)));
         else
             node->share();
 
