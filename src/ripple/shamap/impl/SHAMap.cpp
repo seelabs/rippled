@@ -24,22 +24,25 @@
 
 namespace ripple {
 
-std::shared_ptr<SHAMapTreeNode>
+[[nodiscard]] std::shared_ptr<SHAMapTreeNode>
 makeTypedLeaf(
     SHAMapNodeType type,
     std::shared_ptr<SHAMapItem const> item,
-    std::uint32_t seq)
+    std::uint32_t owner)
 {
     if (type == SHAMapNodeType::tnTRANSACTION_NM)
-        return std::make_shared<SHAMapTxLeafNode>(item, seq);
+        return std::make_shared<SHAMapTxLeafNode>(item, owner);
 
     if (type == SHAMapNodeType::tnTRANSACTION_MD)
-        return std::make_shared<SHAMapTxPlusMetaLeafNode>(item, seq);
+        return std::make_shared<SHAMapTxPlusMetaLeafNode>(item, owner);
 
     if (type == SHAMapNodeType::tnACCOUNT_STATE)
-        return std::make_shared<SHAMapAccountStateLeafNode>(item, seq);
+        return std::make_shared<SHAMapAccountStateLeafNode>(item, owner);
 
-    Throw<std::logic_error>("Attempt to create leaf node of non-leaf type!");
+    LogicError(
+        "Attempt to create leaf node of unknown type " +
+        std::to_string(
+            static_cast<std::underlying_type_t<SHAMapNodeType>>(type)));
 }
 
 SHAMap::SHAMap(SHAMapType t, Family& f)
