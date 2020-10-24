@@ -220,7 +220,7 @@ is this case stands for 'No Throw'.
 
 The `fetchNodeNT()` method goes through three phases:
 
- 1. By calling `getCache()` we attempt to locate the missing node in the
+ 1. By calling `cacheLookup()` we attempt to locate the missing node in the
     TreeNodeCache.  The TreeNodeCache is a cache of immutable SHAMapTreeNodes
     that are shared across all `SHAMap`s.
 

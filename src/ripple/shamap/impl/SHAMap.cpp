@@ -230,7 +230,7 @@ SHAMap::checkFilter(SHAMapHash const& hash, SHAMapSyncFilter* filter) const
 std::shared_ptr<SHAMapAbstractNode>
 SHAMap::fetchNodeNT(SHAMapHash const& hash, SHAMapSyncFilter* filter) const
 {
-    std::shared_ptr<SHAMapAbstractNode> node = getCache(hash);
+    auto node = cacheLookup(hash);
     if (node)
         return node;
 
@@ -253,7 +253,7 @@ SHAMap::fetchNodeNT(SHAMapHash const& hash, SHAMapSyncFilter* filter) const
 std::shared_ptr<SHAMapAbstractNode>
 SHAMap::fetchNodeNT(SHAMapHash const& hash) const
 {
-    auto node = getCache(hash);
+    auto node = cacheLookup(hash);
 
     if (!node && backed_)
         node = fetchNodeFromDB(hash);
@@ -385,7 +385,7 @@ SHAMap::descendAsync(
 
     auto const& hash = parent->getChildHash(branch);
 
-    std::shared_ptr<SHAMapAbstractNode> ptr = getCache(hash);
+    auto ptr = cacheLookup(hash);
     if (!ptr)
     {
         if (filter)
@@ -619,9 +619,7 @@ SHAMap::upper_bound(uint256 const& id) const
 bool
 SHAMap::hasItem(uint256 const& id) const
 {
-    // does the tree have an item with this ID
-    SHAMapTreeNode* leaf = findKey(id);
-    return (leaf != nullptr);
+    return (findKey(id) != nullptr);
 }
 
 bool
@@ -1098,7 +1096,7 @@ SHAMap::dump(bool hash) const
 }
 
 std::shared_ptr<SHAMapAbstractNode>
-SHAMap::getCache(SHAMapHash const& hash) const
+SHAMap::cacheLookup(SHAMapHash const& hash) const
 {
     auto ret = f_.getTreeNodeCache(ledgerSeq_)->fetch(hash.as_uint256());
     assert(!ret || !ret->owner());

@@ -107,7 +107,7 @@ private:
 
     std::shared_ptr<SHAMapAbstractNode> root_;
     mutable SHAMapState state_;
-    SHAMapType type_;
+    SHAMapType const type_;
     bool backed_ = true;  // Map is backed by the database
     mutable bool full_ = false;   // Map is believed complete in database
 
@@ -180,12 +180,17 @@ public:
     fetchRoot(SHAMapHash const& hash, SHAMapSyncFilter* filter);
 
     // normal hash access functions
+
+    /** Does the tree have an item with the given ID? */
     bool
     hasItem(uint256 const& id) const;
+
     bool
     delItem(uint256 const& id);
+
     bool
     addItem(SHAMapNodeType type, SHAMapItem&& i);
+
     SHAMapHash
     getHash() const;
 
@@ -330,7 +335,7 @@ private:
 
     // tree node cache operations
     std::shared_ptr<SHAMapAbstractNode>
-    getCache(SHAMapHash const& hash) const;
+    cacheLookup(SHAMapHash const& hash) const;
     void
     canonicalize(SHAMapHash const& hash, std::shared_ptr<SHAMapAbstractNode>&)
         const;
