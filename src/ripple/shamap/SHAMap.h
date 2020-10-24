@@ -108,8 +108,8 @@ private:
     std::shared_ptr<SHAMapAbstractNode> root_;
     mutable SHAMapState state_;
     SHAMapType const type_;
-    bool backed_ = true;  // Map is backed by the database
-    mutable bool full_ = false;   // Map is believed complete in database
+    bool backed_ = true;         // Map is backed by the database
+    mutable bool full_ = false;  // Map is believed complete in database
 
 public:
     /** Each non-leaf node has 16 children (the 'radix tree' part of the map) */
@@ -196,15 +196,10 @@ public:
 
     // save a copy if you have a temporary anyway
     bool
-    updateGiveItem(
-        SHAMapNodeType type,
-        std::shared_ptr<SHAMapItem const>);
-
+    updateGiveItem(SHAMapNodeType type, std::shared_ptr<SHAMapItem const>);
 
     bool
-    addGiveItem(
-        SHAMapNodeType type,
-        std::shared_ptr<SHAMapItem const> item);
+    addGiveItem(SHAMapNodeType type, std::shared_ptr<SHAMapItem const> item);
 
     // Save a copy if you need to extend the life
     // of the SHAMapItem beyond this SHAMap
@@ -300,14 +295,18 @@ public:
     bool
     compare(SHAMap const& otherMap, Delta& differences, int maxCount) const;
 
+    /** Convert any modified nodes to shared. */
+    int
+    unshare();
+
+    /** Flush modified nodes to the nodestore and convert them to shared. */
     int
     flushDirty(NodeObjectType t);
+
     void
     walkMap(std::vector<SHAMapMissingNode>& missingNodes, int maxMissing) const;
     bool
     deepCompare(SHAMap& other) const;  // Intended for debug/test only
-
-    using fetchPackEntry_t = std::pair<uint256, Blob>;
 
     void
     getFetchPack(
@@ -318,8 +317,6 @@ public:
 
     void
     setUnbacked();
-    int
-    unshare();
 
     void
     dump(bool withHashes = false) const;

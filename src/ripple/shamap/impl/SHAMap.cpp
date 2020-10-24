@@ -917,8 +917,6 @@ SHAMap::unshare()
     return walkSubTree(false, hotUNKNOWN);
 }
 
-/** Convert all modified nodes to shared nodes */
-// If requested, write them to the node store
 int
 SHAMap::flushDirty(NodeObjectType t)
 {
