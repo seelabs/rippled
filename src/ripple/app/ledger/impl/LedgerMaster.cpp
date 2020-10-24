@@ -2137,7 +2137,7 @@ LedgerMaster::makeFetchPack(
             newObj.set_data(s.getDataPtr(), s.getLength());
             newObj.set_ledgerseq(lSeq);
 
-            wantLedger->stateMap().getFetchPack(
+            wantLedger->stateMap().populateFetchPack(
                 &haveLedger->stateMap(),
                 true,
                 16384,
@@ -2149,7 +2149,7 @@ LedgerMaster::makeFetchPack(
                     std::placeholders::_2));
 
             if (wantLedger->info().txHash.isNonZero())
-                wantLedger->txMap().getFetchPack(
+                wantLedger->txMap().populateFetchPack(
                     nullptr,
                     true,
                     512,
