@@ -787,26 +787,4 @@ SHAMap::hasLeafNode(uint256 const& tag, SHAMapHash const& targetNodeHash) const
                    // already
 }
 
-void
-SHAMap::populateFetchPack(
-    SHAMap const* have,
-    bool includeLeaves,
-    int max,
-    std::function<void(SHAMapHash const&, const Blob&)> func) const
-{
-    visitDifferences(
-        have, [includeLeaves, &max, &func](SHAMapAbstractNode& smn) -> bool {
-            if (includeLeaves || smn.isInner())
-            {
-                Serializer s;
-                smn.serializeWithPrefix(s);
-                func(smn.getHash(), s.peekData());
-
-                if (--max <= 0)
-                    return false;
-            }
-            return true;
-        });
-}
-
 }  // namespace ripple

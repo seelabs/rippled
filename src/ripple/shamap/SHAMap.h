@@ -308,24 +308,6 @@ public:
     bool
     deepCompare(SHAMap& other) const;  // Intended for debug/test only
 
-    /** Iterate the given map and populate a fetch pack.
-
-        @param have The map that the recipient already has (if any).
-        @param includeLeaves True if leaf nodes should be included.
-        @param max The maximum number of nodes to return.
-        @param func Call to add a node to the fetch back being built.
-
-        @note: a caller should set includeLeaves to false for transaction
-               trees, since there's no point in including the leaves of
-               transaction trees.
-     */
-    void
-    populateFetchPack(
-        SHAMap const* have,
-        bool includeLeaves,
-        int max,
-        std::function<void(SHAMapHash const&, const Blob&)> func) const;
-
     void
     setUnbacked();
 
