@@ -862,23 +862,24 @@ SHAMap::fetchRoot(SHAMapHash const& hash, SHAMapSyncFilter* filter)
     return false;
 }
 
-// Replace a node with a shareable node.
-//
-// This code handles two cases:
-//
-// 1) An unshared, unshareable node needs to be made shareable
-// so immutable SHAMap's can have references to it.
-//
-// 2) An unshareable node is shared. This happens when you make
-// a mutable snapshot of a mutable SHAMap.
+/** Replace a node with a shareable node.
+
+    This code handles two cases:
+
+    1) An unshared, unshareable node needs to be made shareable
+       so immutable SHAMap's can have references to it.
+    2) An unshareable node is shared. This happens when you make
+       a mutable snapshot of a mutable SHAMap.
+
+    @note The node must have already been unshared by having the caller
+          first call SHAMapAbstractNode::share().
+ */
 std::shared_ptr<SHAMapAbstractNode>
 SHAMap::writeNode(NodeObjectType t, std::shared_ptr<SHAMapAbstractNode> node)
     const
 {
-    // Node is ours, so we can just make it shareable
-    assert(node->owner() == cowid_);
+    assert(node->owner() == 0);
     assert(backed_);
-    node->share();
 
     canonicalize(node->getHash(), node);
 
@@ -929,8 +930,11 @@ SHAMap::flushDirty(NodeObjectType t)
 int
 SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
 {
+    // We only write back if this map is backed.
+    if (doWrite)
+        doWrite = backed_;
+
     int flushed = 0;
-    Serializer s;
 
     if (!root_ || (root_->owner() == 0))
         return flushed;
@@ -939,10 +943,11 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
     {  // special case -- root_ is leaf
         root_ = preFlushNode(std::move(root_));
         root_->updateHash();
-        if (doWrite && backed_)
+        root_->share();
+
+        if (doWrite)
             root_ = writeNode(t, std::move(root_));
-        else
-            root_->share();
+
         return 1;
     }
 
@@ -1004,11 +1009,10 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
 
                         assert(node->owner() == cowid_);
                         child->updateHash();
+                        child->share();
 
-                        if (doWrite && backed_)
+                        if (doWrite)
                             child = writeNode(t, std::move(child));
-                        else
-                            child->share();
 
                         node->shareChild(branch, child);
                     }
@@ -1020,11 +1024,11 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
         node->updateHashDeep();
 
         // This inner node can now be shared
-        if (doWrite && backed_)
+        node->share();
+
+        if (doWrite)
             node = std::static_pointer_cast<SHAMapInnerNode>(
                 writeNode(t, std::move(node)));
-        else
-            node->share();
 
         ++flushed;
 
