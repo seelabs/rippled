@@ -229,7 +229,7 @@ public:
     void
     visitDifferences(
         SHAMap const* have,
-        std::function<bool(SHAMapAbstractNode&)>) const;
+        std::function<bool(SHAMapAbstractNode const&)>) const;
 
     /**  Visit every leaf node in this SHAMap
 

@@ -283,7 +283,7 @@ class DatabaseShard_test : public TestBase
         }
 
         // Store the state map
-        auto visitAcc = [&](SHAMapAbstractNode& node) {
+        auto visitAcc = [&](SHAMapAbstractNode const& node) {
             Serializer s;
             node.serializeWithPrefix(s);
             db.store(

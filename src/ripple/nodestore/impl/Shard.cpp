@@ -400,7 +400,7 @@ Shard::storeLedger(
     }
 
     bool error = false;
-    auto visit = [&](SHAMapAbstractNode& node) {
+    auto visit = [&](SHAMapAbstractNode const& node) {
         if (!stop_)
         {
             if (auto nodeObject = srcDB.fetchNodeObject(
@@ -1283,7 +1283,7 @@ Shard::verifyLedger(
         return fail("Invalid ledger account hash");
 
     bool error{false};
-    auto visit = [this, &error](SHAMapAbstractNode& node) {
+    auto visit = [this, &error](SHAMapAbstractNode const& node) {
         if (stop_)
             return false;
         if (!verifyFetch(node.getHash().as_uint256()))

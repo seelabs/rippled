@@ -101,7 +101,7 @@ SHAMap::visitNodes(
 void
 SHAMap::visitDifferences(
     SHAMap const* have,
-    std::function<bool(SHAMapAbstractNode&)> function) const
+    std::function<bool(SHAMapAbstractNode const&)> function) const
 {
     // Visit every node in this SHAMap that is not present
     // in the specified SHAMap
