@@ -922,16 +922,13 @@ SHAMap::unshare()
 int
 SHAMap::flushDirty(NodeObjectType t)
 {
-    return walkSubTree(true, t);
+    // We only write back if this map is backed.
+    return walkSubTree(backed_, t);
 }
 
 int
 SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
 {
-    // We only write back if this map is backed.
-    if (doWrite)
-        doWrite = backed_;
-
     int flushed = 0;
 
     if (!root_ || (root_->owner() == 0))
