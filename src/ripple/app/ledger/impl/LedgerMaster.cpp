@@ -2040,7 +2040,7 @@ LedgerMaster::gotFetchPack(bool progress, std::uint32_t seq)
     map that they are already have.
 
     @param have The map that the recipient already has (if any).
-    @param max The maximum number of nodes to return.
+    @param cnt The maximum number of nodes to return.
     @param into the protocol object into which we add information.
     @param seq The sequence number of the ledger the map is a part of.
     @param withLeaves True if leaf nodes should be included.
@@ -2062,28 +2062,30 @@ static void
 populateFetchPack(
     SHAMap const& want,
     SHAMap const* have,
-    int max,
+    std::uint32_t cnt,
     protocol::TMGetObjectByHash* into,
     std::uint32_t seq,
     bool withLeaves = true)
 {
+    assert(cnt != 0);
+
+    Serializer s(1024);
+
     want.visitDifferences(
         have,
-        [withLeaves, &max, into, seq](SHAMapAbstractNode const& smn) -> bool {
-            if (withLeaves || smn.isInner())
-            {
-                Serializer s;
-                smn.serializeWithPrefix(s);
+        [&s, withLeaves, &cnt, into, seq](SHAMapAbstractNode const& n) -> bool {
+            if (!withLeaves && n.isLeaf())
+                return true;
 
-                protocol::TMIndexedObject* obj = into->add_objects();
-                obj->set_ledgerseq(seq);
-                obj->set_hash(smn.getHash().as_uint256().data(), 256 / 8);
-                obj->set_data(s.getDataPtr(), s.getLength());
+            s.erase();
+            n.serializeWithPrefix(s);
 
-                if (--max <= 0)
-                    return false;
-            }
-            return true;
+            protocol::TMIndexedObject* obj = into->add_objects();
+            obj->set_ledgerseq(seq);
+            obj->set_hash(n.getHash().as_uint256().data(), 256 / 8);
+            obj->set_data(s.getDataPtr(), s.getLength());
+
+            return --cnt != 0;
         });
 }
 
@@ -2164,8 +2166,7 @@ LedgerMaster::makeFetchPack(
         //  2. Add the nodes for the AccountStateMap of that ledger.
         //  3. If there are transactions, add the nodes for the
         //     transactions of the ledger.
-        //  4. If the FetchPack now contains greater than or equal to
-        //     256 entries then stop.
+        //  4. If the FetchPack now contains at least 512 entries then stop.
         //  5. If not very much time has elapsed, then loop back and repeat
         //     the same process adding the previous ledger to the FetchPack.
         do
