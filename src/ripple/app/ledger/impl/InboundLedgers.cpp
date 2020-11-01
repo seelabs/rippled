@@ -43,10 +43,8 @@ private:
     beast::Journal const j_;
 
 public:
-    using u256_acq_pair = std::pair<uint256, std::shared_ptr<InboundLedger>>;
-
     // How long before we try again to acquire the same ledger
-    static const std::chrono::minutes kReacquireInterval;
+    static constexpr std::chrono::minutes const kReacquireInterval{5};
 
     InboundLedgersImp(
         Application& app,
@@ -286,15 +284,16 @@ public:
     {
         Json::Value ret(Json::objectValue);
 
-        std::vector<u256_acq_pair> acquires;
+        std::vector<std::pair<uint256, std::shared_ptr<InboundLedger>>> acqs;
+
         {
             ScopedLockType sl(mLock);
 
-            acquires.reserve(mLedgers.size());
+            acqs.reserve(mLedgers.size());
             for (auto const& it : mLedgers)
             {
                 assert(it.second);
-                acquires.push_back(it);
+                acqs.push_back(it);
             }
             for (auto const& it : mRecentFailures)
             {
@@ -305,7 +304,7 @@ public:
             }
         }
 
-        for (auto const& it : acquires)
+        for (auto const& it : acqs)
         {
             // getJson is expensive, so call without the lock
             std::uint32_t seq = it.second->getSeq();
@@ -408,11 +407,6 @@ private:
 };
 
 //------------------------------------------------------------------------------
-
-decltype(InboundLedgersImp::kReacquireInterval)
-    InboundLedgersImp::kReacquireInterval{5};
-
-InboundLedgers::~InboundLedgers() = default;
 
 std::unique_ptr<InboundLedgers>
 make_InboundLedgers(
