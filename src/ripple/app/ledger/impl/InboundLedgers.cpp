@@ -170,36 +170,36 @@ public:
     {
         protocol::TMLedgerData& packet = *packet_ptr;
 
-        JLOG(j_.trace()) << "Got data (" << packet.nodes().size()
-                         << ") for acquiring ledger: " << hash;
-
-        auto ledger = find(hash);
-
-        if (!ledger)
+        if (auto ledger = find(hash))
         {
-            JLOG(j_.trace()) << "Got data for ledger we're no longer acquiring";
+            JLOG(j_.trace()) << "Got data (" << packet.nodes().size()
+                             << ") for acquiring ledger: " << hash;
 
-            // If it's state node data, stash it because it still might be
-            // useful.
-            if (packet.type() == protocol::liAS_NODE)
-            {
+            // Stash the data for later processing and see if we need to
+            // dispatch
+            if (ledger->gotData(std::weak_ptr<Peer>(peer), packet_ptr))
                 app_.getJobQueue().addJob(
-                    jtLEDGER_DATA, "gotStaleData", [this, packet_ptr](Job&) {
-                        gotStaleData(packet_ptr);
+                    jtLEDGER_DATA, "processLedgerData", [this, ledger](Job&) {
+                        ledger->runData();
                     });
-            }
 
-            return false;
+            return true;
         }
 
-        // Stash the data for later processing and see if we need to dispatch
-        if (ledger->gotData(std::weak_ptr<Peer>(peer), packet_ptr))
-            app_.getJobQueue().addJob(
-                jtLEDGER_DATA, "processLedgerData", [this, ledger](Job&) {
-                    ledger->runData();
-                });
+        JLOG(j_.trace()) << "Got data for ledger " << hash
+                         << " which we're no longer acquiring";
 
-        return true;
+        // If it's state node data, stash it because it still might be
+        // useful.
+        if (packet.type() == protocol::liAS_NODE)
+        {
+            app_.getJobQueue().addJob(
+                jtLEDGER_DATA, "gotStaleData", [this, packet_ptr](Job&) {
+                    gotStaleData(packet_ptr);
+                });
+        }
+
+        return false;
     }
 
     void
