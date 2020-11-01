@@ -196,7 +196,8 @@ public:
         if (ledger->gotData(std::weak_ptr<Peer>(peer), packet_ptr))
             app_.getJobQueue().addJob(
                 jtLEDGER_DATA, "processLedgerData", [this, hash](Job&) {
-                    doLedgerData(hash);
+                    if (auto ledger = find(hash))
+                        ledger->runData();
                 });
 
         return true;
@@ -217,14 +218,6 @@ public:
 
         beast::expire(mRecentFailures, kReacquireInterval);
         return mRecentFailures.find(h) != mRecentFailures.end();
-    }
-
-    /** Called (indirectly) only by gotLedgerData(). */
-    void
-    doLedgerData(LedgerHash hash)
-    {
-        if (auto ledger = find(hash))
-            ledger->runData();
     }
 
     /** We got some data for a ledger we are no longer acquiring Since we paid
