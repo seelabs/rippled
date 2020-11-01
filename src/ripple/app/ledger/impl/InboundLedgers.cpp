@@ -195,9 +195,8 @@ public:
         // Stash the data for later processing and see if we need to dispatch
         if (ledger->gotData(std::weak_ptr<Peer>(peer), packet_ptr))
             app_.getJobQueue().addJob(
-                jtLEDGER_DATA, "processLedgerData", [this, hash](Job&) {
-                    if (auto ledger = find(hash))
-                        ledger->runData();
+                jtLEDGER_DATA, "processLedgerData", [this, ledger](Job&) {
+                    ledger->runData();
                 });
 
         return true;
