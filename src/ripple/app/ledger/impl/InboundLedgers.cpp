@@ -166,18 +166,16 @@ public:
     gotLedgerData(
         LedgerHash const& hash,
         std::shared_ptr<Peer> peer,
-        std::shared_ptr<protocol::TMLedgerData> packet_ptr) override
+        std::shared_ptr<protocol::TMLedgerData> packet) override
     {
-        protocol::TMLedgerData& packet = *packet_ptr;
-
         if (auto ledger = find(hash))
         {
-            JLOG(j_.trace()) << "Got data (" << packet.nodes().size()
+            JLOG(j_.trace()) << "Got data (" << packet->nodes().size()
                              << ") for acquiring ledger: " << hash;
 
             // Stash the data for later processing and see if we need to
             // dispatch
-            if (ledger->gotData(std::weak_ptr<Peer>(peer), packet_ptr))
+            if (ledger->gotData(std::weak_ptr<Peer>(peer), packet))
                 app_.getJobQueue().addJob(
                     jtLEDGER_DATA, "processLedgerData", [this, ledger](Job&) {
                         ledger->runData();
@@ -191,11 +189,11 @@ public:
 
         // If it's state node data, stash it because it still might be
         // useful.
-        if (packet.type() == protocol::liAS_NODE)
+        if (packet->type() == protocol::liAS_NODE)
         {
             app_.getJobQueue().addJob(
-                jtLEDGER_DATA, "gotStaleData", [this, packet_ptr](Job&) {
-                    gotStaleData(packet_ptr);
+                jtLEDGER_DATA, "gotStaleData", [this, packet](Job&) {
+                    gotStaleData(packet);
                 });
         }
 
