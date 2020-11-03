@@ -61,7 +61,7 @@ SHAMap::walkBranch(
         else
         {
             // This is a leaf node, process its item
-            auto item = static_cast<SHAMapTreeNode*>(node)->peekItem();
+            auto item = static_cast<SHAMapLeafNode*>(node)->peekItem();
 
             if (emptyBranch || (item->key() != otherMapItem->key()))
             {
@@ -152,8 +152,8 @@ SHAMap::compare(SHAMap const& otherMap, Delta& differences, int maxCount) const
         if (ourNode->isLeaf() && otherNode->isLeaf())
         {
             // two leaves
-            auto ours = static_cast<SHAMapTreeNode*>(ourNode);
-            auto other = static_cast<SHAMapTreeNode*>(otherNode);
+            auto ours = static_cast<SHAMapLeafNode*>(ourNode);
+            auto other = static_cast<SHAMapLeafNode*>(otherNode);
             if (ours->peekItem()->key() == other->peekItem()->key())
             {
                 if (ours->peekItem()->peekData() !=
@@ -188,14 +188,14 @@ SHAMap::compare(SHAMap const& otherMap, Delta& differences, int maxCount) const
         else if (ourNode->isInner() && otherNode->isLeaf())
         {
             auto ours = static_cast<SHAMapInnerNode*>(ourNode);
-            auto other = static_cast<SHAMapTreeNode*>(otherNode);
+            auto other = static_cast<SHAMapLeafNode*>(otherNode);
             if (!walkBranch(
                     ours, other->peekItem(), true, differences, maxCount))
                 return false;
         }
         else if (ourNode->isLeaf() && otherNode->isInner())
         {
-            auto ours = static_cast<SHAMapTreeNode*>(ourNode);
+            auto ours = static_cast<SHAMapLeafNode*>(ourNode);
             auto other = static_cast<SHAMapInnerNode*>(otherNode);
             if (!otherMap.walkBranch(
                     other, ours->peekItem(), false, differences, maxCount))

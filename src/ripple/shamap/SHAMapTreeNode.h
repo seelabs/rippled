@@ -141,18 +141,18 @@ protected:
 
     /** Construct a node
 
-        @param owner The identifier of a SHAMap. For more, see #cowid_
+        @param cowid The identifier of a SHAMap. For more, see #cowid_
         @param hash The hash associated with this node, if any.
      */
     /** @{ */
-    explicit SHAMapAbstractNode(std::uint32_t owner) noexcept : cowid_(owner)
+    explicit SHAMapAbstractNode(std::uint32_t cowid) noexcept : cowid_(cowid)
     {
     }
 
     explicit SHAMapAbstractNode(
-        std::uint32_t owner,
+        std::uint32_t cowid,
         SHAMapHash const& hash) noexcept
-        : hash_(hash), cowid_(owner)
+        : hash_(hash), cowid_(cowid)
     {
     }
     /** @} */
@@ -184,7 +184,7 @@ public:
                 is not owned by any SHAMap and is a candidate for sharing.
      */
     std::uint32_t
-    owner() const;
+    cowid() const;
 
     /** Mark this node as shareable.
 
@@ -196,7 +196,7 @@ public:
 
     /** Make a copy of this node, setting the owner. */
     virtual std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t owner) const = 0;
+    clone(std::uint32_t cowid) const = 0;
     /** @} */
 
     /** Recalculate the hash of this node. */
@@ -250,8 +250,8 @@ private:
     makeTransactionWithMeta(Slice data, SHAMapHash const& hash, bool hashValid);
 };
 
-class SHAMapInnerNode : public SHAMapAbstractNode,
-                        public CountedObject<SHAMapInnerNode>
+class SHAMapInnerNode final : public SHAMapAbstractNode,
+                              public CountedObject<SHAMapInnerNode>
 {
     std::array<SHAMapHash, 16> mHashes;
     std::shared_ptr<SHAMapAbstractNode> mChildren[16];
@@ -261,24 +261,25 @@ class SHAMapInnerNode : public SHAMapAbstractNode,
     static std::mutex childLock;
 
 public:
-    SHAMapInnerNode(std::uint32_t owner);
+    SHAMapInnerNode(std::uint32_t cowid);
+
     std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t owner) const override;
+    clone(std::uint32_t cowid) const final;
 
     SHAMapNodeType
-    getType() const override
+    getType() const final
     {
         return SHAMapNodeType::tnINNER;
     }
 
     bool
-    isLeaf() const override
+    isLeaf() const final
     {
         return false;
     }
 
     bool
-    isInner() const override
+    isInner() const final
     {
         return true;
     }
@@ -310,23 +311,23 @@ public:
     setFullBelowGen(std::uint32_t gen);
 
     void
-    updateHash() override;
+    updateHash() final;
 
     /** Recalculate the hash of all children and this node. */
     void
     updateHashDeep();
 
     void
-    serializeForWire(Serializer&) const override;
+    serializeForWire(Serializer&) const final;
 
     void
-    serializeWithPrefix(Serializer&) const override;
+    serializeWithPrefix(Serializer&) const final;
 
     std::string
-    getString(SHAMapNodeID const&) const override;
+    getString(SHAMapNodeID const&) const final;
 
     void
-    invariants(bool is_root = false) const override;
+    invariants(bool is_root = false) const final;
 
     static std::shared_ptr<SHAMapAbstractNode>
     makeFullInner(Slice data, SHAMapHash const& hash, bool hashValid);
@@ -337,36 +338,36 @@ public:
 
 // SHAMapTreeNode represents a leaf, and may eventually be renamed to reflect
 // that.
-class SHAMapTreeNode : public SHAMapAbstractNode
+class SHAMapLeafNode : public SHAMapAbstractNode
 {
 protected:
     std::shared_ptr<SHAMapItem const> item_;
 
-    SHAMapTreeNode(std::shared_ptr<SHAMapItem const> item, std::uint32_t owner);
-    SHAMapTreeNode(
+    SHAMapLeafNode(std::shared_ptr<SHAMapItem const> item, std::uint32_t cowid);
+    SHAMapLeafNode(
         std::shared_ptr<SHAMapItem const> item,
-        std::uint32_t owner,
+        std::uint32_t cowid,
         SHAMapHash const& hash);
 
 public:
-    SHAMapTreeNode(const SHAMapTreeNode&) = delete;
-    SHAMapTreeNode&
-    operator=(const SHAMapTreeNode&) = delete;
+    SHAMapLeafNode(const SHAMapLeafNode&) = delete;
+    SHAMapLeafNode&
+    operator=(const SHAMapLeafNode&) = delete;
 
     bool
-    isLeaf() const override
+    isLeaf() const final
     {
         return true;
     }
 
     bool
-    isInner() const override
+    isInner() const final
     {
         return false;
     }
 
     void
-    invariants(bool is_root = false) const override;
+    invariants(bool is_root = false) const final;
 
 public:  // public only to SHAMap
     // item node function
@@ -383,141 +384,144 @@ public:  // public only to SHAMap
     setItem(std::shared_ptr<SHAMapItem const> i);
 
     std::string
-    getString(SHAMapNodeID const&) const override;
+    getString(SHAMapNodeID const&) const final;
 };
 
 /** A leaf node for a transaction. No metadata is included. */
-class SHAMapTxLeafNode : public SHAMapTreeNode,
-                         public CountedObject<SHAMapTxLeafNode>
+class SHAMapTxLeafNode final : public SHAMapLeafNode,
+                               public CountedObject<SHAMapTxLeafNode>
 {
 public:
-    SHAMapTxLeafNode(std::shared_ptr<SHAMapItem const> item, std::uint32_t owner)
-        : SHAMapTreeNode(std::move(item), owner)
+    SHAMapTxLeafNode(
+        std::shared_ptr<SHAMapItem const> item,
+        std::uint32_t cowid)
+        : SHAMapLeafNode(std::move(item), cowid)
     {
         updateHash();
     }
 
     SHAMapTxLeafNode(
         std::shared_ptr<SHAMapItem const> item,
-        std::uint32_t owner,
+        std::uint32_t cowid,
         SHAMapHash const& hash)
-        : SHAMapTreeNode(std::move(item), owner, hash)
+        : SHAMapLeafNode(std::move(item), cowid, hash)
     {
     }
 
     std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t owner) const override
+    clone(std::uint32_t cowid) const final
     {
-        return std::make_shared<SHAMapTxLeafNode>(item_, owner, hash_);
+        return std::make_shared<SHAMapTxLeafNode>(item_, cowid, hash_);
     }
 
     SHAMapNodeType
-    getType() const override
+    getType() const final
     {
         return SHAMapNodeType::tnTRANSACTION_NM;
     }
 
     void
-    updateHash() override;
+    updateHash() final;
 
     void
-    serializeForWire(Serializer&) const override;
+    serializeForWire(Serializer&) const final;
 
     void
-    serializeWithPrefix(Serializer&) const override;
+    serializeWithPrefix(Serializer&) const final;
 };
 
 /** A leaf node for a transaction and its associated metadata. */
-class SHAMapTxPlusMetaLeafNode : public SHAMapTreeNode,
-                                 public CountedObject<SHAMapTxPlusMetaLeafNode>
+class SHAMapTxPlusMetaLeafNode final
+    : public SHAMapLeafNode,
+      public CountedObject<SHAMapTxPlusMetaLeafNode>
 {
 public:
     SHAMapTxPlusMetaLeafNode(
         std::shared_ptr<SHAMapItem const> item,
-        std::uint32_t owner)
-        : SHAMapTreeNode(std::move(item), owner)
+        std::uint32_t cowid)
+        : SHAMapLeafNode(std::move(item), cowid)
     {
         updateHash();
     }
 
     SHAMapTxPlusMetaLeafNode(
         std::shared_ptr<SHAMapItem const> item,
-        std::uint32_t owner,
+        std::uint32_t cowid,
         SHAMapHash const& hash)
-        : SHAMapTreeNode(std::move(item), owner, hash)
+        : SHAMapLeafNode(std::move(item), cowid, hash)
     {
     }
 
     std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t owner) const override
+    clone(std::uint32_t cowid) const final
     {
-        return std::make_shared<SHAMapTxPlusMetaLeafNode>(item_, owner, hash_);
+        return std::make_shared<SHAMapTxPlusMetaLeafNode>(item_, cowid, hash_);
     }
 
     SHAMapNodeType
-    getType() const override
+    getType() const final
     {
         return SHAMapNodeType::tnTRANSACTION_MD;
     }
 
     void
-    updateHash() override;
+    updateHash() final;
 
     void
-    serializeForWire(Serializer&) const override;
+    serializeForWire(Serializer&) const final;
 
     void
-    serializeWithPrefix(Serializer&) const override;
+    serializeWithPrefix(Serializer&) const final;
 };
 
 /** A leaf node for a state object. */
-class SHAMapAccountStateLeafNode
-    : public SHAMapTreeNode,
+class SHAMapAccountStateLeafNode final
+    : public SHAMapLeafNode,
       public CountedObject<SHAMapAccountStateLeafNode>
 {
 public:
     SHAMapAccountStateLeafNode(
         std::shared_ptr<SHAMapItem const> item,
-        std::uint32_t owner)
-        : SHAMapTreeNode(std::move(item), owner)
+        std::uint32_t cowid)
+        : SHAMapLeafNode(std::move(item), cowid)
     {
         updateHash();
     }
 
     SHAMapAccountStateLeafNode(
         std::shared_ptr<SHAMapItem const> item,
-        std::uint32_t owner,
+        std::uint32_t cowid,
         SHAMapHash const& hash)
-        : SHAMapTreeNode(std::move(item), owner, hash)
+        : SHAMapLeafNode(std::move(item), cowid, hash)
     {
     }
 
     std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t owner) const override
+    clone(std::uint32_t cowid) const final
     {
         return std::make_shared<SHAMapAccountStateLeafNode>(
-            item_, owner, hash_);
+            item_, cowid, hash_);
     }
 
     SHAMapNodeType
-    getType() const override
+    getType() const final
     {
         return SHAMapNodeType::tnACCOUNT_STATE;
     }
 
     void
-    updateHash() override;
+    updateHash() final;
 
     void
-    serializeForWire(Serializer&) const override;
+    serializeForWire(Serializer&) const final;
 
     void
-    serializeWithPrefix(Serializer&) const override;
+    serializeWithPrefix(Serializer&) const final;
 };
 
 // SHAMapAbstractNode
 inline std::uint32_t
-SHAMapAbstractNode::owner() const
+SHAMapAbstractNode::cowid() const
 {
     return cowid_;
 }
@@ -536,8 +540,8 @@ SHAMapAbstractNode::getHash() const
 
 // SHAMapInnerNode
 
-inline SHAMapInnerNode::SHAMapInnerNode(std::uint32_t owner)
-    : SHAMapAbstractNode(owner)
+inline SHAMapInnerNode::SHAMapInnerNode(std::uint32_t cowid)
+    : SHAMapAbstractNode(cowid)
 {
 }
 
@@ -568,7 +572,7 @@ SHAMapInnerNode::setFullBelowGen(std::uint32_t gen)
 
 // SHAMapTreeNode
 inline std::shared_ptr<SHAMapItem const> const&
-SHAMapTreeNode::peekItem() const
+SHAMapLeafNode::peekItem() const
 {
     return item_;
 }

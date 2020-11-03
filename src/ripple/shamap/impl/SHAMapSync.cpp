@@ -30,7 +30,7 @@ SHAMap::visitLeaves(
 {
     visitNodes([&leafFunction](SHAMapAbstractNode& node) {
         if (!node.isInner())
-            leafFunction(static_cast<SHAMapTreeNode&>(node).peekItem());
+            leafFunction(static_cast<SHAMapLeafNode&>(node).peekItem());
         return true;
     });
 }
@@ -116,7 +116,7 @@ SHAMap::visitDifferences(
 
     if (root_->isLeaf())
     {
-        auto leaf = std::static_pointer_cast<SHAMapTreeNode>(root_);
+        auto leaf = std::static_pointer_cast<SHAMapLeafNode>(root_);
         if (!have ||
             !have->hasLeafNode(leaf->peekItem()->key(), leaf->getHash()))
             function(*root_);
@@ -155,7 +155,7 @@ SHAMap::visitDifferences(
                 else if (
                     !have ||
                     !have->hasLeafNode(
-                        static_cast<SHAMapTreeNode*>(next)->peekItem()->key(),
+                        static_cast<SHAMapLeafNode*>(next)->peekItem()->key(),
                         childHash))
                 {
                     if (!function(*next))
@@ -620,8 +620,9 @@ SHAMap::addKnownNode(
 
             // Inner nodes must be at a level strictly less than 64
             // but leaf nodes (while notionally at level 64) can be
-            // at any depth:
-            if (newNode->isInner() && iNodeID.getDepth() == 64)
+            // at any depth up to and including 64:
+            if ((iNodeID.getDepth() > leafDepth) ||
+                (newNode->isInner() && iNodeID.getDepth() == leafDepth))
             {
                 // Map is provably invalid
                 state_ = SHAMapState::Invalid;
@@ -691,9 +692,9 @@ SHAMap::deepCompare(SHAMap& other) const
         {
             if (!otherNode->isLeaf())
                 return false;
-            auto& nodePeek = static_cast<SHAMapTreeNode*>(node)->peekItem();
+            auto& nodePeek = static_cast<SHAMapLeafNode*>(node)->peekItem();
             auto& otherNodePeek =
-                static_cast<SHAMapTreeNode*>(otherNode)->peekItem();
+                static_cast<SHAMapLeafNode*>(otherNode)->peekItem();
             if (nodePeek->key() != otherNodePeek->key())
                 return false;
             if (nodePeek->peekData() != otherNodePeek->peekData())

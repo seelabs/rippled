@@ -17,14 +17,14 @@ or account state can be used to navigate the trie.
 A `SHAMap` is a trie with two node types:
 
 1.  SHAMapInnerNode
-2.  SHAMapTreeNode
+2.  SHAMapLeafNode
 
 Both of these nodes directly inherit from SHAMapAbstractNode which holds data
 common to both of the node types.
 
 All non-leaf nodes have type SHAMapInnerNode.
 
-All leaf nodes have type SHAMapTreeNode.
+All leaf nodes have type SHAMapLeafNode.
 
 The root node is always a SHAMapInnerNode.
 
@@ -224,7 +224,7 @@ The `fetchNodeNT()` method goes through three phases:
     TreeNodeCache.  The TreeNodeCache is a cache of immutable SHAMapTreeNodes
     that are shared across all `SHAMap`s.
 
-    Any SHAMapTreeNode that is immutable has a sequence number of zero
+    Any SHAMapLeafNode that is immutable has a sequence number of zero
     (sharable). When a mutable `SHAMap` is created then its SHAMapTreeNodes are
     given non-zero sequence numbers (unsharable).  But all nodes in the
     TreeNodeCache are immutable, so if one is found here, its sequence number
@@ -250,7 +250,7 @@ the `SHAMap`, node `TreeNodeCache` or database, then we don't create duplicates
 by favoring the copy already in the `TreeNodeCache`.
 
 By using `canonicalize()` we manage a thread race condition where two different
-threads might both recognize the lack of a SHAMapTreeNode at the same time
+threads might both recognize the lack of a SHAMapLeafNode at the same time
 (during a fetch).  If they both attempt to insert the node into the `SHAMap`, then
 `canonicalize` makes sure that the first node in wins and the slower thread
 receives back a pointer to the node inserted by the faster thread.  Recall
@@ -309,9 +309,9 @@ the following data:
 3.  A 16-bit bitset with a 1 bit set for each child that exists.
 4.  Flag to aid online delete and consistency with data on disk.
 
-## SHAMapTreeNode ##
+## SHAMapLeafNode ##
 
-SHAMapTreeNode publicly inherits directly from SHAMapAbstractNode.  It holds the
+SHAMapLeafNode publicly inherits directly from SHAMapAbstractNode.  It holds the
 following data:
 
 1.  A shared_ptr to a const SHAMapItem.

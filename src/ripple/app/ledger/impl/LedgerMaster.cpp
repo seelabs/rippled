@@ -2041,7 +2041,7 @@ LedgerMaster::gotFetchPack(bool progress, std::uint32_t seq)
 
     @param have The map that the recipient already has (if any).
     @param cnt The maximum number of nodes to return.
-    @param into the protocol object into which we add information.
+    @param into The protocol object into which we add information.
     @param seq The sequence number of the ledger the map is a part of.
     @param withLeaves True if leaf nodes should be included.
 
@@ -2080,9 +2080,11 @@ populateFetchPack(
             s.erase();
             n.serializeWithPrefix(s);
 
+            auto const& hash = n.getHash().as_uint256();
+
             protocol::TMIndexedObject* obj = into->add_objects();
             obj->set_ledgerseq(seq);
-            obj->set_hash(n.getHash().as_uint256().data(), 256 / 8);
+            obj->set_hash(hash.data(), hash.size());
             obj->set_data(s.getDataPtr(), s.getLength());
 
             return --cnt != 0;

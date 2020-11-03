@@ -42,9 +42,9 @@ static constexpr unsigned char const wireTypeTransactionWithMeta = 4;
 std::mutex SHAMapInnerNode::childLock;
 
 std::shared_ptr<SHAMapAbstractNode>
-SHAMapInnerNode::clone(std::uint32_t owner) const
+SHAMapInnerNode::clone(std::uint32_t cowid) const
 {
-    auto p = std::make_shared<SHAMapInnerNode>(owner);
+    auto p = std::make_shared<SHAMapInnerNode>(cowid);
     p->hash_ = hash_;
     p->mIsBranch = mIsBranch;
     p->mFullBelowGen = mFullBelowGen;
@@ -55,19 +55,19 @@ SHAMapInnerNode::clone(std::uint32_t owner) const
     return p;
 }
 
-SHAMapTreeNode::SHAMapTreeNode(
+SHAMapLeafNode::SHAMapLeafNode(
     std::shared_ptr<SHAMapItem const> item,
-    std::uint32_t owner)
-    : SHAMapAbstractNode(owner), item_(std::move(item))
+    std::uint32_t cowid)
+    : SHAMapAbstractNode(cowid), item_(std::move(item))
 {
     assert(item_->peekData().size() >= 12);
 }
 
-SHAMapTreeNode::SHAMapTreeNode(
+SHAMapLeafNode::SHAMapLeafNode(
     std::shared_ptr<SHAMapItem const> item,
-    std::uint32_t owner,
+    std::uint32_t cowid,
     SHAMapHash const& hash)
-    : SHAMapAbstractNode(owner, hash), item_(std::move(item))
+    : SHAMapAbstractNode(cowid, hash), item_(std::move(item))
 {
     assert(item_->peekData().size() >= 12);
 }
@@ -409,7 +409,7 @@ SHAMapAccountStateLeafNode::serializeWithPrefix(Serializer& s) const
 }
 
 bool
-SHAMapTreeNode::setItem(std::shared_ptr<SHAMapItem const> i)
+SHAMapLeafNode::setItem(std::shared_ptr<SHAMapItem const> i)
 {
     assert(cowid_ != 0);
     item_ = std::move(i);
@@ -463,7 +463,7 @@ SHAMapInnerNode::getString(const SHAMapNodeID& id) const
 }
 
 std::string
-SHAMapTreeNode::getString(const SHAMapNodeID& id) const
+SHAMapLeafNode::getString(const SHAMapNodeID& id) const
 {
     std::string ret = SHAMapAbstractNode::getString(id);
 
@@ -587,7 +587,7 @@ SHAMapInnerNode::invariants(bool is_root) const
 }
 
 void
-SHAMapTreeNode::invariants(bool) const
+SHAMapLeafNode::invariants(bool) const
 {
     assert(hash_.isNonZero());
     assert(item_ != nullptr);

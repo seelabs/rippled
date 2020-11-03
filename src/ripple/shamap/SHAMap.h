@@ -352,11 +352,11 @@ private:
     /** Walk towards the specified id, returning the node.  Caller must check
         if the return is nullptr, and if not, if the node->peekItem()->key() ==
        id */
-    SHAMapTreeNode*
+    SHAMapLeafNode*
     walkTowardsKey(uint256 const& id, SharedPtrNodeStack* stack = nullptr)
         const;
     /** Return nullptr if key not found */
-    SHAMapTreeNode*
+    SHAMapLeafNode*
     findKey(uint256 const& id) const;
 
     /** Unshare the node, allowing it to be modified */
@@ -373,7 +373,7 @@ private:
     std::shared_ptr<SHAMapAbstractNode>
     writeNode(NodeObjectType t, std::shared_ptr<SHAMapAbstractNode> node) const;
 
-    SHAMapTreeNode*
+    SHAMapLeafNode*
     firstBelow(
         std::shared_ptr<SHAMapAbstractNode>,
         SharedPtrNodeStack& stack,
@@ -419,9 +419,9 @@ private:
     bool
     hasLeafNode(uint256 const& tag, SHAMapHash const& hash) const;
 
-    SHAMapTreeNode const*
+    SHAMapLeafNode const*
     peekFirstItem(SharedPtrNodeStack& stack) const;
-    SHAMapTreeNode const*
+    SHAMapLeafNode const*
     peekNextItem(uint256 const& id, SharedPtrNodeStack& stack) const;
     bool
     walkBranch(

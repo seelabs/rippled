@@ -78,12 +78,12 @@ static_assert(!std::is_copy_assignable<SHAMapInnerNode>{}, "");
 static_assert(!std::is_move_constructible<SHAMapInnerNode>{}, "");
 static_assert(!std::is_move_assignable<SHAMapInnerNode>{}, "");
 
-static_assert(std::is_nothrow_destructible<SHAMapTreeNode>{}, "");
-static_assert(!std::is_default_constructible<SHAMapTreeNode>{}, "");
-static_assert(!std::is_copy_constructible<SHAMapTreeNode>{}, "");
-static_assert(!std::is_copy_assignable<SHAMapTreeNode>{}, "");
-static_assert(!std::is_move_constructible<SHAMapTreeNode>{}, "");
-static_assert(!std::is_move_assignable<SHAMapTreeNode>{}, "");
+static_assert(std::is_nothrow_destructible<SHAMapLeafNode>{}, "");
+static_assert(!std::is_default_constructible<SHAMapLeafNode>{}, "");
+static_assert(!std::is_copy_constructible<SHAMapLeafNode>{}, "");
+static_assert(!std::is_copy_assignable<SHAMapLeafNode>{}, "");
+static_assert(!std::is_move_constructible<SHAMapLeafNode>{}, "");
+static_assert(!std::is_move_assignable<SHAMapLeafNode>{}, "");
 #endif
 
 inline bool
