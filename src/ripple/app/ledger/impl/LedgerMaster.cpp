@@ -2154,6 +2154,8 @@ LedgerMaster::makeFetchPack(
 
     try
     {
+        Serializer hdr(128);
+
         protocol::TMGetObjectByHash reply;
         reply.set_query(false);
 
@@ -2177,8 +2179,8 @@ LedgerMaster::makeFetchPack(
 
             {
                 // Serialize the ledger header:
-                Serializer hdr(128);
                 hdr.erase();
+
                 hdr.add32(HashPrefix::ledgerMaster);
                 addRaw(want->info(), hdr);
 
