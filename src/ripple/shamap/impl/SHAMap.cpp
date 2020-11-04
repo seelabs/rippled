@@ -928,6 +928,8 @@ SHAMap::flushDirty(NodeObjectType t)
 int
 SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
 {
+    assert(!doWrite || backed_);
+
     int flushed = 0;
 
     if (!root_ || (root_->cowid() == 0))
