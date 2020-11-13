@@ -35,6 +35,7 @@ namespace ripple {
 
 // A SHAMapHash is the hash of a node in a SHAMap, and also the
 // type of the hash of the entire SHAMap.
+
 class SHAMapHash
 {
     uint256 hash_;
@@ -264,22 +265,22 @@ public:
     SHAMapInnerNode(std::uint32_t cowid);
 
     std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t cowid) const final;
+    clone(std::uint32_t cowid) const override;
 
     SHAMapNodeType
-    getType() const final
+    getType() const override
     {
         return SHAMapNodeType::tnINNER;
     }
 
     bool
-    isLeaf() const final
+    isLeaf() const override
     {
         return false;
     }
 
     bool
-    isInner() const final
+    isInner() const override
     {
         return true;
     }
@@ -311,23 +312,23 @@ public:
     setFullBelowGen(std::uint32_t gen);
 
     void
-    updateHash() final;
+    updateHash() override;
 
     /** Recalculate the hash of all children and this node. */
     void
     updateHashDeep();
 
     void
-    serializeForWire(Serializer&) const final;
+    serializeForWire(Serializer&) const override;
 
     void
-    serializeWithPrefix(Serializer&) const final;
+    serializeWithPrefix(Serializer&) const override;
 
     std::string
-    getString(SHAMapNodeID const&) const final;
+    getString(SHAMapNodeID const&) const override;
 
     void
-    invariants(bool is_root = false) const final;
+    invariants(bool is_root = false) const override;
 
     static std::shared_ptr<SHAMapAbstractNode>
     makeFullInner(Slice data, SHAMapHash const& hash, bool hashValid);
@@ -355,19 +356,19 @@ public:
     operator=(const SHAMapLeafNode&) = delete;
 
     bool
-    isLeaf() const final
+    isLeaf() const final override
     {
         return true;
     }
 
     bool
-    isInner() const final
+    isInner() const final override
     {
         return false;
     }
 
     void
-    invariants(bool is_root = false) const final;
+    invariants(bool is_root = false) const final override;
 
 public:  // public only to SHAMap
     // item node function
@@ -384,7 +385,7 @@ public:  // public only to SHAMap
     setItem(std::shared_ptr<SHAMapItem const> i);
 
     std::string
-    getString(SHAMapNodeID const&) const final;
+    getString(SHAMapNodeID const&) const final override;
 };
 
 /** A leaf node for a transaction. No metadata is included. */
@@ -409,25 +410,25 @@ public:
     }
 
     std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t cowid) const final
+    clone(std::uint32_t cowid) const override
     {
         return std::make_shared<SHAMapTxLeafNode>(item_, cowid, hash_);
     }
 
     SHAMapNodeType
-    getType() const final
+    getType() const override
     {
         return SHAMapNodeType::tnTRANSACTION_NM;
     }
 
     void
-    updateHash() final;
+    updateHash() override;
 
     void
-    serializeForWire(Serializer&) const final;
+    serializeForWire(Serializer&) const override;
 
     void
-    serializeWithPrefix(Serializer&) const final;
+    serializeWithPrefix(Serializer&) const override;
 };
 
 /** A leaf node for a transaction and its associated metadata. */
@@ -453,25 +454,25 @@ public:
     }
 
     std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t cowid) const final
+    clone(std::uint32_t cowid) const override
     {
         return std::make_shared<SHAMapTxPlusMetaLeafNode>(item_, cowid, hash_);
     }
 
     SHAMapNodeType
-    getType() const final
+    getType() const override
     {
         return SHAMapNodeType::tnTRANSACTION_MD;
     }
 
     void
-    updateHash() final;
+    updateHash() override;
 
     void
-    serializeForWire(Serializer&) const final;
+    serializeForWire(Serializer&) const override;
 
     void
-    serializeWithPrefix(Serializer&) const final;
+    serializeWithPrefix(Serializer&) const override;
 };
 
 /** A leaf node for a state object. */
@@ -497,26 +498,26 @@ public:
     }
 
     std::shared_ptr<SHAMapAbstractNode>
-    clone(std::uint32_t cowid) const final
+    clone(std::uint32_t cowid) const override
     {
         return std::make_shared<SHAMapAccountStateLeafNode>(
             item_, cowid, hash_);
     }
 
     SHAMapNodeType
-    getType() const final
+    getType() const override
     {
         return SHAMapNodeType::tnACCOUNT_STATE;
     }
 
     void
-    updateHash() final;
+    updateHash() override;
 
     void
-    serializeForWire(Serializer&) const final;
+    serializeForWire(Serializer&) const override;
 
     void
-    serializeWithPrefix(Serializer&) const final;
+    serializeWithPrefix(Serializer&) const override;
 };
 
 // SHAMapAbstractNode
