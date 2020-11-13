@@ -287,9 +287,8 @@ class DatabaseShard_test : public TestBase
             Serializer s;
             node.serializeWithPrefix(s);
             db.store(
-                node.getType() == SHAMapNodeType::tnINNER
-                    ? hotUNKNOWN
-                    : hotACCOUNT_NODE,
+                node.getType() == SHAMapNodeType::tnINNER ? hotUNKNOWN
+                                                          : hotACCOUNT_NODE,
                 std::move(s.modData()),
                 node.getHash().as_uint256(),
                 ledger.info().seq);
@@ -315,9 +314,8 @@ class DatabaseShard_test : public TestBase
             Serializer s;
             node.serializeWithPrefix(s);
             db.store(
-                node.getType() == SHAMapNodeType::tnINNER
-                    ? hotUNKNOWN
-                    : hotTRANSACTION_NODE,
+                node.getType() == SHAMapNodeType::tnINNER ? hotUNKNOWN
+                                                          : hotTRANSACTION_NODE,
                 std::move(s.modData()),
                 node.getHash().as_uint256(),
                 ledger.info().seq);
@@ -361,9 +359,8 @@ class DatabaseShard_test : public TestBase
             Serializer s;
             node.serializeWithPrefix(s);
             auto nSrc{NodeObject::createObject(
-                node.getType() == SHAMapNodeType::tnINNER
-                    ? hotUNKNOWN
-                    : hotACCOUNT_NODE,
+                node.getType() == SHAMapNodeType::tnINNER ? hotUNKNOWN
+                                                          : hotACCOUNT_NODE,
                 std::move(s.modData()),
                 node.getHash().as_uint256())};
             if (!BEAST_EXPECT(nSrc))
@@ -385,9 +382,8 @@ class DatabaseShard_test : public TestBase
             Serializer s;
             node.serializeWithPrefix(s);
             auto nSrc{NodeObject::createObject(
-                node.getType() == SHAMapNodeType::tnINNER
-                    ? hotUNKNOWN
-                    : hotTRANSACTION_NODE,
+                node.getType() == SHAMapNodeType::tnINNER ? hotUNKNOWN
+                                                          : hotTRANSACTION_NODE,
                 std::move(s.modData()),
                 node.getHash().as_uint256())};
             if (!BEAST_EXPECT(nSrc))

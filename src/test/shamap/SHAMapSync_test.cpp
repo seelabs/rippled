@@ -98,7 +98,8 @@ public:
         int items = 10000;
         for (int i = 0; i < items; ++i)
         {
-            source.addItem(SHAMapNodeType::tnACCOUNT_STATE, std::move(*makeRandomAS()));
+            source.addItem(
+                SHAMapNodeType::tnACCOUNT_STATE, std::move(*makeRandomAS()));
             if (i % 100 == 0)
                 source.invariants();
         }

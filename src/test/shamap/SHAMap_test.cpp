@@ -161,9 +161,13 @@ public:
 
         SHAMapItem i1(h1, IntToVUC(1)), i2(h2, IntToVUC(2)),
             i3(h3, IntToVUC(3)), i4(h4, IntToVUC(4)), i5(h5, IntToVUC(5));
-        unexpected(!sMap.addItem(SHAMapNodeType::tnTRANSACTION_NM, SHAMapItem{i2}), "no add");
+        unexpected(
+            !sMap.addItem(SHAMapNodeType::tnTRANSACTION_NM, SHAMapItem{i2}),
+            "no add");
         sMap.invariants();
-        unexpected(!sMap.addItem(SHAMapNodeType::tnTRANSACTION_NM, SHAMapItem{i1}), "no add");
+        unexpected(
+            !sMap.addItem(SHAMapNodeType::tnTRANSACTION_NM, SHAMapItem{i1}),
+            "no add");
         sMap.invariants();
 
         auto i = sMap.begin();
@@ -282,7 +286,8 @@ public:
             for (int k = 0; k < keys.size(); ++k)
             {
                 SHAMapItem item(keys[k], IntToVUC(k));
-                BEAST_EXPECT(map.addItem(SHAMapNodeType::tnTRANSACTION_NM, std::move(item)));
+                BEAST_EXPECT(map.addItem(
+                    SHAMapNodeType::tnTRANSACTION_NM, std::move(item)));
                 BEAST_EXPECT(map.getHash().as_uint256() == hashes[k]);
                 map.invariants();
             }
@@ -333,7 +338,9 @@ public:
                 map.setUnbacked();
             for (auto const& k : keys)
             {
-                map.addItem(SHAMapNodeType::tnTRANSACTION_NM, SHAMapItem{k, IntToVUC(0)});
+                map.addItem(
+                    SHAMapNodeType::tnTRANSACTION_NM,
+                    SHAMapItem{k, IntToVUC(0)});
                 map.invariants();
             }
 

@@ -34,10 +34,12 @@ makeTypedLeaf(
         return std::make_shared<SHAMapTxLeafNode>(std::move(item), owner);
 
     if (type == SHAMapNodeType::tnTRANSACTION_MD)
-        return std::make_shared<SHAMapTxPlusMetaLeafNode>(std::move(item), owner);
+        return std::make_shared<SHAMapTxPlusMetaLeafNode>(
+            std::move(item), owner);
 
     if (type == SHAMapNodeType::tnACCOUNT_STATE)
-        return std::make_shared<SHAMapAccountStateLeafNode>(std::move(item), owner);
+        return std::make_shared<SHAMapAccountStateLeafNode>(
+            std::move(item), owner);
 
     LogicError(
         "Attempt to create leaf node of unknown type " +
@@ -46,10 +48,7 @@ makeTypedLeaf(
 }
 
 SHAMap::SHAMap(SHAMapType t, Family& f)
-    : f_(f)
-    , journal_(f.journal())
-    , state_(SHAMapState::Modifying)
-    , type_(t)
+    : f_(f), journal_(f.journal()), state_(SHAMapState::Modifying), type_(t)
 {
     root_ = std::make_shared<SHAMapInnerNode>(cowid_);
 }
@@ -59,10 +58,7 @@ SHAMap::SHAMap(SHAMapType t, Family& f)
 // known. The fact that the parameter is unused is an implementation detail that
 // should not change the interface.
 SHAMap::SHAMap(SHAMapType t, uint256 const& hash, Family& f)
-    : f_(f)
-    , journal_(f.journal())
-    , state_(SHAMapState::Synching)
-    , type_(t)
+    : f_(f), journal_(f.journal()), state_(SHAMapState::Synching), type_(t)
 {
     root_ = std::make_shared<SHAMapInnerNode>(cowid_);
 }
@@ -885,9 +881,7 @@ SHAMap::writeNode(NodeObjectType t, std::shared_ptr<SHAMapAbstractNode> node)
     Serializer s;
     node->serializeWithPrefix(s);
     f_.db().store(
-        t,
-        std::move(s.modData()), node->getHash().as_uint256(),
-        ledgerSeq_);
+        t, std::move(s.modData()), node->getHash().as_uint256(), ledgerSeq_);
     return node;
 }
 
