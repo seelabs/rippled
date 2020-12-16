@@ -23,7 +23,7 @@
 
 #include <array>
 
-// #define FORCE_BOOST_POOL 1
+#define FORCE_BOOST_POOL 1
 #if FORCE_BOOST_POOL || !__has_include(<memory_resource>)
 #define USE_BOOST_POOL 1
 #else
