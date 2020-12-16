@@ -25,6 +25,9 @@
 #include <test/shamap/common.h>
 #include <test/unit_test/SuiteJournal.h>
 
+#include <chrono>
+#include <random>
+
 namespace ripple {
 namespace tests {
 
@@ -127,8 +130,12 @@ public:
         using namespace beast::severities;
         test::SuiteJournal journal("SHAMap_test", *this);
 
-        run(true, journal);
-        run(false, journal);
+        // run(true, journal);
+        // run(false, journal);
+        benchmark(false, journal);
+        benchmark(true, journal);
+        benchmark(false, journal);
+        benchmark(true, journal);
     }
 
     void
@@ -350,6 +357,94 @@ public:
                 BEAST_EXPECT(k.key() == keys[h]);
                 --h;
             }
+        }
+    }
+
+    void
+    benchmark(bool backed, beast::Journal const& journal)
+    {
+        if (backed)
+            testcase("add/traverse backed");
+        else
+            testcase("add/traverse unbacked");
+
+        tests::TestNodeFamily f(journal);
+
+        std::vector<uint256> const hashes = [] {
+            std::default_random_engine eng;
+            std::uniform_int_distribution<std::uint64_t> dist(
+                0, std::numeric_limits<std::uint64_t>::max());
+            auto const numElements = 1025 * 1024;
+            std::vector<uint256> result;
+            result.reserve(numElements);
+            uint64_t h[4];
+            for (int i = 0; i < numElements; ++i)
+            {
+                for (int j = 0; j < 4; ++j)
+                    h[j] = dist(eng);
+                uint256 rndHash = uint256::fromVoid(h);
+                result.push_back(rndHash);
+            }
+            return result;
+        }();
+        std::vector<SHAMapItem> const items = [&hashes] {
+            std::vector<SHAMapItem> result;
+            result.reserve(hashes.size());
+            int i = 0;
+            for (auto const& h : hashes)
+            {
+                {
+                    result.emplace_back(h, IntToVUC(i));
+                    ++i;
+                };
+            }
+            return result;
+        }();
+
+        SHAMap sMap(SHAMapType::FREE, f);
+        sMap.invariants();
+        if (!backed)
+            sMap.setUnbacked();
+
+        std::cout << "backed: " << backed << '\n';
+        {
+            using namespace std::chrono;
+            auto start = high_resolution_clock::now();
+            for (auto const& item : items)
+            {
+                BEAST_EXPECT(sMap.addItem(
+                    SHAMapNodeType::tnTRANSACTION_NM, SHAMapItem{item}));
+            }
+            auto end = high_resolution_clock::now();
+            std::cout << "sMap.addItem: "
+                      << duration_cast<milliseconds>(end - start).count()
+                      << '\n';
+        }
+
+        {
+            using namespace std::chrono;
+            auto start = high_resolution_clock::now();
+            for (auto const& item : items)
+            {
+                BEAST_EXPECT(sMap.peekItem(item.key()));
+            }
+            auto end = high_resolution_clock::now();
+            std::cout << "sMap.peekItem: "
+                      << duration_cast<milliseconds>(end - start).count()
+                      << '\n';
+        }
+
+        {
+            using namespace std::chrono;
+            auto start = high_resolution_clock::now();
+            for (auto const& item : items)
+            {
+                BEAST_EXPECT(sMap.delItem(item.key()));
+            }
+            auto end = high_resolution_clock::now();
+            std::cout << "sMap.delItem: "
+                      << duration_cast<milliseconds>(end - start).count()
+                      << "\n\n";
         }
     }
 };
