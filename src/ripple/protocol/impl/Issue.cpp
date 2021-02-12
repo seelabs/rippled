@@ -79,7 +79,7 @@ issueFromJson(Json::Value const& v)
     if (!v.isObject())
     {
         Throw<std::runtime_error>(
-            "issueFromJson can only be specified with a 'object' Json value");
+            "issueFromJson can only be specified with an 'object' Json value");
     }
 
     Json::Value const curStr = v[jss::currency];
