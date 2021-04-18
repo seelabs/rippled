@@ -225,6 +225,34 @@ TOfferStreamBase<TIn, TOut>::step()
             continue;
         }
 
+        // If an offer's effective quality is very different from its initial
+        // quality, remove it
+        {
+            // For efficency, do not take transfer fees into account. This
+            // calculation is only used to determine if an offer's quality is
+            // very different from the initial quality. A good estimate for the
+            // quality (one that ignores transfer fees) is good enough for this
+            // purpose.
+            auto const effectiveQuality = [&] {
+                if (offer_.owner() != offer_.issueOut().account &&
+                    *ownerFunds_ < offer_.amount().out)
+                {
+                    // adjust the amounts by owner funds
+                    return Quality{offer_.quality().ceil_out(
+                        offer_.amount(), *ownerFunds_)};
+                }
+                return Quality{offer_.amount()};
+            }();
+
+            if (relativeDistance(effectiveQuality, offer_.quality()) > 100)
+            {
+                JLOG(j_.trace()) << "Removing offer due to quality difference "
+                                 << entry->key();
+                offer_ = TOffer<TIn, TOut>{};
+                continue;
+            }
+        }
+
         break;
     }
 
