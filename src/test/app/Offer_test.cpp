@@ -616,9 +616,9 @@ public:
             env(pay(gw, alice, EUR(100)));
             env.close();
             // This offer is underfunded
-            env(offer(carol, EUR(1), USD(1)));
+            env(offer(carol, EUR(1), USD(2)));
             env.close();
-            env(offer(bob, EUR(2), USD(2), tfPassive));
+            env(offer(bob, EUR(2), USD(4), tfPassive));
             env.close();
             env.require(offers(bob, 1), offers(carol, 1));
 
