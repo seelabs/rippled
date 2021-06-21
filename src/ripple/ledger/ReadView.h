@@ -29,6 +29,7 @@
 #include <ripple/ledger/detail/ReadViewFwdRange.h>
 #include <ripple/protocol/Indexes.h>
 #include <ripple/protocol/Protocol.h>
+#include <ripple/protocol/STAccountRoot.h>
 #include <ripple/protocol/STAmount.h>
 #include <ripple/protocol/STLedgerEntry.h>
 #include <ripple/protocol/STTx.h>
@@ -310,6 +311,9 @@ public:
     */
     virtual std::shared_ptr<SLE const>
     read(Keylet const& k) const = 0;
+
+    virtual std::shared_ptr<STAccountRoot const>
+    read(AccountRootKeylet const& k) const = 0;
 
     // Accounts in a payment are not allowed to use assets acquired during that
     // payment. The PaymentSandbox tracks the debits, credits, and owner count

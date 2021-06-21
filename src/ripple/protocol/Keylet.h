@@ -49,6 +49,15 @@ struct Keylet
     check(STLedgerEntry const&) const;
 };
 
+struct AccountRootKeylet : Keylet
+{
+    using Keylet::check;
+
+    AccountRootKeylet(uint256 const& key) : Keylet(ltACCOUNT_ROOT, key)
+    {
+    }
+};
+
 }  // namespace ripple
 
 #endif

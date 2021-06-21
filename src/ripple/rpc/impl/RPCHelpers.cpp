@@ -586,7 +586,7 @@ parseAccountIds(Json::Value const& jvArray)
 }
 
 void
-injectSLE(Json::Value& jv, SLE const& sle)
+injectSLE(Json::Value& jv, STLedgerEntry const& sle)
 {
     jv = sle.getJson(JsonOptions::none);
     if (sle.getType() == ltACCOUNT_ROOT)

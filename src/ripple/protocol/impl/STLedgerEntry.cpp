@@ -146,4 +146,16 @@ STLedgerEntry::thread(
     return true;
 }
 
+std::uint32_t
+STLedgerEntry::flags() const
+{
+    return at(sfFlags);
+}
+
+void
+STLedgerEntry::setFlags(std::uint32_t newFlags)
+{
+    at(sfFlags) = newFlags;
+}
+
 }  // namespace ripple

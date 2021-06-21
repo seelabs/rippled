@@ -167,7 +167,7 @@ isHexTxID(std::string const& txid);
         urlgravatar field JSON if sfEmailHash is present.
 */
 void
-injectSLE(Json::Value& jv, SLE const& sle);
+injectSLE(Json::Value& jv, STLedgerEntry const& sle);
 
 /** Retrieve the limit value from a JsonContext, or set a default -
     then restrict the limit by max and min if not an ADMIN request.

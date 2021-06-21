@@ -78,13 +78,15 @@ isFrozen(
 {
     if (isXRP(currency))
         return false;
-    auto sle = view.read(keylet::account(issuer));
-    if (sle && sle->isFlag(lsfGlobalFreeze))
-        return true;
+    {
+        auto sle = view.read(keylet::account(issuer));
+        if (sle && sle->isFlag(lsfGlobalFreeze))
+            return true;
+    }
     if (issuer != account)
     {
         // Check if the issuer froze the line
-        sle = view.read(keylet::line(account, issuer, currency));
+        auto sle = view.read(keylet::line(account, issuer, currency));
         if (sle &&
             sle->isFlag((issuer > account) ? lsfHighFreeze : lsfLowFreeze))
             return true;

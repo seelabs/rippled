@@ -445,6 +445,24 @@ Ledger::read(Keylet const& k) const
     return sle;
 }
 
+std::shared_ptr<STAccountRoot const>
+Ledger::read(AccountRootKeylet const& k) const
+{
+    if (k.key == beast::zero)
+    {
+        assert(false);
+        return nullptr;
+    }
+    auto const& item = stateMap_->peekItem(k.key);
+    if (!item)
+        return nullptr;
+    auto sle =
+        std::make_shared<STAccountRoot>(SerialIter{item->slice()}, item->key());
+    if (!k.check(*sle))
+        return nullptr;
+    return sle;
+}
+
 //------------------------------------------------------------------------------
 
 auto

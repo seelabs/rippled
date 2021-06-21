@@ -173,6 +173,12 @@ OpenView::read(Keylet const& k) const
     return items_.read(*base_, k);
 }
 
+std::shared_ptr<STAccountRoot const>
+OpenView::read(AccountRootKeylet const& k) const
+{
+    return items_.read(*base_, k);
+}
+
 auto
 OpenView::slesBegin() const -> std::unique_ptr<sles_type::iter_base>
 {

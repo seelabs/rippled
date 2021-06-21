@@ -85,6 +85,7 @@ target_sources (xrpl_core PRIVATE
   src/ripple/protocol/impl/SField.cpp
   src/ripple/protocol/impl/SOTemplate.cpp
   src/ripple/protocol/impl/STAccount.cpp
+  src/ripple/protocol/impl/STAccountRoot.cpp
   src/ripple/protocol/impl/STAmount.cpp
   src/ripple/protocol/impl/STArray.cpp
   src/ripple/protocol/impl/STBase.cpp

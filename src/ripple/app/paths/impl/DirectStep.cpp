@@ -262,8 +262,7 @@ public:
     // Verify the consistency of the step.  These checks are specific to
     // payments and assume that general checks were already performed.
     TER
-    check(StrandContext const& ctx, std::shared_ptr<const SLE> const& sleSrc)
-        const;
+    check(StrandContext const& ctx, STAccountRoot const& sleSrc) const;
 
     std::string
     logString() const override
@@ -313,8 +312,7 @@ public:
     // Verify the consistency of the step.  These checks are specific to
     // offer crossing and assume that general checks were already performed.
     TER
-    check(StrandContext const& ctx, std::shared_ptr<const SLE> const& sleSrc)
-        const;
+    check(StrandContext const& ctx, STAccountRoot const& sleSrc) const;
 
     std::string
     logString() const override
@@ -401,9 +399,8 @@ DirectIOfferCrossingStep::maxFlow(ReadView const& sb, IOUAmount const& desired)
 }
 
 TER
-DirectIPaymentStep::check(
-    StrandContext const& ctx,
-    std::shared_ptr<const SLE> const& sleSrc) const
+DirectIPaymentStep::check(StrandContext const& ctx, STAccountRoot const& sleSrc)
+    const
 {
     // Since this is a payment a trust line must be present.  Perform all
     // trust line related checks.
@@ -417,7 +414,7 @@ DirectIPaymentStep::check(
 
         auto const authField = (src_ > dst_) ? lsfHighAuth : lsfLowAuth;
 
-        if (((*sleSrc)[sfFlags] & lsfRequireAuth) &&
+        if ((sleSrc[sfFlags] & lsfRequireAuth) &&
             !((*sleLine)[sfFlags] & authField) &&
             (*sleLine)[sfBalance] == beast::zero)
         {
@@ -457,9 +454,8 @@ DirectIPaymentStep::check(
 }
 
 TER
-DirectIOfferCrossingStep::check(
-    StrandContext const&,
-    std::shared_ptr<const SLE> const&) const
+DirectIOfferCrossingStep::check(StrandContext const&, STAccountRoot const&)
+    const
 {
     // The standard checks are all we can do because any remaining checks
     // require the existence of a trust line.  Offer crossing does not
@@ -947,7 +943,7 @@ DirectStepI<TDerived>::check(StrandContext const& ctx) const
         }
     }
 
-    return static_cast<TDerived const*>(this)->check(ctx, sleSrc);
+    return static_cast<TDerived const*>(this)->check(ctx, *sleSrc);
 }
 
 //------------------------------------------------------------------------------

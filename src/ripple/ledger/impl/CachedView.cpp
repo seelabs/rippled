@@ -65,5 +65,12 @@ CachedViewImpl::read(Keylet const& k) const
     return iter->second;
 }
 
+std::shared_ptr<STAccountRoot const>
+CachedViewImpl::read(AccountRootKeylet const& k) const
+{
+    // TODO
+    return {};
+}
+
 }  // namespace detail
 }  // namespace ripple

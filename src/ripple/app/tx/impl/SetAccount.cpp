@@ -187,7 +187,7 @@ SetAccount::preclaim(PreclaimContext const& ctx)
     if (!sle)
         return terNO_ACCOUNT;
 
-    std::uint32_t const uFlagsIn = sle->getFieldU32(sfFlags);
+    std::uint32_t const uFlagsIn = sle->flags();
 
     std::uint32_t const uSetFlag = ctx.tx.getFieldU32(sfSetFlag);
 
@@ -217,7 +217,7 @@ SetAccount::doApply()
     if (!sle)
         return tefINTERNAL;
 
-    std::uint32_t const uFlagsIn = sle->getFieldU32(sfFlags);
+    std::uint32_t const uFlagsIn = sle->flags();
     std::uint32_t uFlagsOut = uFlagsIn;
 
     STTx const& tx{ctx_.tx};

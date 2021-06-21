@@ -371,7 +371,7 @@ TxQ::canBeHeld(
     STTx const& tx,
     ApplyFlags const flags,
     OpenView const& view,
-    std::shared_ptr<SLE const> const& sleAccount,
+    std::shared_ptr<STAccountRoot const> const& sleAccount,
     AccountMap::iterator const& accountIter,
     std::optional<TxQAccount::TxMap::iterator> const& replacementIter,
     std::lock_guard<std::mutex> const& lock)
@@ -753,7 +753,7 @@ TxQ::apply(
 
     // If the account is not currently in the ledger, don't queue its tx.
     auto const account = (*tx)[sfAccount];
-    Keylet const accountKey{keylet::account(account)};
+    auto const accountKey{keylet::account(account)};
     auto const sleAccount = view.read(accountKey);
     if (!sleAccount)
         return {terNO_ACCOUNT, false};
@@ -1547,7 +1547,8 @@ TxQ::accept(Application& app, OpenView& view)
 //
 // Acquires a lock and calls the implementation.
 SeqProxy
-TxQ::nextQueuableSeq(std::shared_ptr<SLE const> const& sleAccount) const
+TxQ::nextQueuableSeq(
+    std::shared_ptr<STAccountRoot const> const& sleAccount) const
 {
     std::lock_guard<std::mutex> lock(mutex_);
     return nextQueuableSeqImpl(sleAccount, lock);
@@ -1561,7 +1562,7 @@ TxQ::nextQueuableSeq(std::shared_ptr<SLE const> const& sleAccount) const
 // be found and returned.
 SeqProxy
 TxQ::nextQueuableSeqImpl(
-    std::shared_ptr<SLE const> const& sleAccount,
+    std::shared_ptr<STAccountRoot const> const& sleAccount,
     std::lock_guard<std::mutex> const&) const
 {
     // If the account is not in the ledger or a non-account was passed

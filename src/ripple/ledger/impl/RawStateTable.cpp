@@ -319,6 +319,20 @@ RawStateTable::read(ReadView const& base, Keylet const& k) const
     return sle;
 }
 
+std::shared_ptr<STAccountRoot const>
+RawStateTable::read(ReadView const& base, AccountRootKeylet const& k) const
+{
+    auto const r = read(base, static_cast<Keylet const&>(k));
+    if (!r)
+        return {};
+    // TODO: This worn't work. Need to store STLedgerEntry, not
+    // STGenericLedgerEntry, Also: replace with static pointer cast in release
+    // mode? Or store pointers of different types in different collections?
+    auto const rc = std::dynamic_pointer_cast<STAccountRoot const>(r);
+    assert(rc);
+    return rc;
+}
+
 void
 RawStateTable::destroyXRP(XRPAmount const& fee)
 {

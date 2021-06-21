@@ -27,14 +27,11 @@ namespace ripple {
 
 class Invariants_test;
 
-class STLedgerEntry final : public STObject, public CountedObject<STLedgerEntry>
+class STLedgerEntry : public STObject, public CountedObject<STLedgerEntry>
 {
     friend Invariants_test;  // this test wants access to the private type_
 
 public:
-    using pointer = std::shared_ptr<STLedgerEntry>;
-    using ref = const std::shared_ptr<STLedgerEntry>&;
-
     /** Create an empty object with the given key and type. */
     explicit STLedgerEntry(Keylet const& k);
 
@@ -50,18 +47,6 @@ public:
     }
 
     STLedgerEntry(STObject const& object, uint256 const& index);
-
-    STBase*
-    copy(std::size_t n, void* buf) const override
-    {
-        return emplace(n, buf, *this);
-    }
-
-    STBase*
-    move(std::size_t n, void* buf) override
-    {
-        return emplace(n, buf, std::move(*this));
-    }
 
     SerializedTypeID
     getSType() const override
@@ -105,6 +90,12 @@ public:
         uint256& prevTxID,
         std::uint32_t& prevLedgerID);
 
+    [[nodiscard]] std::uint32_t
+    flags() const;
+
+    void
+    setFlags(std::uint32_t newFlags);
+
 private:
     /*  Make STObject comply with the template for this SLE type
         Can throw
@@ -117,7 +108,29 @@ private:
     LedgerEntryType type_;
 };
 
-using SLE = STLedgerEntry;
+// Temporary class while the existing classes are transitioned
+class STGenericLedgerEntry final : public STLedgerEntry
+{
+public:
+    using STLedgerEntry::STLedgerEntry;
+
+    using pointer = std::shared_ptr<STGenericLedgerEntry>;
+    using ref = const std::shared_ptr<STGenericLedgerEntry>&;
+
+    STBase*
+    copy(std::size_t n, void* buf) const override
+    {
+        return emplace(n, buf, *this);
+    }
+
+    STBase*
+    move(std::size_t n, void* buf) override
+    {
+        return emplace(n, buf, std::move(*this));
+    }
+};
+
+using SLE = STGenericLedgerEntry;
 
 }  // namespace ripple
 

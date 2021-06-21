@@ -120,7 +120,7 @@ public:
 
 static error_code_i
 acctMatchesPubKey(
-    std::shared_ptr<SLE const> accountState,
+    std::shared_ptr<STAccountRoot const> accountState,
     AccountID const& accountID,
     PublicKey const& publicKey)
 {
@@ -399,7 +399,7 @@ transactionPreProcessImpl(
     if (!verify && !tx_json.isMember(jss::Sequence))
         return RPC::missing_field_error("tx_json.Sequence");
 
-    std::shared_ptr<SLE const> sle;
+    std::shared_ptr<STAccountRoot const> sle;
     if (verify)
         sle = app.openLedger().current()->read(keylet::account(srcAddressID));
 
@@ -992,7 +992,7 @@ transactionSignFor(
         return preprocResult.first;
 
     {
-        std::shared_ptr<SLE const> account_state =
+        std::shared_ptr<STAccountRoot const> account_state =
             ledger->read(keylet::account(*signerAccountID));
         // Make sure the account and secret belong together.
         auto const err =
@@ -1071,7 +1071,7 @@ transactionSubmitMultiSigned(
     if (RPC::contains_error(txJsonResult))
         return std::move(txJsonResult);
 
-    std::shared_ptr<SLE const> sle =
+    std::shared_ptr<STAccountRoot const> sle =
         ledger->read(keylet::account(srcAddressID));
 
     if (!sle)

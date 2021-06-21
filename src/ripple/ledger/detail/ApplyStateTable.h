@@ -84,6 +84,9 @@ public:
     std::shared_ptr<SLE const>
     read(ReadView const& base, Keylet const& k) const;
 
+    std::shared_ptr<STAccountRoot const>
+    read(ReadView const& base, AccountRootKeylet const& k) const;
+
     std::shared_ptr<SLE>
     peek(ReadView const& base, Keylet const& k);
 
