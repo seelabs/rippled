@@ -41,7 +41,7 @@ class AcctRootWrapper
     getOptionalVL(SF_VL const& field) const;
 
     template <typename SF, typename T, bool W = Writable>
-    std::enable_if_t<W>
+    void
     setOptional(SF const& field, T const& value)
     {
         static_assert(
@@ -54,7 +54,7 @@ class AcctRootWrapper
     }
 
     template <typename SF, bool W = Writable>
-    std::enable_if_t<W>
+    void
     clearOptional(SF const& field)
     {
         static_assert(
@@ -65,8 +65,7 @@ class AcctRootWrapper
             wrapped_->makeFieldAbsent(field);
     }
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setOrClearVLIfEmpty(SF_VL const& field, Blob const& value);
 
     AcctRootWrapper(AcctRootWrapper const&) = default;
@@ -96,95 +95,79 @@ public:
     [[nodiscard]] bool
     isFlag(std::uint32_t flagsToCheck) const;
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     replaceAllFlags(std::uint32_t newFlags);
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setFlag(std::uint32_t flagsToSet);
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     clearFlag(std::uint32_t flagsToClear);
 
     [[nodiscard]] std::uint32_t
     sequence() const;
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setSequence(std::uint32_t seq);
 
     [[nodiscard]] STAmount
     balance() const;
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setBalance(STAmount const& amount);
 
     [[nodiscard]] std::uint32_t
     ownerCount() const;
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setOwnerCount(std::uint32_t newCount);
 
     [[nodiscard]] std::uint32_t
     previousTxnID() const;
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setPreviousTxnID(uint256 prevTxID);
 
     [[nodiscard]] std::uint32_t
     previousTxnLgrSeq() const;
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setPreviousTxnLgrSeq(std::uint32_t prevTxLgrSeq);
 
     [[nodiscard]] std::optional<uint256>
     accountTxnID() const;
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setAccountTxnID(uint256 const& newAcctTxnID);
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     clearAccountTxnID();
 
     [[nodiscard]] std::optional<AccountID>
     regularKey() const;
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setRegularKey(AccountID const& newRegKey);
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     clearRegularKey();
 
     [[nodiscard]] std::optional<uint128>
     emailHash() const;
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setEmailHash(uint128 const& newEmailHash);
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     clearEmailHash();
 
     [[nodiscard]] std::optional<uint256>
     walletLocator() const;
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setWalletLocator(uint256 const& newWalletLocator);
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     clearWalletLocator();
 
     [[nodiscard]] std::optional<std::uint32_t>
@@ -193,55 +176,47 @@ public:
     [[nodiscard]] Blob
     messageKey() const;
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setMessageKey(Blob const& newMessageKey);
 
     [[nodiscard]] std::optional<std::uint32_t>
     transferRate() const;
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setTransferRate(std::uint32_t newTransferRate);
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     clearTransferRate();
 
     [[nodiscard]] Blob
     domain() const;
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setDomain(Blob const& newDomain);
 
     [[nodiscard]] std::optional<std::uint8_t>
     tickSize() const;
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setTickSize(std::uint8_t newTickSize);
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     clearTickSize();
 
     [[nodiscard]] std::optional<std::uint32_t>
     ticketCount() const;
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     setTicketCount(std::uint32_t newTicketCount);
 
-    template <bool W = Writable>
-    std::enable_if_t<W>
+    void
     clearTicketCount();
 };
 
 using AcctRootRd = AcctRootWrapper<false>;
 using AcctRoot = AcctRootWrapper<true>;
 
-[[nodiscard]] std::pair<AcctRootRd, NotTEC>
+[[nodiscard]] std::pair<AcctRootRd const, NotTEC>
 makeAcctRootRd(std::shared_ptr<STLedgerEntry const> slePtr);
 
 [[nodiscard]] std::pair<AcctRoot, NotTEC>
