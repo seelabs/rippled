@@ -32,10 +32,9 @@
 
 namespace ripple {
 
-template <bool>
-class AcctRootWrapper;
 class Application;
 class Config;
+class AcctRoot;
 
 /**
     Transaction Queue. Used to manage transactions in conjunction with
@@ -364,7 +363,7 @@ private:
     // Implementation for nextQueuableSeq().  The passed lock must be held.
     SeqProxy
     nextQueuableSeqImpl(
-        AcctRootWrapper<false> const& acctRootRd,
+        AcctRoot const& acctRootRd,
         std::lock_guard<std::mutex> const&) const;
 
     /**
@@ -778,7 +777,7 @@ private:
         STTx const&,
         ApplyFlags const,
         OpenView const&,
-        AcctRootWrapper<false> const& acctRootRd,
+        AcctRoot const& acctRootRd,
         AccountMap::iterator const&,
         std::optional<TxQAccount::TxMap::iterator> const&,
         std::lock_guard<std::mutex> const& lock);

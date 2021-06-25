@@ -21,9 +21,8 @@
 
 namespace ripple {
 
-template <bool Writable>
 Blob
-AcctRootWrapper<Writable>::getOptionalVL(SF_VL const& field) const
+AcctRoot::getOptionalVL(SF_VL const& field) const
 {
     Blob ret;
     if (wrapped_->isFieldPresent(field))
@@ -31,11 +30,8 @@ AcctRootWrapper<Writable>::getOptionalVL(SF_VL const& field) const
     return ret;
 }
 
-template <>
 void
-AcctRootWrapper<true>::setOrClearVLIfEmpty(
-    SF_VL const& field,
-    Blob const& value)
+AcctRoot::setOrClearVLIfEmpty(SF_VL const& field, Blob const& value)
 {
     if (value.empty())
     {
@@ -47,344 +43,307 @@ AcctRootWrapper<true>::setOrClearVLIfEmpty(
     wrapped_->setFieldVL(field, value);
 }
 
-template <bool Writable>
-AcctRootWrapper<Writable>::AcctRootWrapper(wrapped_t&& w)
-    : wrapped_(std::move(w))
+AcctRoot::AcctRoot(std::shared_ptr<SLE>&& w) : wrapped_(std::move(w))
 {
 }
 
-template <bool Writable>
-AcctRootWrapper<Writable>::AcctRootWrapper(std::nullptr_t)
+AcctRoot::AcctRoot(std::shared_ptr<SLE const>&& w)
+    : wrapped_(std::const_pointer_cast<SLE>(std::move(w)))
 {
 }
 
-template <bool Writable>
+AcctRoot::AcctRoot(std::nullptr_t)
+{
+}
+
 bool
-AcctRootWrapper<Writable>::has_value() const
+AcctRoot::has_value() const
 {
     return bool(wrapped_);
 }
 
-template <bool Writable>
-AcctRootWrapper<Writable>::operator bool() const
+AcctRoot::operator bool() const
 {
     return has_value();
 }
 
-template <bool Writable>
-auto
-AcctRootWrapper<Writable>::slePtr() const -> wrapped_t const&
+std::shared_ptr<SLE>
+AcctRoot::slePtr()
 {
     return wrapped_;
 }
 
-template <bool Writable>
+std::shared_ptr<SLE const>
+AcctRoot::slePtr() const
+{
+    return wrapped_;
+}
+
 AccountID
-AcctRootWrapper<Writable>::accountID() const
+AcctRoot::accountID() const
 {
     return wrapped_->at(sfAccount);
 }
 
-template <bool Writable>
 std::uint32_t
-AcctRootWrapper<Writable>::flags() const
+AcctRoot::flags() const
 {
     return wrapped_->at(sfFlags);
 }
 
-template <bool Writable>
 bool
-AcctRootWrapper<Writable>::isFlag(std::uint32_t flagsToCheck) const
+AcctRoot::isFlag(std::uint32_t flagsToCheck) const
 {
     return (flags() & flagsToCheck) == flagsToCheck;
 }
 
-template <>
 void
-AcctRootWrapper<true>::replaceAllFlags(std::uint32_t newFlags)
+AcctRoot::replaceAllFlags(std::uint32_t newFlags)
 {
     wrapped_->at(sfFlags) = newFlags;
 }
 
-template <>
 void
-AcctRootWrapper<true>::setFlag(std::uint32_t flagsToSet)
+AcctRoot::setFlag(std::uint32_t flagsToSet)
 {
     replaceAllFlags(flags() | flagsToSet);
 }
 
-template <>
 void
-AcctRootWrapper<true>::clearFlag(std::uint32_t flagsToClear)
+AcctRoot::clearFlag(std::uint32_t flagsToClear)
 {
     replaceAllFlags(flags() & ~flagsToClear);
 }
 
-template <bool Writable>
 std::uint32_t
-AcctRootWrapper<Writable>::sequence() const
+AcctRoot::sequence() const
 {
     return wrapped_->at(sfSequence);
 }
 
-template <>
 void
-AcctRootWrapper<true>::setSequence(std::uint32_t seq)
+AcctRoot::setSequence(std::uint32_t seq)
 {
     wrapped_->at(sfSequence) = seq;
 }
 
-template <bool Writable>
 STAmount
-AcctRootWrapper<Writable>::balance() const
+AcctRoot::balance() const
 {
     return wrapped_->at(sfBalance);
 }
 
-template <>
 void
-AcctRootWrapper<true>::setBalance(STAmount const& amount)
+AcctRoot::setBalance(STAmount const& amount)
 {
     wrapped_->at(sfBalance) = amount;
 }
 
-template <bool Writable>
 std::uint32_t
-AcctRootWrapper<Writable>::ownerCount() const
+AcctRoot::ownerCount() const
 {
     return wrapped_->at(sfOwnerCount);
 }
 
-template <>
 void
-AcctRootWrapper<true>::setOwnerCount(std::uint32_t newCount)
+AcctRoot::setOwnerCount(std::uint32_t newCount)
 {
     wrapped_->at(sfOwnerCount) = newCount;
 }
 
-template <bool Writable>
 std::uint32_t
-AcctRootWrapper<Writable>::previousTxnID() const
+AcctRoot::previousTxnID() const
 {
     return wrapped_->at(sfOwnerCount);
 }
 
-template <>
 void
-AcctRootWrapper<true>::setPreviousTxnID(uint256 prevTxID)
+AcctRoot::setPreviousTxnID(uint256 prevTxID)
 {
     wrapped_->at(sfPreviousTxnID) = prevTxID;
 }
 
-template <bool Writable>
 std::uint32_t
-AcctRootWrapper<Writable>::previousTxnLgrSeq() const
+AcctRoot::previousTxnLgrSeq() const
 {
     return wrapped_->at(sfPreviousTxnLgrSeq);
 }
 
-template <>
 void
-AcctRootWrapper<true>::setPreviousTxnLgrSeq(std::uint32_t prevTxLgrSeq)
+AcctRoot::setPreviousTxnLgrSeq(std::uint32_t prevTxLgrSeq)
 {
     wrapped_->at(sfPreviousTxnLgrSeq) = prevTxLgrSeq;
 }
 
-template <bool Writable>
 std::optional<uint256>
-AcctRootWrapper<Writable>::accountTxnID() const
+AcctRoot::accountTxnID() const
 {
     return wrapped_->at(~sfAccountTxnID);
 }
 
-template <>
 void
-AcctRootWrapper<true>::setAccountTxnID(uint256 const& newAcctTxnID)
+AcctRoot::setAccountTxnID(uint256 const& newAcctTxnID)
 {
     setOptional(sfAccountTxnID, newAcctTxnID);
 }
 
-template <>
 void
-AcctRootWrapper<true>::clearAccountTxnID()
+AcctRoot::clearAccountTxnID()
 {
     clearOptional(sfAccountTxnID);
 }
 
-template <bool Writable>
 std::optional<AccountID>
-AcctRootWrapper<Writable>::regularKey() const
+AcctRoot::regularKey() const
 {
     return wrapped_->at(~sfRegularKey);
 }
 
-template <>
 void
-AcctRootWrapper<true>::setRegularKey(AccountID const& newRegKey)
+AcctRoot::setRegularKey(AccountID const& newRegKey)
 {
     setOptional(sfRegularKey, newRegKey);
 }
 
-template <>
 void
-AcctRootWrapper<true>::clearRegularKey()
+AcctRoot::clearRegularKey()
 {
     clearOptional(sfRegularKey);
 }
 
-template <bool Writable>
 std::optional<uint128>
-AcctRootWrapper<Writable>::emailHash() const
+AcctRoot::emailHash() const
 {
     return wrapped_->at(~sfEmailHash);
 }
 
-template <>
 void
-AcctRootWrapper<true>::setEmailHash(uint128 const& newEmailHash)
+AcctRoot::setEmailHash(uint128 const& newEmailHash)
 {
     setOptional(sfEmailHash, newEmailHash);
 }
 
-template <>
 void
-AcctRootWrapper<true>::clearEmailHash()
+AcctRoot::clearEmailHash()
 {
     clearOptional(sfEmailHash);
 }
 
-template <bool Writable>
 std::optional<uint256>
-AcctRootWrapper<Writable>::walletLocator() const
+AcctRoot::walletLocator() const
 {
     return wrapped_->at(~sfWalletLocator);
 }
 
-template <>
 void
-AcctRootWrapper<true>::setWalletLocator(uint256 const& newWalletLocator)
+AcctRoot::setWalletLocator(uint256 const& newWalletLocator)
 {
     setOptional(sfWalletLocator, newWalletLocator);
 }
 
-template <>
 void
-AcctRootWrapper<true>::clearWalletLocator()
+AcctRoot::clearWalletLocator()
 {
     clearOptional(sfWalletLocator);
 }
 
-template <bool Writable>
 std::optional<std::uint32_t>
-AcctRootWrapper<Writable>::walletSize()
+AcctRoot::walletSize()
 {
     return wrapped_->at(~sfWalletSize);
 }
 
-template <bool Writable>
 Blob
-AcctRootWrapper<Writable>::messageKey() const
+AcctRoot::messageKey() const
 {
     return getOptionalVL(sfMessageKey);
 }
 
-template <>
 void
-AcctRootWrapper<true>::setMessageKey(Blob const& newMessageKey)
+AcctRoot::setMessageKey(Blob const& newMessageKey)
 {
     setOrClearVLIfEmpty(sfMessageKey, newMessageKey);
 }
 
-template <bool Writable>
 std::optional<std::uint32_t>
-AcctRootWrapper<Writable>::transferRate() const
+AcctRoot::transferRate() const
 {
     return wrapped_->at(~sfTransferRate);
 }
 
-template <>
 void
-AcctRootWrapper<true>::setTransferRate(std::uint32_t newTransferRate)
+AcctRoot::setTransferRate(std::uint32_t newTransferRate)
 {
     setOptional(sfTransferRate, newTransferRate);
 }
 
-template <>
 void
-AcctRootWrapper<true>::clearTransferRate()
+AcctRoot::clearTransferRate()
 {
     clearOptional(sfTransferRate);
 }
 
-template <bool Writable>
 Blob
-AcctRootWrapper<Writable>::domain() const
+AcctRoot::domain() const
 {
     return getOptionalVL(sfDomain);
 }
 
-template <>
 void
-AcctRootWrapper<true>::setDomain(Blob const& newDomain)
+AcctRoot::setDomain(Blob const& newDomain)
 {
     setOrClearVLIfEmpty(sfDomain, newDomain);
 }
 
-template <bool Writable>
 std::optional<std::uint8_t>
-AcctRootWrapper<Writable>::tickSize() const
+AcctRoot::tickSize() const
 {
     return wrapped_->at(sfTickSize);
 }
 
-template <>
 void
-AcctRootWrapper<true>::setTickSize(std::uint8_t newTickSize)
+AcctRoot::setTickSize(std::uint8_t newTickSize)
 {
     setOptional(sfTickSize, newTickSize);
 }
 
-template <>
 void
-AcctRootWrapper<true>::clearTickSize()
+AcctRoot::clearTickSize()
 {
     clearOptional(sfTickSize);
 }
 
-template <bool Writable>
 std::optional<std::uint32_t>
-AcctRootWrapper<Writable>::ticketCount() const
+AcctRoot::ticketCount() const
 {
     return wrapped_->at(~sfTicketCount);
 }
 
-template <>
 void
-AcctRootWrapper<true>::setTicketCount(std::uint32_t newTicketCount)
+AcctRoot::setTicketCount(std::uint32_t newTicketCount)
 {
     setOptional(sfTicketCount, newTicketCount);
 }
 
-template <>
 void
-AcctRootWrapper<true>::clearTicketCount()
+AcctRoot::clearTicketCount()
 {
     clearOptional(sfTicketCount);
 }
 
-std::pair<AcctRootRd const, NotTEC>
+std::pair<AcctRoot const, NotTEC>
 makeAcctRootRd(std::shared_ptr<STLedgerEntry const> slePtr)
 {
-    using R = std::pair<AcctRootRd, NotTEC>;
+    using R = std::pair<AcctRoot, NotTEC>;
     if (!slePtr)
-        return R{AcctRootRd{nullptr}, terNO_ACCOUNT};
+        return R{AcctRoot{nullptr}, terNO_ACCOUNT};
 
     std::uint16_t const type = {slePtr->at(sfLedgerEntryType)};
     assert(type == ltACCOUNT_ROOT);
     if (type != ltACCOUNT_ROOT)
-        return R{AcctRootRd{nullptr}, tefINTERNAL};
+        return R{AcctRoot{nullptr}, tefINTERNAL};
 
-    return R{AcctRootRd(std::move(slePtr)), tesSUCCESS};
+    return R{AcctRoot(std::move(slePtr)), tesSUCCESS};
 }
 
 std::pair<AcctRoot, NotTEC>
@@ -402,6 +361,4 @@ makeAcctRoot(std::shared_ptr<STLedgerEntry> slePtr)
     return R{AcctRoot(std::move(slePtr)), tesSUCCESS};
 }
 
-template class AcctRootWrapper<true>;
-template class AcctRootWrapper<false>;
 }  // namespace ripple

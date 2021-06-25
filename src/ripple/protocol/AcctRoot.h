@@ -30,17 +30,14 @@
 
 namespace ripple {
 
-template <bool Writable>
-class AcctRootWrapper
+class AcctRoot
 {
-    using wrapped_t =
-        std::shared_ptr<std::conditional_t<Writable, SLE, SLE const>>;
-    wrapped_t wrapped_;
+    std::shared_ptr<SLE> wrapped_;
 
     [[nodiscard]] Blob
     getOptionalVL(SF_VL const& field) const;
 
-    template <typename SF, typename T, bool W = Writable>
+    template <typename SF, typename T>
     void
     setOptional(SF const& field, T const& value)
     {
@@ -53,7 +50,7 @@ class AcctRootWrapper
         wrapped_->at(field) = value;
     }
 
-    template <typename SF, bool W = Writable>
+    template <typename SF>
     void
     clearOptional(SF const& field)
     {
@@ -68,23 +65,27 @@ class AcctRootWrapper
     void
     setOrClearVLIfEmpty(SF_VL const& field, Blob const& value);
 
-    AcctRootWrapper(AcctRootWrapper const&) = default;
-    AcctRootWrapper&
-    operator=(AcctRootWrapper const&) = default;
+    AcctRoot(AcctRoot const&) = default;
+    AcctRoot&
+    operator=(AcctRoot const&) = default;
 
 public:
-    AcctRootWrapper() = delete;
-    AcctRootWrapper(wrapped_t&& w);
-    AcctRootWrapper(std::nullptr_t);
-    AcctRootWrapper(AcctRootWrapper&&) = default;
+    AcctRoot() = delete;
+    AcctRoot(std::shared_ptr<SLE>&& w);
+    AcctRoot(std::shared_ptr<SLE const>&& w);
+    AcctRoot(std::nullptr_t);
+    AcctRoot(AcctRoot&&) = default;
 
     bool
     has_value() const;
 
     explicit operator bool() const;
 
-    [[nodiscard]] wrapped_t const&
+    [[nodiscard]] std::shared_ptr<SLE const>
     slePtr() const;
+
+    [[nodiscard]] std::shared_ptr<SLE>
+    slePtr();
 
     [[nodiscard]] AccountID
     accountID() const;
@@ -213,10 +214,7 @@ public:
     clearTicketCount();
 };
 
-using AcctRootRd = AcctRootWrapper<false>;
-using AcctRoot = AcctRootWrapper<true>;
-
-[[nodiscard]] std::pair<AcctRootRd const, NotTEC>
+[[nodiscard]] std::pair<AcctRoot const, NotTEC>
 makeAcctRootRd(std::shared_ptr<STLedgerEntry const> slePtr);
 
 [[nodiscard]] std::pair<AcctRoot, NotTEC>

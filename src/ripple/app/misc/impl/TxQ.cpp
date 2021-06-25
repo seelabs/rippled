@@ -372,7 +372,7 @@ TxQ::canBeHeld(
     STTx const& tx,
     ApplyFlags const flags,
     OpenView const& view,
-    AcctRootRd const& acctRootRd,
+    AcctRoot const& acctRootRd,
     AccountMap::iterator const& accountIter,
     std::optional<TxQAccount::TxMap::iterator> const& replacementIter,
     std::lock_guard<std::mutex> const& lock)
@@ -1569,7 +1569,7 @@ TxQ::nextQueuableSeq(std::shared_ptr<SLE const> const& sleAccount) const
 // be found and returned.
 SeqProxy
 TxQ::nextQueuableSeqImpl(
-    AcctRootRd const& acctRootRd,
+    AcctRoot const& acctRootRd,
     std::lock_guard<std::mutex> const&) const
 {
     SeqProxy const acctSeqProx = SeqProxy::sequence(acctRootRd.sequence());
