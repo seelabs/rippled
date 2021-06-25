@@ -32,7 +32,8 @@
 
 namespace ripple {
 
-class AcctRootRd;
+template <bool>
+class AcctRootWrapper;
 class Application;
 class Config;
 
@@ -363,7 +364,7 @@ private:
     // Implementation for nextQueuableSeq().  The passed lock must be held.
     SeqProxy
     nextQueuableSeqImpl(
-        AcctRootRd const& acctRootRd,
+        AcctRootWrapper<false> const& acctRootRd,
         std::lock_guard<std::mutex> const&) const;
 
     /**
@@ -777,7 +778,7 @@ private:
         STTx const&,
         ApplyFlags const,
         OpenView const&,
-        AcctRootRd const& acctRootRd,
+        AcctRootWrapper<false> const& acctRootRd,
         AccountMap::iterator const&,
         std::optional<TxQAccount::TxMap::iterator> const&,
         std::lock_guard<std::mutex> const& lock);

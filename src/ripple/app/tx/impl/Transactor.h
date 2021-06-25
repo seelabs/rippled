@@ -79,7 +79,9 @@ public:
     operator=(PreclaimContext const&) = delete;
 };
 
-class AcctRoot;
+template <bool>
+class AcctRootWrapper;
+
 class TxConsequences;
 struct PreflightResult;
 
@@ -192,7 +194,7 @@ private:
     reset(XRPAmount fee);
 
     TER
-    consumeSeqProxy(AcctRoot& acctRoot);
+    consumeSeqProxy(AcctRootWrapper<true>& acctRoot);
     TER
     payFee();
     static NotTEC
