@@ -157,12 +157,12 @@ public:
                 return true;
 
             AccountID const acctID = txn.getAccount();
-            auto const acctRootRd =
+            auto const [acctRootRd, _] =
                 makeAcctRootRd(view.read(keylet::account(acctID)));
             if (!acctRootRd.has_value())
                 return false;
 
-            SeqProxy const acctSeq = SeqProxy::sequence(acctRootRd->sequence());
+            SeqProxy const acctSeq = SeqProxy::sequence(acctRootRd.sequence());
             SeqProxy const seqProx = txn.getSeqProxy();
 
             if (seqProx.isSeq())

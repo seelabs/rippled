@@ -755,12 +755,12 @@ TxQ::apply(
     // If the account is not currently in the ledger, don't queue its tx.
     auto const accountID = (*tx)[sfAccount];
     Keylet const accountKey{keylet::account(accountID)};
-    auto acctRootRd = makeAcctRootRd(view.read(accountKey));
+    auto [acctRootRd, ter] = makeAcctRootRd(view.read(accountKey));
     if (!acctRootRd.has_value())
-        return {acctRootRd.error(), false};
+        return {ter, false};
 
     // If the transaction needs a Ticket is that Ticket in the ledger?
-    SeqProxy const acctSeqProx = SeqProxy::sequence(acctRootRd->sequence());
+    SeqProxy const acctSeqProx = SeqProxy::sequence(acctRootRd.sequence());
     SeqProxy const txSeqProx = tx->getSeqProxy();
     if (txSeqProx.isTicket() &&
         !view.exists(keylet::ticket(accountID, txSeqProx)))
@@ -977,7 +977,7 @@ TxQ::apply(
                 *tx,
                 flags,
                 view,
-                *acctRootRd,
+                acctRootRd,
                 accountIter,
                 replacedTxIter,
                 lock)};
@@ -1031,7 +1031,7 @@ TxQ::apply(
                 // transaction fits in proper sequence order with the
                 // previous transaction or is a ticket.
                 if (txSeqProx.isSeq() &&
-                    nextQueuableSeqImpl(*acctRootRd, lock) != txSeqProx)
+                    nextQueuableSeqImpl(acctRootRd, lock) != txSeqProx)
                     return {telCAN_NOT_QUEUE, false};
             }
 
@@ -1090,7 +1090,7 @@ TxQ::apply(
                 Transactions stuck in the queue are mitigated by
                 LastLedgerSeq and MaybeTx::retriesRemaining.
             */
-            auto const balance = acctRootRd->balance().xrp();
+            auto const balance = acctRootRd.balance().xrp();
             /* Get the minimum possible reserve. If fees exceed
                this amount, the transaction can't be queued.
                 Considering that typical fees are several orders
@@ -1114,7 +1114,8 @@ TxQ::apply(
             // Create the test view from the current view.
             multiTxn.emplace(view, flags);
 
-            auto acctBump = makeAcctRoot(multiTxn->applyView.peek(accountKey));
+            auto [acctBump, _] =
+                makeAcctRoot(multiTxn->applyView.peek(accountKey));
             if (!acctBump.has_value())
                 return {tefINTERNAL, false};
 
@@ -1124,16 +1125,16 @@ TxQ::apply(
             auto const potentialTotalSpend = totalFee +
                 std::min(balance - std::min(balance, reserve), potentialSpend);
             assert(potentialTotalSpend > XRPAmount{0});
-            acctBump->setBalance(balance - potentialTotalSpend);
+            acctBump.setBalance(balance - potentialTotalSpend);
             // The transaction's sequence/ticket will be valid when the other
             // transactions in the queue have been processed. If the tx has a
             // sequence, set the account to match it. If it has a ticket, use
             // the next queueable sequence, which is the closest approximation
             // to the most successful case.
-            acctBump->setSequence(
+            acctBump.setSequence(
                 txSeqProx.isSeq()
                     ? txSeqProx.value()
-                    : nextQueuableSeqImpl(*acctRootRd, lock).value());
+                    : nextQueuableSeqImpl(acctRootRd, lock).value());
         }
     }
 
@@ -1212,7 +1213,7 @@ TxQ::apply(
     if (!multiTxn)
     {
         TER const ter{canBeHeld(
-            *tx, flags, view, *acctRootRd, accountIter, replacedTxIter, lock)};
+            *tx, flags, view, acctRootRd, accountIter, replacedTxIter, lock)};
         if (!isTesSuccess(ter))
         {
             // Bail, transaction cannot be held
@@ -1551,13 +1552,13 @@ TxQ::accept(Application& app, OpenView& view)
 SeqProxy
 TxQ::nextQueuableSeq(std::shared_ptr<SLE const> const& sleAccount) const
 {
-    auto acctRootRd = makeAcctRootRd(sleAccount);
+    auto [acctRootRd, _] = makeAcctRootRd(sleAccount);
     if (!acctRootRd.has_value())
         // If the account is not in the ledger or a non-account was passed
         // then return zero.  We have no idea.
         return SeqProxy::sequence(0);
     std::lock_guard<std::mutex> lock(mutex_);
-    return nextQueuableSeqImpl(*acctRootRd, lock);
+    return nextQueuableSeqImpl(acctRootRd, lock);
 }
 
 // The goal is to return a SeqProxy for a sequence that will fill the next
@@ -1633,12 +1634,12 @@ TxQ::tryDirectApply(
     beast::Journal j)
 {
     auto const accountID = (*tx)[sfAccount];
-    auto const acctRootRd =
+    auto const [acctRootRd, _] =
         makeAcctRootRd(view.read(keylet::account(accountID)));
     if (!acctRootRd.has_value())
         return {};
 
-    SeqProxy const acctSeqProx = SeqProxy::sequence(acctRootRd->sequence());
+    SeqProxy const acctSeqProx = SeqProxy::sequence(acctRootRd.sequence());
     SeqProxy const txSeqProx = tx->getSeqProxy();
 
     // Can only directly apply if the transaction sequence matches the account
@@ -1750,14 +1751,15 @@ TxQ::getTxRequiredFeeAndSeq(
     auto const fee = FeeMetrics::scaleFeeLevel(snapshot, view);
     auto const [overflow, txReqFee] = mulDiv(fee, baseFee, baseLevel);
 
-    auto const acctRootRd = makeAcctRootRd(view.read(keylet::account(account)));
+    auto const [acctRootRd, _] =
+        makeAcctRootRd(view.read(keylet::account(account)));
     if (!acctRootRd.has_value())
         return {txReqFee, 0, 0};
 
     std::uint32_t const availableSeq =
-        nextQueuableSeqImpl(*acctRootRd, lock).value();
+        nextQueuableSeqImpl(acctRootRd, lock).value();
 
-    return {txReqFee, acctRootRd->sequence(), availableSeq};
+    return {txReqFee, acctRootRd.sequence(), availableSeq};
 }
 
 std::vector<TxQ::TxDetails>

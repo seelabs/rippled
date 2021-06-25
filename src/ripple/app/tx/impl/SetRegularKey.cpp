@@ -35,10 +35,10 @@ SetRegularKey::calculateBaseFee(ReadView const& view, STTx const& tx)
     {
         if (calcAccountID(PublicKey(makeSlice(spk))) == id)
         {
-            auto const acctRootRd =
+            auto const [acctRootRd, _] =
                 makeAcctRootRd(view.read(keylet::account(id)));
             if (acctRootRd.has_value() &&
-                !(acctRootRd->flags() & lsfPasswordSpent))
+                !(acctRootRd.flags() & lsfPasswordSpent))
             {
                 // flag is armed and they signed with the right account
                 return FeeUnit64{0};
@@ -78,25 +78,25 @@ SetRegularKey::preflight(PreflightContext const& ctx)
 TER
 SetRegularKey::doApply()
 {
-    auto acctRoot = makeAcctRoot(view().peek(keylet::account(account_)));
+    auto [acctRoot, _] = makeAcctRoot(view().peek(keylet::account(account_)));
     if (!acctRoot.has_value())
         return tefINTERNAL;
 
     if (!minimumFee(ctx_.app, ctx_.baseFee, view().fees(), view().flags()))
-        acctRoot->setFlag(lsfPasswordSpent);
+        acctRoot.setFlag(lsfPasswordSpent);
 
     if (ctx_.tx.isFieldPresent(sfRegularKey))
     {
-        acctRoot->setRegularKey(ctx_.tx.getAccountID(sfRegularKey));
+        acctRoot.setRegularKey(ctx_.tx.getAccountID(sfRegularKey));
     }
     else
     {
         // Account has disabled master key and no multi-signer signer list.
-        if (acctRoot->isFlag(lsfDisableMaster) &&
+        if (acctRoot.isFlag(lsfDisableMaster) &&
             !view().exists(keylet::signers(account_)))
             return tecNO_ALTERNATIVE_KEY;
 
-        acctRoot->clearRegularKey();
+        acctRoot.clearRegularKey();
     }
 
     return tesSUCCESS;

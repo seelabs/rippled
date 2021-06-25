@@ -55,6 +55,24 @@ AcctRootWrapper<Writable>::AcctRootWrapper(wrapped_t&& w)
 }
 
 template <bool Writable>
+AcctRootWrapper<Writable>::AcctRootWrapper(std::nullptr_t)
+{
+}
+
+template <bool Writable>
+bool
+AcctRootWrapper<Writable>::has_value() const
+{
+    return bool(wrapped_);
+}
+
+template <bool Writable>
+AcctRootWrapper<Writable>::operator bool() const
+{
+    return has_value();
+}
+
+template <bool Writable>
 auto
 AcctRootWrapper<Writable>::slePtr() const -> wrapped_t const&
 {
@@ -379,32 +397,34 @@ AcctRootWrapper<true>::clearTicketCount()
     clearOptional(sfTicketCount);
 }
 
-tl::expected<AcctRootRd, NotTEC>
+std::pair<AcctRootRd, NotTEC>
 makeAcctRootRd(std::shared_ptr<STLedgerEntry const> slePtr)
 {
+    using R = std::pair<AcctRootRd, NotTEC>;
     if (!slePtr)
-        return tl::unexpected(terNO_ACCOUNT);
+        return R{AcctRootRd{nullptr}, terNO_ACCOUNT};
 
     std::uint16_t const type = {slePtr->at(sfLedgerEntryType)};
     assert(type == ltACCOUNT_ROOT);
     if (type != ltACCOUNT_ROOT)
-        return tl::unexpected(tefINTERNAL);
+        return R{AcctRootRd{nullptr}, tefINTERNAL};
 
-    return AcctRootRd(std::move(slePtr));
+    return R{AcctRootRd(std::move(slePtr)), tesSUCCESS};
 }
 
-tl::expected<AcctRoot, NotTEC>
+std::pair<AcctRoot, NotTEC>
 makeAcctRoot(std::shared_ptr<STLedgerEntry> slePtr)
 {
+    using R = std::pair<AcctRoot, NotTEC>;
     if (!slePtr)
-        return tl::unexpected(terNO_ACCOUNT);
+        return R{AcctRoot{nullptr}, terNO_ACCOUNT};
 
     std::uint16_t const type = {slePtr->at(sfLedgerEntryType)};
     assert(type == ltACCOUNT_ROOT);
     if (type != ltACCOUNT_ROOT)
-        return tl::unexpected(tefINTERNAL);
+        return R{AcctRoot{nullptr}, tefINTERNAL};
 
-    return AcctRoot(std::move(slePtr));
+    return R{AcctRoot(std::move(slePtr)), tesSUCCESS};
 }
 
 template class AcctRootWrapper<true>;

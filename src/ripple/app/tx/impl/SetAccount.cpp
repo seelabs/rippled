@@ -184,11 +184,11 @@ SetAccount::preclaim(PreclaimContext const& ctx)
 
     std::uint32_t const uTxFlags = ctx.tx.getFlags();
 
-    auto acctRootRd = makeAcctRootRd(ctx.view.read(keylet::account(id)));
+    auto [acctRootRd, ter] = makeAcctRootRd(ctx.view.read(keylet::account(id)));
     if (!acctRootRd.has_value())
-        return acctRootRd.error();
+        return ter;
 
-    std::uint32_t const uFlagsIn = {acctRootRd->flags()};
+    std::uint32_t const uFlagsIn = {acctRootRd.flags()};
 
     std::uint32_t const uSetFlag = {ctx.tx.getFieldU32(sfSetFlag)};
 
@@ -214,11 +214,11 @@ SetAccount::preclaim(PreclaimContext const& ctx)
 TER
 SetAccount::doApply()
 {
-    auto acctRoot = makeAcctRoot(view().peek(keylet::account(account_)));
+    auto [acctRoot, ter] = makeAcctRoot(view().peek(keylet::account(account_)));
     if (!acctRoot.has_value())
-        return acctRoot.error();
+        return ter;
 
-    std::uint32_t const uFlagsIn = {acctRoot->flags()};
+    std::uint32_t const uFlagsIn = {acctRoot.flags()};
     std::uint32_t uFlagsOut = {uFlagsIn};
 
     STTx const& tx{ctx_.tx};
@@ -309,7 +309,7 @@ SetAccount::doApply()
             return tecNEED_MASTER_KEY;
         }
 
-        if (!acctRoot->regularKey() &&
+        if (!acctRoot.regularKey() &&
             (!view().exists(keylet::signers(account_))))
         {
             // Account has no regular key or multi-signer signer list.
@@ -375,16 +375,16 @@ SetAccount::doApply()
     //
     // Track transaction IDs signed by this account in its root
     //
-    if (uSetFlag == asfAccountTxnID && !acctRoot->accountTxnID())
+    if (uSetFlag == asfAccountTxnID && !acctRoot.accountTxnID())
     {
         JLOG(j_.trace()) << "Set AccountTxnID.";
-        acctRoot->setAccountTxnID(uint256(beast::zero));
+        acctRoot.setAccountTxnID(uint256(beast::zero));
     }
 
     if (uClearFlag == asfAccountTxnID)
     {
         JLOG(j_.trace()) << "Clear AccountTxnID.";
-        acctRoot->clearAccountTxnID();
+        acctRoot.clearAccountTxnID();
     }
 
     //
@@ -414,12 +414,12 @@ SetAccount::doApply()
         if (!uHash)
         {
             JLOG(j_.trace()) << "unset email hash";
-            acctRoot->clearEmailHash();
+            acctRoot.clearEmailHash();
         }
         else
         {
             JLOG(j_.trace()) << "set email hash";
-            acctRoot->setEmailHash(uHash);
+            acctRoot.setEmailHash(uHash);
         }
     }
 
@@ -433,12 +433,12 @@ SetAccount::doApply()
         if (!uHash)
         {
             JLOG(j_.trace()) << "unset wallet locator";
-            acctRoot->clearWalletLocator();
+            acctRoot.clearWalletLocator();
         }
         else
         {
             JLOG(j_.trace()) << "set wallet locator";
-            acctRoot->setWalletLocator(uHash);
+            acctRoot.setWalletLocator(uHash);
         }
     }
 
@@ -450,7 +450,7 @@ SetAccount::doApply()
         Blob const messageKey = tx.getFieldVL(sfMessageKey);
 
         JLOG(j_.debug()) << "change message key";
-        acctRoot->setMessageKey(messageKey);
+        acctRoot.setMessageKey(messageKey);
     }
 
     //
@@ -461,7 +461,7 @@ SetAccount::doApply()
         Blob const domain = tx.getFieldVL(sfDomain);
 
         JLOG(j_.trace()) << "change domain";
-        acctRoot->setDomain(domain);
+        acctRoot.setDomain(domain);
     }
 
     //
@@ -474,12 +474,12 @@ SetAccount::doApply()
         if (uRate == 0 || uRate == QUALITY_ONE)
         {
             JLOG(j_.trace()) << "unset transfer rate";
-            acctRoot->clearTransferRate();
+            acctRoot.clearTransferRate();
         }
         else
         {
             JLOG(j_.trace()) << "set transfer rate";
-            acctRoot->setTransferRate(uRate);
+            acctRoot.setTransferRate(uRate);
         }
     }
 
@@ -492,17 +492,17 @@ SetAccount::doApply()
         if ((uTickSize == 0) || (uTickSize == Quality::maxTickSize))
         {
             JLOG(j_.trace()) << "unset tick size";
-            acctRoot->clearTickSize();
+            acctRoot.clearTickSize();
         }
         else
         {
             JLOG(j_.trace()) << "set tick size";
-            acctRoot->setTickSize(uTickSize);
+            acctRoot.setTickSize(uTickSize);
         }
     }
 
     if (uFlagsIn != uFlagsOut)
-        acctRoot->replaceAllFlags(uFlagsOut);
+        acctRoot.replaceAllFlags(uFlagsOut);
 
     return tesSUCCESS;
 }

@@ -157,22 +157,23 @@ DeleteAccount::preclaim(PreclaimContext const& ctx)
     AccountID const account{ctx.tx[sfAccount]};
     AccountID const dst{ctx.tx[sfDestination]};
 
-    auto const dstRootRd = makeAcctRootRd(ctx.view.read(keylet::account(dst)));
+    auto const [dstRootRd, _] =
+        makeAcctRootRd(ctx.view.read(keylet::account(dst)));
     if (!dstRootRd.has_value())
         return tecNO_DST;
 
-    if (dstRootRd->flags() & lsfRequireDestTag && !ctx.tx[~sfDestinationTag])
+    if (dstRootRd.flags() & lsfRequireDestTag && !ctx.tx[~sfDestinationTag])
         return tecDST_TAG_NEEDED;
 
     // Check whether the destination account requires deposit authorization.
     if (ctx.view.rules().enabled(featureDepositAuth) &&
-        (dstRootRd->flags() & lsfDepositAuth))
+        (dstRootRd.flags() & lsfDepositAuth))
     {
         if (!ctx.view.exists(keylet::depositPreauth(dst, account)))
             return tecNO_PERMISSION;
     }
 
-    auto const acctRootRd =
+    auto const [acctRootRd, ignored] =
         makeAcctRootRd(ctx.view.read(keylet::account(account)));
     assert(acctRootRd.has_value());
     if (!acctRootRd.has_value())
@@ -185,7 +186,7 @@ DeleteAccount::preclaim(PreclaimContext const& ctx)
     // We look at the account's Sequence rather than the transaction's
     // Sequence in preparation for Tickets.
     constexpr std::uint32_t seqDelta{255};
-    if (acctRootRd->sequence() + seqDelta > ctx.view.seq())
+    if (acctRootRd.sequence() + seqDelta > ctx.view.seq())
         return tecTOO_SOON;
 
     // Verify that the account does not own any objects that would prevent
@@ -246,10 +247,10 @@ DeleteAccount::preclaim(PreclaimContext const& ctx)
 TER
 DeleteAccount::doApply()
 {
-    auto srcRoot = makeAcctRoot(view().peek(keylet::account(account_)));
+    auto [srcRoot, _] = makeAcctRoot(view().peek(keylet::account(account_)));
     assert(srcRoot.has_value());
 
-    auto dstRoot =
+    auto [dstRoot, ignored] =
         makeAcctRoot(view().peek(keylet::account(ctx_.tx[sfDestination])));
     assert(dstRoot.has_value());
 
@@ -330,11 +331,11 @@ DeleteAccount::doApply()
     }
 
     // Transfer any XRP remaining after the fee is paid to the destination:
-    dstRoot->setBalance(dstRoot->balance() + mSourceBalance);
-    srcRoot->setBalance(srcRoot->balance() - mSourceBalance);
+    dstRoot.setBalance(dstRoot.balance() + mSourceBalance);
+    srcRoot.setBalance(srcRoot.balance() - mSourceBalance);
     ctx_.deliver(mSourceBalance);
 
-    assert(srcRoot->balance() == XRPAmount(0));
+    assert(srcRoot.balance() == XRPAmount(0));
 
     // If there's still an owner directory associated with the source account
     // delete it.
@@ -346,11 +347,11 @@ DeleteAccount::doApply()
     }
 
     // Re-arm the password change fee if we can and need to.
-    if (mSourceBalance > XRPAmount(0) && dstRoot->isFlag(lsfPasswordSpent))
-        dstRoot->clearFlag(lsfPasswordSpent);
+    if (mSourceBalance > XRPAmount(0) && dstRoot.isFlag(lsfPasswordSpent))
+        dstRoot.clearFlag(lsfPasswordSpent);
 
-    view().update(dstRoot->slePtr());
-    view().erase(srcRoot->slePtr());
+    view().update(dstRoot.slePtr());
+    view().erase(srcRoot.slePtr());
 
     return tesSUCCESS;
 }

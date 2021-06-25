@@ -69,9 +69,20 @@ class AcctRootWrapper
     std::enable_if_t<W>
     setOrClearVLIfEmpty(SF_VL const& field, Blob const& value);
 
+    AcctRootWrapper(AcctRootWrapper const&) = default;
+    AcctRootWrapper&
+    operator=(AcctRootWrapper const&) = default;
+
 public:
     AcctRootWrapper() = delete;
     AcctRootWrapper(wrapped_t&& w);
+    AcctRootWrapper(std::nullptr_t);
+    AcctRootWrapper(AcctRootWrapper&&) = default;
+
+    bool
+    has_value() const;
+
+    explicit operator bool() const;
 
     [[nodiscard]] wrapped_t const&
     slePtr() const;
@@ -230,10 +241,10 @@ public:
 using AcctRootRd = AcctRootWrapper<false>;
 using AcctRoot = AcctRootWrapper<true>;
 
-[[nodiscard]] tl::expected<AcctRootRd, NotTEC>
+[[nodiscard]] std::pair<AcctRootRd, NotTEC>
 makeAcctRootRd(std::shared_ptr<STLedgerEntry const> slePtr);
 
-[[nodiscard]] tl::expected<AcctRoot, NotTEC>
+[[nodiscard]] std::pair<AcctRoot, NotTEC>
 makeAcctRoot(std::shared_ptr<STLedgerEntry> slePtr);
 
 }  // namespace ripple

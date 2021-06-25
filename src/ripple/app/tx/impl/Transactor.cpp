@@ -190,11 +190,12 @@ Transactor::checkFee(PreclaimContext const& ctx, FeeUnit64 baseFee)
         return tesSUCCESS;
 
     auto const id = ctx.tx.getAccountID(sfAccount);
-    auto const acctRootRd = makeAcctRootRd(ctx.view.read(keylet::account(id)));
+    auto const [acctRootRd, ter] =
+        makeAcctRootRd(ctx.view.read(keylet::account(id)));
     if (!acctRootRd.has_value())
         return terNO_ACCOUNT;
 
-    auto const balance = acctRootRd->balance().xrp();
+    auto const balance = acctRootRd.balance().xrp();
 
     if (balance < feePaid)
     {
@@ -219,7 +220,7 @@ Transactor::payFee()
 {
     auto const feePaid = ctx_.tx[sfFee].xrp();
 
-    auto acctRoot = makeAcctRoot(view().peek(keylet::account(account_)));
+    auto [acctRoot, ter] = makeAcctRoot(view().peek(keylet::account(account_)));
     if (!acctRoot.has_value())
         return tefINTERNAL;
 
@@ -227,7 +228,7 @@ Transactor::payFee()
     // Will only write the account back if the transaction succeeds.
 
     mSourceBalance -= feePaid;
-    acctRoot->setBalance(mSourceBalance);
+    acctRoot.setBalance(mSourceBalance);
 
     // VFALCO Should we call view().rawDestroyXRP() here as well?
 
@@ -242,7 +243,8 @@ Transactor::checkSeqProxy(
 {
     auto const id = tx.getAccountID(sfAccount);
 
-    auto const acctRootRd = makeAcctRootRd(view.read(keylet::account(id)));
+    auto const [acctRootRd, ter] =
+        makeAcctRootRd(view.read(keylet::account(id)));
 
     if (!acctRootRd.has_value())
     {
@@ -253,7 +255,7 @@ Transactor::checkSeqProxy(
     }
 
     SeqProxy const t_seqProx = tx.getSeqProxy();
-    SeqProxy const a_seq = SeqProxy::sequence(acctRootRd->sequence());
+    SeqProxy const a_seq = SeqProxy::sequence(acctRootRd.sequence());
 
     if (t_seqProx.isSeq())
     {
@@ -311,7 +313,8 @@ Transactor::checkPriorTxAndLastLedger(PreclaimContext const& ctx)
 {
     auto const id = ctx.tx.getAccountID(sfAccount);
 
-    auto const acctRootRd = makeAcctRootRd(ctx.view.read(keylet::account(id)));
+    auto const [acctRootRd, ter] =
+        makeAcctRootRd(ctx.view.read(keylet::account(id)));
     if (!acctRootRd.has_value())
     {
         JLOG(ctx.j.trace())
@@ -321,7 +324,7 @@ Transactor::checkPriorTxAndLastLedger(PreclaimContext const& ctx)
     }
 
     if (ctx.tx.isFieldPresent(sfAccountTxnID) &&
-        (acctRootRd->accountTxnID() != ctx.tx.getFieldH256(sfAccountTxnID)))
+        (acctRootRd.accountTxnID() != ctx.tx.getFieldH256(sfAccountTxnID)))
         return tefWRONG_PRIOR;
 
     if (ctx.tx.isFieldPresent(sfLastLedgerSequence) &&
@@ -376,19 +379,19 @@ Transactor::ticketDelete(
 
     // Update the account root's TicketCount.  If the ticket count drops to
     // zero remove the (optional) field.
-    auto acctRoot = makeAcctRoot(view.peek(keylet::account(account)));
+    auto [acctRoot, ter] = makeAcctRoot(view.peek(keylet::account(account)));
     if (!acctRoot.has_value())
     {
         JLOG(j.fatal()) << "Could not find Ticket owner account root.";
         return tefBAD_LEDGER;
     }
 
-    if (auto ticketCount = acctRoot->ticketCount())
+    if (auto ticketCount = acctRoot.ticketCount())
     {
         if (*ticketCount == 1)
-            acctRoot->clearTicketCount();
+            acctRoot.clearTicketCount();
         else
-            acctRoot->setTicketCount(*ticketCount - 1);
+            acctRoot.setTicketCount(*ticketCount - 1);
     }
     else
     {
@@ -397,7 +400,7 @@ Transactor::ticketDelete(
     }
 
     // Update the Ticket owner's reserve.
-    adjustOwnerCount(view, acctRoot->slePtr(), -1, j);
+    adjustOwnerCount(view, acctRoot.slePtr(), -1, j);
 
     // Remove Ticket from ledger.
     view.erase(sleTicket);
@@ -418,7 +421,7 @@ Transactor::apply()
 
     // If the transactor requires a valid account and the transaction doesn't
     // list one, preflight will have already a flagged a failure.
-    auto acctRoot = makeAcctRoot(view().peek(keylet::account(account_)));
+    auto [acctRoot, ter] = makeAcctRoot(view().peek(keylet::account(account_)));
 
     // acctRoot must exist except for transactions
     // that allow zero account.
@@ -426,10 +429,10 @@ Transactor::apply()
 
     if (acctRoot.has_value())
     {
-        mPriorBalance = acctRoot->balance().xrp();
+        mPriorBalance = acctRoot.balance().xrp();
         mSourceBalance = mPriorBalance;
 
-        TER result = consumeSeqProxy(*acctRoot);
+        TER result = consumeSeqProxy(acctRoot);
         if (result != tesSUCCESS)
             return result;
 
@@ -437,10 +440,10 @@ Transactor::apply()
         if (result != tesSUCCESS)
             return result;
 
-        if (acctRoot->accountTxnID())
-            acctRoot->setAccountTxnID(ctx_.tx.getTransactionID());
+        if (acctRoot.accountTxnID())
+            acctRoot.setAccountTxnID(ctx_.tx.getTransactionID());
 
-        view().update(acctRoot->slePtr());
+        view().update(acctRoot.slePtr());
     }
 
     return doApply();
@@ -471,13 +474,13 @@ Transactor::checkSingleSign(PreclaimContext const& ctx)
     // Look up the account.
     auto const idSigner = calcAccountID(PublicKey(makeSlice(pkSigner)));
     auto const idAccount = ctx.tx.getAccountID(sfAccount);
-    auto const acctRootRd =
+    auto const [acctRootRd, ter] =
         makeAcctRootRd(ctx.view.read(keylet::account(idAccount)));
     if (!acctRootRd.has_value())
         return terNO_ACCOUNT;
 
-    bool const isMasterDisabled = acctRootRd->isFlag(lsfDisableMaster);
-    auto const optionalRegularKey = acctRootRd->regularKey();
+    bool const isMasterDisabled = acctRootRd.isFlag(lsfDisableMaster);
+    auto const optionalRegularKey = acctRootRd.regularKey();
 
     if (ctx.view.rules().enabled(fixMasterKeyAsRegularKey))
     {
@@ -630,7 +633,7 @@ Transactor::checkMultiSign(PreclaimContext const& ctx)
 
         // In any of these cases we need to know whether the account is in
         // the ledger.  Determine that now.
-        auto txSignerRootRd =
+        auto [txSignerRootRd, ter] =
             makeAcctRootRd(ctx.view.read(keylet::account(txSignerAcctID)));
 
         if (signingAcctIDFromPubKey == txSignerAcctID)
@@ -639,7 +642,7 @@ Transactor::checkMultiSign(PreclaimContext const& ctx)
             if (txSignerRootRd.has_value())
             {
                 // Master Key.  Account may not have asfDisableMaster set.
-                if (txSignerRootRd->isFlag(lsfDisableMaster))
+                if (txSignerRootRd.isFlag(lsfDisableMaster))
                 {
                     JLOG(ctx.j.trace())
                         << "applyTransaction: Signer:Account lsfDisableMaster.";
@@ -658,7 +661,7 @@ Transactor::checkMultiSign(PreclaimContext const& ctx)
                 return tefBAD_SIGNATURE;
             }
 
-            auto const optionalRegularKey = txSignerRootRd->regularKey();
+            auto const optionalRegularKey = txSignerRootRd.regularKey();
             if (!optionalRegularKey)
             {
                 JLOG(ctx.j.trace())
@@ -716,14 +719,14 @@ Transactor::reset(XRPAmount fee)
 {
     ctx_.discard();
 
-    auto txnAcctRoot = makeAcctRoot(
+    auto [txnAcctRoot, _] = makeAcctRoot(
         view().peek(keylet::account(ctx_.tx.getAccountID(sfAccount))));
     if (!txnAcctRoot.has_value())
         // The account should never be missing from the ledger.  But if it
         // is missing then we can't very well charge it a fee, can we?
         return {tefINTERNAL, beast::zero};
 
-    auto const balance = txnAcctRoot->balance().xrp();
+    auto const balance = txnAcctRoot.balance().xrp();
 
     // balance should have already been checked in checkFee / preFlight.
     assert(balance != beast::zero && (!view().open() || balance >= fee));
@@ -739,12 +742,12 @@ Transactor::reset(XRPAmount fee)
     // If for some reason we are unable to consume the ticket or sequence
     // then the ledger is corrupted.  Rather than make things worse we
     // reject the transaction.
-    txnAcctRoot->setBalance(balance - fee);
-    TER const ter{consumeSeqProxy(*txnAcctRoot)};
+    txnAcctRoot.setBalance(balance - fee);
+    TER const ter{consumeSeqProxy(txnAcctRoot)};
     assert(isTesSuccess(ter));
 
     if (isTesSuccess(ter))
-        view().update(txnAcctRoot->slePtr());
+        view().update(txnAcctRoot.slePtr());
 
     return {ter, fee};
 }
