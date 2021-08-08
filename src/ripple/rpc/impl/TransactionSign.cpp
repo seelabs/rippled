@@ -801,6 +801,7 @@ transactionSign(
 /** Returns a Json::objectValue. */
 Json::Value
 transactionSubmit(
+    std::shared_ptr<JobQueue::Coro> coro,
     Json::Value jvRequest,
     NetworkOPs::FailHard failType,
     Role role,
@@ -833,7 +834,8 @@ transactionSubmit(
     try
     {
         // FIXME: For performance, should use asynch interface
-        processTransaction(txn.second, isUnlimited(role), true, failType);
+        processTransaction(
+            std::move(coro), txn.second, isUnlimited(role), true, failType);
     }
     catch (std::exception&)
     {
@@ -1037,6 +1039,7 @@ transactionSignFor(
 /** Returns a Json::objectValue. */
 Json::Value
 transactionSubmitMultiSigned(
+    std::shared_ptr<JobQueue::Coro> coro,
     Json::Value jvRequest,
     NetworkOPs::FailHard failType,
     Role role,
@@ -1215,7 +1218,8 @@ transactionSubmitMultiSigned(
     try
     {
         // FIXME: For performance, should use asynch interface
-        processTransaction(txn.second, isUnlimited(role), true, failType);
+        processTransaction(
+            std::move(coro), txn.second, isUnlimited(role), true, failType);
     }
     catch (std::exception&)
     {

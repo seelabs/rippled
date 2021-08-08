@@ -38,6 +38,7 @@ doSubmitMultiSigned(RPC::JsonContext& context)
     auto const failType = NetworkOPs::doFailHard(failHard);
 
     return RPC::transactionSubmitMultiSigned(
+        context.coro,
         context.params,
         failType,
         context.role,

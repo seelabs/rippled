@@ -73,6 +73,7 @@ checkFee(
 
 // Return a std::function<> that calls NetworkOPs::processTransaction.
 using ProcessTransactionFn = std::function<void(
+    std::shared_ptr<JobQueue::Coro> coro,
     std::shared_ptr<Transaction>& transaction,
     bool bUnlimited,
     bool bLocal,
@@ -82,11 +83,13 @@ inline ProcessTransactionFn
 getProcessTxnFn(NetworkOPs& netOPs)
 {
     return [&netOPs](
+               std::shared_ptr<JobQueue::Coro> coro,
                std::shared_ptr<Transaction>& transaction,
                bool bUnlimited,
                bool bLocal,
                NetworkOPs::FailHard failType) {
-        netOPs.processTransaction(transaction, bUnlimited, bLocal, failType);
+        netOPs.processTransaction(
+            std::move(coro), transaction, bUnlimited, bLocal, failType);
     };
 }
 
@@ -102,6 +105,7 @@ transactionSign(
 /** Returns a Json::objectValue. */
 Json::Value
 transactionSubmit(
+    std::shared_ptr<JobQueue::Coro> coro,
     Json::Value params,  // Passed by value so it can be modified locally.
     NetworkOPs::FailHard failType,
     Role role,
@@ -121,6 +125,7 @@ transactionSignFor(
 /** Returns a Json::objectValue. */
 Json::Value
 transactionSubmitMultiSigned(
+    std::shared_ptr<JobQueue::Coro> coro,
     Json::Value params,  // Passed by value so it can be modified locally.
     NetworkOPs::FailHard failType,
     Role role,

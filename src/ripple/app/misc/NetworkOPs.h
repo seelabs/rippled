@@ -134,6 +134,7 @@ public:
      */
     virtual void
     processTransaction(
+        std::shared_ptr<JobQueue::Coro> coro,
         std::shared_ptr<Transaction>& transaction,
         bool bUnlimited,
         bool bLocal,

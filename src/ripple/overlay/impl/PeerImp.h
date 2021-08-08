@@ -549,6 +549,7 @@ private:
 
     void
     checkTransaction(
+        std::shared_ptr<JobQueue::Coro> coro,
         int flags,
         bool checkSignature,
         std::shared_ptr<STTx const> const& stx);

@@ -2382,6 +2382,7 @@ public:
     // A function that can be called as though it would process a transaction.
     static void
     fakeProcessTransaction(
+        std::shared_ptr<JobQueue::Coro> coro,
         std::shared_ptr<Transaction>&,
         bool,
         bool,
@@ -2437,15 +2438,45 @@ public:
         using TestStuff =
             std::tuple<signFunc, submitFunc, char const*, unsigned int>;
 
+        auto txnSubmitHelper =
+            [](Json::Value params,
+               NetworkOPs::FailHard failType,
+               Role role,
+               std::chrono::seconds validatedLedgerAge,
+               Application& app,
+               ProcessTransactionFn const& processTransaction) {
+                return transactionSubmit(
+                    std::shared_ptr<JobQueue::Coro>{},
+                    std::move(params),
+                    failType,
+                    role,
+                    validatedLedgerAge,
+                    app,
+                    processTransaction);
+            };
+
+        auto txnMultiSubmitHelper =
+            [](Json::Value params,
+               NetworkOPs::FailHard failType,
+               Role role,
+               std::chrono::seconds validatedLedgerAge,
+               Application& app,
+               ProcessTransactionFn const& processTransaction) {
+                return transactionSubmitMultiSigned(
+                    std::shared_ptr<JobQueue::Coro>{},
+                    std::move(params),
+                    failType,
+                    role,
+                    validatedLedgerAge,
+                    app,
+                    processTransaction);
+            };
+
         static TestStuff const testFuncs[] = {
             TestStuff{transactionSign, nullptr, "sign", 0},
-            TestStuff{nullptr, transactionSubmit, "submit", 1},
+            TestStuff{nullptr, txnSubmitHelper, "submit", 1},
             TestStuff{transactionSignFor, nullptr, "sign_for", 2},
-            TestStuff{
-                nullptr,
-                transactionSubmitMultiSigned,
-                "submit_multisigned",
-                3}};
+            TestStuff{nullptr, txnMultiSubmitHelper, "submit_multisigned", 3}};
 
         for (auto testFunc : testFuncs)
         {

@@ -58,6 +58,7 @@ doSubmit(RPC::JsonContext& context)
                 rpcNOT_SUPPORTED, "Signing is not supported by this server.");
 
         auto ret = RPC::transactionSubmit(
+            context.coro,
             context.params,
             failType,
             context.role,
@@ -132,7 +133,7 @@ doSubmit(RPC::JsonContext& context)
         auto const failType = getFailHard(context);
 
         context.netOps.processTransaction(
-            tpTrans, isUnlimited(context.role), true, failType);
+            context.coro, tpTrans, isUnlimited(context.role), true, failType);
     }
     catch (std::exception& e)
     {
@@ -261,8 +262,13 @@ doSubmitGrpc(
         auto const failType = NetworkOPs::doFailHard(request.fail_hard());
 
         // submit to network
+        // TODO: can we use a coroutine here?
         context.netOps.processTransaction(
-            tpTrans, isUnlimited(context.role), true, failType);
+            /*coro*/ std::shared_ptr<JobQueue::Coro>{},
+            tpTrans,
+            isUnlimited(context.role),
+            true,
+            failType);
     }
     catch (std::exception& e)
     {

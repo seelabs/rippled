@@ -1508,15 +1508,16 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMTransaction> const& m)
         }
         else
         {
-            app_.getJobQueue().addJob(
+            app_.getJobQueue().postCoro(
                 jtTRANSACTION,
                 "recvTransaction->checkTransaction",
                 [weak = std::weak_ptr<PeerImp>(shared_from_this()),
                  flags,
                  checkSignature,
-                 stx](Job&) {
+                 stx](std::shared_ptr<JobQueue::Coro> coro) {
                     if (auto peer = weak.lock())
-                        peer->checkTransaction(flags, checkSignature, stx);
+                        peer->checkTransaction(
+                            std::move(coro), flags, checkSignature, stx);
                 });
         }
     }
@@ -2742,6 +2743,7 @@ PeerImp::doFetchPack(const std::shared_ptr<protocol::TMGetObjectByHash>& packet)
 
 void
 PeerImp::checkTransaction(
+    std::shared_ptr<JobQueue::Coro> coro,
     int flags,
     bool checkSignature,
     std::shared_ptr<STTx const> const& stx)
@@ -2804,7 +2806,7 @@ PeerImp::checkTransaction(
 
         bool const trusted(flags & SF_TRUSTED);
         app_.getOPs().processTransaction(
-            tx, trusted, false, NetworkOPs::FailHard::no);
+            std::move(coro), tx, trusted, false, NetworkOPs::FailHard::no);
     }
     catch (std::exception const&)
     {

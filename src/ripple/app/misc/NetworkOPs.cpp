@@ -276,6 +276,7 @@ public:
 
     void
     processTransaction(
+        std::shared_ptr<JobQueue::Coro> coro,
         std::shared_ptr<Transaction>& transaction,
         bool bUnlimited,
         bool bLocal,
@@ -291,6 +292,7 @@ public:
      */
     void
     doTransactionSync(
+        std::shared_ptr<JobQueue::Coro> coro,
         std::shared_ptr<Transaction> transaction,
         bool bUnlimited,
         FailHard failType);
@@ -660,6 +662,8 @@ private:
     std::mutex mMutex;
     DispatchState mDispatchState = DispatchState::none;
     std::vector<TransactionStatus> mTransactions;
+
+    std::vector<std::shared_ptr<JobQueue::Coro>> mWaitingTxnCoros;
 
     StateAccounting accounting_{};
 
@@ -1039,14 +1043,18 @@ NetworkOPsImp::submitTransaction(std::shared_ptr<STTx const> const& iTrans)
 
     auto tx = std::make_shared<Transaction>(trans, reason, app_);
 
-    m_job_queue.addJob(jtTRANSACTION, "submitTxn", [this, tx](Job&) {
-        auto t = tx;
-        processTransaction(t, false, false, FailHard::no);
-    });
+    m_job_queue.postCoro(
+        jtTRANSACTION,
+        "submitTxn",
+        [this, tx](std::shared_ptr<JobQueue::Coro> coro) {
+            auto t = tx;
+            processTransaction(std::move(coro), t, false, false, FailHard::no);
+        });
 }
 
 void
 NetworkOPsImp::processTransaction(
+    std::shared_ptr<JobQueue::Coro> coro,
     std::shared_ptr<Transaction>& transaction,
     bool bUnlimited,
     bool bLocal,
@@ -1088,7 +1096,7 @@ NetworkOPsImp::processTransaction(
     app_.getMasterTransaction().canonicalize(&transaction);
 
     if (bLocal)
-        doTransactionSync(transaction, bUnlimited, failType);
+        doTransactionSync(std::move(coro), transaction, bUnlimited, failType);
     else
         doTransactionAsync(transaction, bUnlimited, failType);
 }
@@ -1121,6 +1129,7 @@ NetworkOPsImp::doTransactionAsync(
 
 void
 NetworkOPsImp::doTransactionSync(
+    std::shared_ptr<JobQueue::Coro> coro,
     std::shared_ptr<Transaction> transaction,
     bool bUnlimited,
     FailHard failType)
@@ -1138,8 +1147,43 @@ NetworkOPsImp::doTransactionSync(
     {
         if (mDispatchState == DispatchState::running)
         {
-            // A batch processing job is already running, so wait.
-            mCond.wait(lock);
+            if (coro)
+            {
+                // A batch processing job is already running, so wait.
+                mWaitingTxnCoros.push_back(coro);
+                if (mWaitingTxnCoros.size() == 1)
+                {
+                    mCond.wait(lock, [&] {
+                        return mDispatchState != DispatchState::running;
+                    });
+                    if (transaction->getApplying())
+                        apply(lock);
+
+                    std::vector<std::shared_ptr<JobQueue::Coro>> toResume;
+                    toResume.swap(mWaitingTxnCoros);
+                    for (int i = 0; i < toResume.size(); ++i)
+                    {
+                        // all of the resumed coros should already have the
+                        // transaction applied, so this should run quickly
+                        // (assuming `doTransactionSync` is the last piece of
+                        // work in the corountine - which it should be)
+                        toResume[i]->resume();
+                    }
+                }
+                else
+                {
+                    lock.unlock();
+                    coro->yield();
+                    // coroutine will be resumed with the lock already locked
+                }
+            }
+            else
+            {
+                // not a coroutine
+                mCond.wait(lock, [&] {
+                    return mDispatchState != DispatchState::running;
+                });
+            }
         }
         else
         {
