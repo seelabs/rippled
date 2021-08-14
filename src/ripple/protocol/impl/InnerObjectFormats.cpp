@@ -51,6 +51,13 @@ InnerObjectFormats::InnerObjectFormats()
             {sfPublicKey, soeREQUIRED},
             {sfFirstLedgerSequence, soeREQUIRED},
         });
+
+    add(sfNonFungibleToken.jsonName.c_str(),
+        sfNonFungibleToken.getCode(),
+        {
+            {sfTokenID, soeREQUIRED},
+            {sfURI, soeOPTIONAL},
+        });
 }
 
 InnerObjectFormats const&

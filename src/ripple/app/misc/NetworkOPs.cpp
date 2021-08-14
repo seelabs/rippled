@@ -1172,6 +1172,7 @@ NetworkOPsImp::processTransaction(
     if ((newFlags & SF_BAD) != 0)
     {
         // cached bad
+        std::cerr << transaction->getID() << ": cached bad!\n";
         transaction->setStatus(INVALID);
         transaction->setResult(temBAD_SIGNATURE);
         return;

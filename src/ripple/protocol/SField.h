@@ -52,15 +52,14 @@ class STVector256;
 enum SerializedTypeID {
     // special types
     STI_UNKNOWN = -2,
-    STI_DONE = -1,
     STI_NOTPRESENT = 0,
 
     // // types (common)
     STI_UINT16 = 1,
     STI_UINT32 = 2,
     STI_UINT64 = 3,
-    STI_HASH128 = 4,
-    STI_HASH256 = 5,
+    STI_UINT128 = 4,
+    STI_UINT256 = 5,
     STI_AMOUNT = 6,
     STI_VL = 7,
     STI_ACCOUNT = 8,
@@ -70,9 +69,13 @@ enum SerializedTypeID {
 
     // types (uncommon)
     STI_UINT8 = 16,
-    STI_HASH160 = 17,
+    STI_UINT160 = 17,
     STI_PATHSET = 18,
     STI_VECTOR256 = 19,
+    STI_UINT96 = 20,
+    STI_UINT192 = 21,
+    STI_UINT384 = 22,
+    STI_UINT512 = 23,
 
     // high level types
     // cannot be serialized inside other types
@@ -150,7 +153,8 @@ public:
         const char* fn,
         int meta = sMD_Default,
         IsSigning signing = IsSigning::yes);
-    explicit SField(private_access_tag_t, int fc);
+    explicit SField(private_access_tag_t, int fc) = delete;
+    explicit SField(private_access_tag_t, int fc, bool);
 
     static const SField&
     getField(int fieldCode);
@@ -187,25 +191,17 @@ public:
     }
 
     bool
-    isGeneric() const
-    {
-        return fieldCode == 0;
-    }
-    bool
     isInvalid() const
     {
         return fieldCode == -1;
     }
+
     bool
     isUseful() const
     {
         return fieldCode > 0;
     }
-    bool
-    isKnown() const
-    {
-        return fieldType != STI_UNKNOWN;
-    }
+
     bool
     isBinary() const
     {
@@ -238,11 +234,6 @@ public:
         return num;
     }
 
-    bool
-    isSigningField() const
-    {
-        return signingField == IsSigning::yes;
-    }
     bool
     shouldMeta(int c) const
     {
@@ -318,9 +309,14 @@ using SF_UINT8 = TypedField<STInteger<std::uint8_t>>;
 using SF_UINT16 = TypedField<STInteger<std::uint16_t>>;
 using SF_UINT32 = TypedField<STInteger<std::uint32_t>>;
 using SF_UINT64 = TypedField<STInteger<std::uint64_t>>;
-using SF_HASH128 = TypedField<STBitString<128>>;
-using SF_HASH160 = TypedField<STBitString<160>>;
-using SF_HASH256 = TypedField<STBitString<256>>;
+using SF_UINT96 = TypedField<STBitString<96>>;
+using SF_UINT128 = TypedField<STBitString<128>>;
+using SF_UINT160 = TypedField<STBitString<160>>;
+using SF_UINT192 = TypedField<STBitString<192>>;
+using SF_UINT256 = TypedField<STBitString<256>>;
+using SF_UINT384 = TypedField<STBitString<384>>;
+using SF_UINT512 = TypedField<STBitString<512>>;
+
 using SF_ACCOUNT = TypedField<STAccount>;
 using SF_AMOUNT = TypedField<STAmount>;
 using SF_VL = TypedField<STBlob>;
@@ -346,6 +342,7 @@ extern SF_UINT8 const sfUNLModifyDisabling;
 extern SF_UINT16 const sfLedgerEntryType;
 extern SF_UINT16 const sfTransactionType;
 extern SF_UINT16 const sfSignerWeight;
+extern SF_UINT16 const sfTransferFee;
 
 // 16-bit integers (uncommon)
 extern SF_UINT16 const sfVersion;
@@ -392,6 +389,9 @@ extern SF_UINT32 const sfSignerListID;
 extern SF_UINT32 const sfSettleDelay;
 extern SF_UINT32 const sfTicketCount;
 extern SF_UINT32 const sfTicketSequence;
+extern SF_UINT32 const sfTokenTaxon;
+extern SF_UINT32 const sfMintedTokens;
+extern SF_UINT32 const sfBurnedTokens;
 
 // 64-bit integers
 extern SF_UINT64 const sfIndexNext;
@@ -405,37 +405,43 @@ extern SF_UINT64 const sfHighNode;
 extern SF_UINT64 const sfDestinationNode;
 extern SF_UINT64 const sfCookie;
 extern SF_UINT64 const sfServerVersion;
+extern SF_UINT64 const sfOfferNode;
 
 // 128-bit
-extern SF_HASH128 const sfEmailHash;
+extern SF_UINT128 const sfEmailHash;
 
 // 160-bit (common)
-extern SF_HASH160 const sfTakerPaysCurrency;
-extern SF_HASH160 const sfTakerPaysIssuer;
-extern SF_HASH160 const sfTakerGetsCurrency;
-extern SF_HASH160 const sfTakerGetsIssuer;
+extern SF_UINT160 const sfTakerPaysCurrency;
+extern SF_UINT160 const sfTakerPaysIssuer;
+extern SF_UINT160 const sfTakerGetsCurrency;
+extern SF_UINT160 const sfTakerGetsIssuer;
 
 // 256-bit (common)
-extern SF_HASH256 const sfLedgerHash;
-extern SF_HASH256 const sfParentHash;
-extern SF_HASH256 const sfTransactionHash;
-extern SF_HASH256 const sfAccountHash;
-extern SF_HASH256 const sfPreviousTxnID;
-extern SF_HASH256 const sfLedgerIndex;
-extern SF_HASH256 const sfWalletLocator;
-extern SF_HASH256 const sfRootIndex;
-extern SF_HASH256 const sfAccountTxnID;
+extern SF_UINT256 const sfLedgerHash;
+extern SF_UINT256 const sfParentHash;
+extern SF_UINT256 const sfTransactionHash;
+extern SF_UINT256 const sfAccountHash;
+extern SF_UINT256 const sfPreviousTxnID;
+extern SF_UINT256 const sfLedgerIndex;
+extern SF_UINT256 const sfWalletLocator;
+extern SF_UINT256 const sfRootIndex;
+extern SF_UINT256 const sfAccountTxnID;
+extern SF_UINT256 const sfTokenID;
 
 // 256-bit (uncommon)
-extern SF_HASH256 const sfBookDirectory;
-extern SF_HASH256 const sfInvoiceID;
-extern SF_HASH256 const sfNickname;
-extern SF_HASH256 const sfAmendment;
-extern SF_HASH256 const sfDigest;
-extern SF_HASH256 const sfChannel;
-extern SF_HASH256 const sfConsensusHash;
-extern SF_HASH256 const sfCheckID;
-extern SF_HASH256 const sfValidatedHash;
+extern SF_UINT256 const sfBookDirectory;
+extern SF_UINT256 const sfInvoiceID;
+extern SF_UINT256 const sfNickname;
+extern SF_UINT256 const sfAmendment;
+extern SF_UINT256 const sfDigest;
+extern SF_UINT256 const sfChannel;
+extern SF_UINT256 const sfConsensusHash;
+extern SF_UINT256 const sfCheckID;
+extern SF_UINT256 const sfValidatedHash;
+extern SF_UINT256 const sfPreviousPageMin;
+extern SF_UINT256 const sfNextPageMin;
+extern SF_UINT256 const sfBuyOffer;
+extern SF_UINT256 const sfSellOffer;
 
 // currency amount (common)
 extern SF_AMOUNT const sfAmount;
@@ -453,12 +459,14 @@ extern SF_AMOUNT const sfDeliverMin;
 extern SF_AMOUNT const sfMinimumOffer;
 extern SF_AMOUNT const sfRippleEscrow;
 extern SF_AMOUNT const sfDeliveredAmount;
+extern SF_AMOUNT const sfBrokerFee;
 
 // variable length (common)
 extern SF_VL const sfPublicKey;
 extern SF_VL const sfMessageKey;
 extern SF_VL const sfSigningPubKey;
 extern SF_VL const sfTxnSignature;
+extern SF_VL const sfURI;
 extern SF_VL const sfSignature;
 extern SF_VL const sfDomain;
 extern SF_VL const sfFundCode;
@@ -484,8 +492,8 @@ extern SF_ACCOUNT const sfDestination;
 extern SF_ACCOUNT const sfIssuer;
 extern SF_ACCOUNT const sfAuthorize;
 extern SF_ACCOUNT const sfUnauthorize;
-extern SF_ACCOUNT const sfTarget;
 extern SF_ACCOUNT const sfRegularKey;
+extern SF_ACCOUNT const sfMinter;
 
 // path set
 extern SField const sfPaths;
@@ -494,6 +502,7 @@ extern SField const sfPaths;
 extern SF_VECTOR256 const sfIndexes;
 extern SF_VECTOR256 const sfHashes;
 extern SF_VECTOR256 const sfAmendments;
+extern SF_VECTOR256 const sfTokenOffers;
 
 // inner object
 // OBJECT/1 is reserved for end of object
@@ -507,6 +516,8 @@ extern SField const sfNewFields;
 extern SField const sfTemplateEntry;
 extern SField const sfMemo;
 extern SField const sfSignerEntry;
+extern SField const sfNonFungibleToken;
+
 extern SField const sfSigner;
 extern SField const sfMajority;
 extern SField const sfDisabledValidator;
@@ -523,6 +534,8 @@ extern SField const sfAffectedNodes;
 extern SField const sfMemos;
 extern SField const sfMajorities;
 extern SField const sfDisabledValidators;
+extern SField const sfNonFungibleTokens;
+
 //------------------------------------------------------------------------------
 
 }  // namespace ripple

@@ -58,8 +58,7 @@ SetAccount::makeTxConsequences(PreflightContext const& ctx)
 NotTEC
 SetAccount::preflight(PreflightContext const& ctx)
 {
-    auto const ret = preflight1(ctx);
-    if (!isTesSuccess(ret))
+    if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
         return ret;
 
     auto& tx = ctx.tx;
@@ -100,7 +99,7 @@ SetAccount::preflight(PreflightContext const& ctx)
     // RequireDestTag
     //
     bool bSetRequireDest =
-        (uTxFlags & TxFlag::requireDestTag) || (uSetFlag == asfRequireDest);
+        (uTxFlags & tfRequireDestTag) || (uSetFlag == asfRequireDest);
     bool bClearRequireDest =
         (uTxFlags & tfOptionalDestTag) || (uClearFlag == asfRequireDest);
 
@@ -166,11 +165,21 @@ SetAccount::preflight(PreflightContext const& ctx)
         }
     }
 
-    auto const domain = tx[~sfDomain];
-    if (domain && domain->size() > DOMAIN_BYTES_MAX)
+    if (auto const domain = tx[~sfDomain];
+        domain && domain->size() > maxDomainLength)
     {
         JLOG(j.trace()) << "domain too long";
         return telBAD_DOMAIN;
+    }
+
+    if (ctx.rules.enabled(featureNonFungibleTokensV1))
+    {
+        // Configure authorized minting account:
+        if (uSetFlag == asfAuthorizedMinter && !tx.isFieldPresent(sfMinter))
+            return temMALFORMED;
+
+        if (uClearFlag == asfAuthorizedMinter && tx.isFieldPresent(sfMinter))
+            return temMALFORMED;
     }
 
     return preflight2(ctx);
@@ -227,7 +236,7 @@ SetAccount::doApply()
     // legacy AccountSet flags
     std::uint32_t const uTxFlags{tx.getFlags()};
     bool const bSetRequireDest{
-        (uTxFlags & TxFlag::requireDestTag) || (uSetFlag == asfRequireDest)};
+        (uTxFlags & tfRequireDestTag) || (uSetFlag == asfRequireDest)};
     bool const bClearRequireDest{
         (uTxFlags & tfOptionalDestTag) || (uClearFlag == asfRequireDest)};
     bool const bSetRequireAuth{
@@ -514,6 +523,16 @@ SetAccount::doApply()
             JLOG(j_.trace()) << "set tick size";
             sle->setFieldU8(sfTickSize, uTickSize);
         }
+    }
+
+    // Configure authorized minting account:
+    if (ctx_.view().rules().enabled(featureNonFungibleTokensV1))
+    {
+        if (uSetFlag == asfAuthorizedMinter)
+            sle->setAccountID(sfMinter, ctx_.tx[sfMinter]);
+
+        if (uClearFlag == asfAuthorizedMinter && sle->isFieldPresent(sfMinter))
+            sle->makeFieldAbsent(sfMinter);
     }
 
     if (uFlagsIn != uFlagsOut)

@@ -20,9 +20,11 @@
 #include <ripple/protocol/Indexes.h>
 #include <ripple/protocol/SeqProxy.h>
 #include <ripple/protocol/digest.h>
+#include <ripple/protocol/nftPageMask.h>
 #include <boost/endian/conversion.hpp>
 #include <algorithm>
 #include <cassert>
+#include <string_view>
 
 namespace ripple {
 
@@ -60,6 +62,9 @@ enum class LedgerNameSpace : std::uint16_t {
     CHECK = 'C',
     DEPOSIT_PREAUTH = 'p',
     NEGATIVE_UNL = 'N',
+    NFTOKEN_OFFER = 'q',
+    NFTOKEN_BUY_OFFERS = 'h',
+    NFTOKEN_SELL_OFFERS = 'i',
 
     // No longer used or supported. Left here to reserve the space
     // to avoid accidental reuse.
@@ -129,7 +134,7 @@ namespace keylet {
 Keylet
 account(AccountID const& id) noexcept
 {
-    return {ltACCOUNT_ROOT, indexHash(LedgerNameSpace::ACCOUNT, id)};
+    return Keylet{ltACCOUNT_ROOT, indexHash(LedgerNameSpace::ACCOUNT, id)};
 }
 
 Keylet
@@ -323,6 +328,48 @@ payChan(AccountID const& src, AccountID const& dst, std::uint32_t seq) noexcept
     return {
         ltPAYCHAN,
         indexHash(LedgerNameSpace::XRP_PAYMENT_CHANNEL, src, dst, seq)};
+}
+
+Keylet
+nftpage_min(AccountID const& owner)
+{
+    std::array<std::uint8_t, 32> buf{};
+    std::memcpy(buf.data(), owner.data(), owner.size());
+    return {ltNFTOKEN_PAGE, uint256{buf}};
+}
+
+Keylet
+nftpage_max(AccountID const& owner)
+{
+    uint256 id = nft::pageMask;
+    std::memcpy(id.data(), owner.data(), owner.size());
+    return {ltNFTOKEN_PAGE, id};
+}
+
+Keylet
+nftpage(Keylet const& k, uint256 const& token)
+{
+    assert(k.type == ltNFTOKEN_PAGE);
+    return {ltNFTOKEN_PAGE, (k.key & ~nft::pageMask) + (token & nft::pageMask)};
+}
+
+Keylet
+nftoffer(AccountID const& owner, std::uint32_t seq)
+{
+    return {
+        ltNFTOKEN_OFFER, indexHash(LedgerNameSpace::NFTOKEN_OFFER, owner, seq)};
+}
+
+Keylet
+nft_buys(uint256 const& id) noexcept
+{
+    return {ltDIR_NODE, indexHash(LedgerNameSpace::NFTOKEN_BUY_OFFERS, id)};
+}
+
+Keylet
+nft_sells(uint256 const& id) noexcept
+{
+    return {ltDIR_NODE, indexHash(LedgerNameSpace::NFTOKEN_SELL_OFFERS, id)};
 }
 
 }  // namespace keylet

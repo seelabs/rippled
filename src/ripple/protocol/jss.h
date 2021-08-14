@@ -74,6 +74,13 @@ JSS(Memo);                   // txn common field
 JSS(Memos);                  // txn common field
 JSS(MemoType);               // txn common field
 JSS(MemoData);               // txn common field
+JSS(NFTokenBurn);            // transaction type.
+JSS(NFTokenMint);            // transaction type.
+JSS(NFTokenOffer);           // ledger type.
+JSS(NFTokenAcceptOffer);     // transaction type.
+JSS(NFTokenCancelOffer);     // transaction type.
+JSS(NFTokenCreateOffer);     // transaction type.
+JSS(NFTokenPage);            // ledger type.
 JSS(Offer);                  // ledger type.
 JSS(OfferCancel);            // transaction type.
 JSS(OfferCreate);            // transaction type.
@@ -116,6 +123,7 @@ JSS(accountTreeHash);        // out: ledger/Ledger.cpp
 JSS(account_data);           // out: AccountInfo
 JSS(account_hash);           // out: LedgerToJson
 JSS(account_id);             // out: WalletPropose
+JSS(account_nfts);           // out: AccountNFTs
 JSS(account_objects);        // out: AccountObjects
 JSS(account_root);           // in: LedgerEntry
 JSS(account_sequence_next);  // out: SubmitTransaction
@@ -214,6 +222,7 @@ JSS(deposit_preauth);         // in: AccountObjects, LedgerData
 JSS(deprecated);              // out
 JSS(descending);              // in: AccountTx*
 JSS(description);             // in/out: Reservations
+JSS(destination);             // in: nft_buy_offers, nft_sell_offers
 JSS(destination_account);     // in: PathRequest, RipplePathFind, account_lines
                               // out: AccountChannels
 JSS(destination_amount);      // in: PathRequest, RipplePathFind
@@ -402,6 +411,9 @@ JSS(needed_transaction_hashes);  // out: InboundLedger
 JSS(network_id);                 // out: NetworkOPs
 JSS(network_ledger);             // out: NetworkOPs
 JSS(next_refresh_time);          // out: ValidatorSite
+JSS(nft_offer);                  // in: LedgerEntry
+JSS(nft_page);                   // in: LedgerEntry
+JSS(nft_serial);                 // out: account_nfts
 JSS(no_ripple);                  // out: AccountLines
 JSS(no_ripple_peer);             // out: AccountLines
 JSS(node);                       // out: LedgerEntry
@@ -430,21 +442,22 @@ JSS(open_ledger_fee);            // out: TxQ
 JSS(open_ledger_level);          // out: TxQ
 JSS(owner);                      // in: LedgerEntry, out: NetworkOPs
 JSS(owner_funds);                // in/out: Ledger, NetworkOPs, AcceptedLedgerTx
-JSS(params);                     // RPC
-JSS(parent_close_time);          // out: LedgerToJson
-JSS(parent_hash);                // out: LedgerToJson
-JSS(partition);                  // in: LogLevel
-JSS(passphrase);                 // in: WalletPropose
-JSS(password);                   // in: Subscribe
-JSS(paths);                      // in: RipplePathFind
-JSS(paths_canonical);            // out: RipplePathFind
-JSS(paths_computed);             // out: PathRequest, RipplePathFind
-JSS(payment_channel);            // in: LedgerEntry
-JSS(peer);                       // in: AccountLines
-JSS(peer_authorized);            // out: AccountLines
-JSS(peer_id);                    // out: RCLCxPeerPos
-JSS(peers);                      // out: InboundLedger, handlers/Peers, Overlay
-JSS(peer_disconnects);           // Severed peer connection counter.
+JSS(page_index);
+JSS(params);                      // RPC
+JSS(parent_close_time);           // out: LedgerToJson
+JSS(parent_hash);                 // out: LedgerToJson
+JSS(partition);                   // in: LogLevel
+JSS(passphrase);                  // in: WalletPropose
+JSS(password);                    // in: Subscribe
+JSS(paths);                       // in: RipplePathFind
+JSS(paths_canonical);             // out: RipplePathFind
+JSS(paths_computed);              // out: PathRequest, RipplePathFind
+JSS(payment_channel);             // in: LedgerEntry
+JSS(peer);                        // in: AccountLines
+JSS(peer_authorized);             // out: AccountLines
+JSS(peer_id);                     // out: RCLCxPeerPos
+JSS(peers);                       // out: InboundLedger, handlers/Peers, Overlay
+JSS(peer_disconnects);            // Severed peer connection counter.
 JSS(peer_disconnects_resources);  // Severed peer connections because of
                                   // excess resource consumption.
 JSS(pending_transactions);        // out: federator_info
@@ -566,6 +579,7 @@ JSS(time);
 JSS(timeouts);                // out: InboundLedger
 JSS(track);                   // out: PeerImp
 JSS(traffic);                 // out: Overlay
+JSS(tokenid);                 // in: nft_sell_offers, nft_buy_offers
 JSS(total);                   // out: counters
 JSS(totalCoins);              // out: LedgerToJson
 JSS(total_bytes_recv);        // out: Peers

@@ -453,7 +453,7 @@ private:
             // clang-format off
             static const std::array specialEntries{
                 SpecialEntry{
-                    "Currency", STI_HASH160,
+                    "Currency", STI_UINT160,
                     {
                         {"name", fieldTYPE_STRING},
                         {"code", fieldTYPE_BYTES}
@@ -581,9 +581,9 @@ private:
                 {STI_ACCOUNT, fieldTYPE_STRING},
 
                 {STI_AMOUNT,  fieldTYPE_BYTES},
-                {STI_HASH128, fieldTYPE_BYTES},
-                {STI_HASH160, fieldTYPE_BYTES},
-                {STI_HASH256, fieldTYPE_BYTES},
+                {STI_UINT128, fieldTYPE_BYTES},
+                {STI_UINT160, fieldTYPE_BYTES},
+                {STI_UINT256, fieldTYPE_BYTES},
                 {STI_VL,      fieldTYPE_BYTES},
             };
         //clang-format on
@@ -601,7 +601,8 @@ private:
         static const std::map<int, pbuf::FieldDescriptor::Type>
             sFieldCodeToFieldDescType{
                 {sfDomain.fieldCode, fieldTYPE_STRING},
-                {sfFee.fieldCode,    fieldTYPE_UINT64}};
+                {sfFee.fieldCode,    fieldTYPE_UINT64},
+                {sfURI.fieldCode,    fieldTYPE_STRING}};
 
         if (auto const iter = sFieldCodeToFieldDescType.find(sField->fieldCode);
             iter != sFieldCodeToFieldDescType.end() &&
@@ -703,7 +704,9 @@ private:
         // The following repeated types provide no further structure for their
         // in-ledger representation.  We just have to trust that the gRPC
         // representation is reasonable for what the ledger implements.
-        static const std::set<std::string> noFurtherDetail{{sfPaths.getName()}};
+        static const std::set<std::string> noFurtherDetail{
+            {sfPaths.getName()},
+        };
 
         if (noFurtherDetail.count(sField->getName()))
         {
@@ -721,8 +724,10 @@ private:
             {sfIndexes.getName(), &sfLedgerIndex},
             {sfMajorities.getName(), &sfMajority},
             {sfMemos.getName(), &sfMemo},
+            {sfNonFungibleTokens.getName(), &sfNonFungibleToken},
             {sfSignerEntries.getName(), &sfSignerEntry},
-            {sfSigners.getName(), &sfSigner}};
+            {sfSigners.getName(), &sfSigner},
+            {sfTokenOffers.getName(), &sfLedgerIndex}};
 
         if (!repeatsWhat.count(sField->getName()))
         {

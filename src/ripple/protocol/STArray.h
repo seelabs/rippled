@@ -33,218 +33,215 @@ private:
     list_type v_;
 
 public:
+    using value_type = STObject;
     using size_type = list_type::size_type;
     using iterator = list_type::iterator;
     using const_iterator = list_type::const_iterator;
 
     STArray() = default;
-    STArray(STArray const&) = default;
-    STArray&
-    operator=(STArray const&) = default;
     STArray(STArray&&);
-    STArray&
-    operator=(STArray&&);
-
+    STArray(STArray const&) = default;
     STArray(SField const& f, int n);
     STArray(SerialIter& sit, SField const& f, int depth = 0);
     explicit STArray(int n);
     explicit STArray(SField const& f);
 
+    template <
+        class Iter,
+        class = std::enable_if_t<std::is_convertible_v<
+            typename std::iterator_traits<Iter>::reference,
+            STObject>>>
+    explicit STArray(Iter first, Iter last);
+
+    template <
+        class Iter,
+        class = std::enable_if_t<std::is_convertible_v<
+            typename std::iterator_traits<Iter>::reference,
+            STObject>>>
+    STArray(SField const& f, Iter first, Iter last);
+
+    STArray&
+    operator=(STArray const&) = default;
+    STArray&
+    operator=(STArray&&);
+
+    STBase*
+    copy(std::size_t n, void* buf) const override
+    {
+        return emplace(n, buf, *this);
+    }
+
+    STBase*
+    move(std::size_t n, void* buf) override
+    {
+        return emplace(n, buf, std::move(*this));
+    }
+
     STObject&
-    operator[](std::size_t j);
+    operator[](std::size_t j)
+    {
+        return v_[j];
+    }
 
     STObject const&
-    operator[](std::size_t j) const;
+    operator[](std::size_t j) const
+    {
+        return v_[j];
+    }
 
     STObject&
-    back();
+    back()
+    {
+        return v_.back();
+    }
 
     STObject const&
-    back() const;
+    back() const
+    {
+        return v_.back();
+    }
 
     template <class... Args>
     void
-    emplace_back(Args&&... args);
+    emplace_back(Args&&... args)
+    {
+        v_.emplace_back(std::forward<Args>(args)...);
+    }
 
     void
-    push_back(STObject const& object);
+    push_back(STObject const& object)
+    {
+        v_.push_back(object);
+    }
 
     void
-    push_back(STObject&& object);
+    push_back(STObject&& object)
+    {
+        v_.push_back(std::move(object));
+    }
 
     iterator
-    begin();
+    begin()
+    {
+        return v_.begin();
+    }
 
     iterator
-    end();
+    end()
+    {
+        return v_.end();
+    }
 
     const_iterator
-    begin() const;
+    begin() const
+    {
+        return v_.begin();
+    }
 
     const_iterator
-    end() const;
+    end() const
+    {
+        return v_.end();
+    }
 
     size_type
-    size() const;
+    size() const
+    {
+        return v_.size();
+    }
 
     bool
-    empty() const;
-
+    empty() const
+    {
+        return v_.empty();
+    }
     void
-    clear();
-
+    clear()
+    {
+        v_.clear();
+    }
     void
-    reserve(std::size_t n);
-
+    reserve(std::size_t n)
+    {
+        v_.reserve(n);
+    }
     void
-    swap(STArray& a) noexcept;
+    swap(STArray& a) noexcept
+    {
+        v_.swap(a.v_);
+    }
 
-    std::string
+    virtual std::string
     getFullText() const override;
-
-    std::string
+    virtual std::string
     getText() const override;
 
-    Json::Value
+    virtual Json::Value
     getJson(JsonOptions index) const override;
-
-    void
+    virtual void
     add(Serializer& s) const override;
 
     void
     sort(bool (*compare)(const STObject& o1, const STObject& o2));
 
     bool
-    operator==(const STArray& s) const;
-
+    operator==(const STArray& s) const
+    {
+        return v_ == s.v_;
+    }
     bool
-    operator!=(const STArray& s) const;
+    operator!=(const STArray& s) const
+    {
+        return v_ != s.v_;
+    }
 
-    SerializedTypeID
-    getSType() const override;
-
-    bool
+    virtual SerializedTypeID
+    getSType() const override
+    {
+        return STI_ARRAY;
+    }
+    virtual bool
     isEquivalent(const STBase& t) const override;
+    virtual bool
+    isDefault() const override
+    {
+        return v_.empty();
+    }
 
-    bool
-    isDefault() const override;
+    iterator
+    erase(iterator pos)
+    {
+        return v_.erase(pos);
+    }
 
-private:
-    STBase*
-    copy(std::size_t n, void* buf) const override;
-    STBase*
-    move(std::size_t n, void* buf) override;
+    iterator
+    erase(const_iterator pos)
+    {
+        return v_.erase(pos);
+    }
 
-    friend class detail::STVar;
+    iterator
+    erase(iterator first, iterator last)
+    {
+        return v_.erase(first, last);
+    }
+
+    iterator
+    erase(const_iterator first, const_iterator last)
+    {
+        return v_.erase(first, last);
+    }
 };
 
-inline STObject&
-STArray::operator[](std::size_t j)
+template <class Iter, class>
+STArray::STArray(Iter first, Iter last) : v_(first, last)
 {
-    return v_[j];
 }
 
-inline STObject const&
-STArray::operator[](std::size_t j) const
+template <class Iter, class>
+STArray::STArray(SField const& f, Iter first, Iter last)
+    : STBase(f), v_(first, last)
 {
-    return v_[j];
-}
-
-inline STObject&
-STArray::back()
-{
-    return v_.back();
-}
-
-inline STObject const&
-STArray::back() const
-{
-    return v_.back();
-}
-
-template <class... Args>
-inline void
-STArray::emplace_back(Args&&... args)
-{
-    v_.emplace_back(std::forward<Args>(args)...);
-}
-
-inline void
-STArray::push_back(STObject const& object)
-{
-    v_.push_back(object);
-}
-
-inline void
-STArray::push_back(STObject&& object)
-{
-    v_.push_back(std::move(object));
-}
-
-inline STArray::iterator
-STArray::begin()
-{
-    return v_.begin();
-}
-
-inline STArray::iterator
-STArray::end()
-{
-    return v_.end();
-}
-
-inline STArray::const_iterator
-STArray::begin() const
-{
-    return v_.begin();
-}
-
-inline STArray::const_iterator
-STArray::end() const
-{
-    return v_.end();
-}
-
-inline STArray::size_type
-STArray::size() const
-{
-    return v_.size();
-}
-
-inline bool
-STArray::empty() const
-{
-    return v_.empty();
-}
-
-inline void
-STArray::clear()
-{
-    v_.clear();
-}
-
-inline void
-STArray::reserve(std::size_t n)
-{
-    v_.reserve(n);
-}
-
-inline void
-STArray::swap(STArray& a) noexcept
-{
-    v_.swap(a.v_);
-}
-
-inline bool
-STArray::operator==(const STArray& s) const
-{
-    return v_ == s.v_;
-}
-
-inline bool
-STArray::operator!=(const STArray& s) const
-{
-    return v_ != s.v_;
 }
 
 }  // namespace ripple
