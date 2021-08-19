@@ -175,8 +175,23 @@ public:
 
         @return `nullptr` if the key is not present
     */
+    // Rename this "peekSLE"
     virtual std::shared_ptr<SLE>
     peek(Keylet const& k) = 0;
+
+    // This will be called "peek", not "peekXXX"
+    template <class TKeylet>
+    auto
+    peekXXX(TKeylet const& keylet)
+        -> std::optional<typename TKeylet::template TWrapped<true>>
+    {
+        // "peek" will be called "peekSLE" here
+        if (auto sle = peek(keylet))
+        {
+            return typename TKeylet::template TWrapped<true>(sle);
+        }
+        return {};
+    }
 
     /** Remove a peeked SLE.
 

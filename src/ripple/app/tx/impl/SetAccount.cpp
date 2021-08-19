@@ -21,6 +21,7 @@
 #include <ripple/basics/Log.h>
 #include <ripple/core/Config.h>
 #include <ripple/ledger/View.h>
+#include <ripple/protocol/AccountRootWrapper.h>
 #include <ripple/protocol/Feature.h>
 #include <ripple/protocol/Indexes.h>
 #include <ripple/protocol/PublicKey.h>
@@ -183,11 +184,17 @@ SetAccount::preclaim(PreclaimContext const& ctx)
 
     std::uint32_t const uTxFlags = ctx.tx.getFlags();
 
-    auto const sle = ctx.view.read(keylet::account(id));
-    if (!sle)
+    // In the real pathc, the name of the function to get the keylet will be
+    // `account`, not `accountXXX`. The name of the read function will be called
+    // "read", not "readXXX" (and the raw read will be renamed "readSLE"). The
+    // suffix is used here so the other code doesn't need to be converted right
+    // now.
+    auto const wrappedOpt = ctx.view.readXXX(keylet::accountXXX(id));
+    if (!wrappedOpt)
         return terNO_ACCOUNT;
 
-    std::uint32_t const uFlagsIn = sle->getFieldU32(sfFlags);
+    auto& accountRoot = *wrappedOpt;
+    std::uint32_t const uFlagsIn = accountRoot.flags();
 
     std::uint32_t const uSetFlag = ctx.tx.getFieldU32(sfSetFlag);
 
@@ -213,11 +220,20 @@ SetAccount::preclaim(PreclaimContext const& ctx)
 TER
 SetAccount::doApply()
 {
-    auto const sle = view().peek(keylet::account(account_));
-    if (!sle)
+    // In the real pathc, the name of the function to get the keylet will be
+    // `account`, not `accountXXX`. The name of the peek function will be called
+    // "peek", not "peekXXX" (and the raw peek will be renamed "peekSLE"). The
+    // suffix is used here so the other code doesn't need to be converted right
+    // now.
+    auto wrappedOpt = view().peekXXX(keylet::accountXXX(account_));
+    if (!wrappedOpt)
         return tefINTERNAL;
 
-    std::uint32_t const uFlagsIn = sle->getFieldU32(sfFlags);
+    // Note the function never deals with raw sles. It gets the wrapped object
+    // directly from the view, and we don't need to deal with any error
+    // conditions.
+    auto& accountRoot = *wrappedOpt;
+    std::uint32_t const uFlagsIn = accountRoot.flags();
     std::uint32_t uFlagsOut = uFlagsIn;
 
     STTx const& tx{ctx_.tx};
@@ -308,7 +324,7 @@ SetAccount::doApply()
             return tecNEED_MASTER_KEY;
         }
 
-        if ((!sle->isFieldPresent(sfRegularKey)) &&
+        if ((!accountRoot.isFieldPresent(sfRegularKey)) &&
             (!view().peek(keylet::signers(account_))))
         {
             // Account has no regular key or multi-signer signer list.
@@ -374,16 +390,18 @@ SetAccount::doApply()
     //
     // Track transaction IDs signed by this account in its root
     //
-    if ((uSetFlag == asfAccountTxnID) && !sle->isFieldPresent(sfAccountTxnID))
+    if ((uSetFlag == asfAccountTxnID) &&
+        !accountRoot.isFieldPresent(sfAccountTxnID))
     {
         JLOG(j_.trace()) << "Set AccountTxnID.";
-        sle->makeFieldPresent(sfAccountTxnID);
+        accountRoot.makeFieldPresent(sfAccountTxnID);
     }
 
-    if ((uClearFlag == asfAccountTxnID) && sle->isFieldPresent(sfAccountTxnID))
+    if ((uClearFlag == asfAccountTxnID) &&
+        accountRoot.isFieldPresent(sfAccountTxnID))
     {
         JLOG(j_.trace()) << "Clear AccountTxnID.";
-        sle->makeFieldAbsent(sfAccountTxnID);
+        accountRoot.makeFieldAbsent(sfAccountTxnID);
     }
 
     //
@@ -413,12 +431,12 @@ SetAccount::doApply()
         if (!uHash)
         {
             JLOG(j_.trace()) << "unset email hash";
-            sle->makeFieldAbsent(sfEmailHash);
+            accountRoot.makeFieldAbsent(sfEmailHash);
         }
         else
         {
             JLOG(j_.trace()) << "set email hash";
-            sle->setFieldH128(sfEmailHash, uHash);
+            accountRoot.setEmailHash(uHash);
         }
     }
 
@@ -432,12 +450,12 @@ SetAccount::doApply()
         if (!uHash)
         {
             JLOG(j_.trace()) << "unset wallet locator";
-            sle->makeFieldAbsent(sfWalletLocator);
+            accountRoot.makeFieldAbsent(sfWalletLocator);
         }
         else
         {
             JLOG(j_.trace()) << "set wallet locator";
-            sle->setFieldH256(sfWalletLocator, uHash);
+            accountRoot.setWalletLocator(uHash);
         }
     }
 
@@ -451,12 +469,12 @@ SetAccount::doApply()
         if (messageKey.empty())
         {
             JLOG(j_.debug()) << "set message key";
-            sle->makeFieldAbsent(sfMessageKey);
+            accountRoot.makeFieldAbsent(sfMessageKey);
         }
         else
         {
             JLOG(j_.debug()) << "set message key";
-            sle->setFieldVL(sfMessageKey, messageKey);
+            accountRoot.setMessageKey(messageKey);
         }
     }
 
@@ -470,12 +488,12 @@ SetAccount::doApply()
         if (domain.empty())
         {
             JLOG(j_.trace()) << "unset domain";
-            sle->makeFieldAbsent(sfDomain);
+            accountRoot.makeFieldAbsent(sfDomain);
         }
         else
         {
             JLOG(j_.trace()) << "set domain";
-            sle->setFieldVL(sfDomain, domain);
+            accountRoot.setDomain(domain);
         }
     }
 
@@ -489,12 +507,12 @@ SetAccount::doApply()
         if (uRate == 0 || uRate == QUALITY_ONE)
         {
             JLOG(j_.trace()) << "unset transfer rate";
-            sle->makeFieldAbsent(sfTransferRate);
+            accountRoot.makeFieldAbsent(sfTransferRate);
         }
         else
         {
             JLOG(j_.trace()) << "set transfer rate";
-            sle->setFieldU32(sfTransferRate, uRate);
+            accountRoot.setTransferRate(uRate);
         }
     }
 
@@ -507,17 +525,17 @@ SetAccount::doApply()
         if ((uTickSize == 0) || (uTickSize == Quality::maxTickSize))
         {
             JLOG(j_.trace()) << "unset tick size";
-            sle->makeFieldAbsent(sfTickSize);
+            accountRoot.makeFieldAbsent(sfTickSize);
         }
         else
         {
             JLOG(j_.trace()) << "set tick size";
-            sle->setFieldU8(sfTickSize, uTickSize);
+            accountRoot.setTickSize(uTickSize);
         }
     }
 
     if (uFlagsIn != uFlagsOut)
-        sle->setFieldU32(sfFlags, uFlagsOut);
+        accountRoot.setFlags(uFlagsOut);
 
     return tesSUCCESS;
 }

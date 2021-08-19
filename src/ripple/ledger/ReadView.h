@@ -308,8 +308,23 @@ public:
         @return `nullptr` if the key is not present or
                 if the type does not match.
     */
+    // Rename thie "readSLE"
     virtual std::shared_ptr<SLE const>
     read(Keylet const& k) const = 0;
+
+    // this will be called "read", not "readXXX"
+    template <class TKeylet>
+    auto
+    readXXX(TKeylet const& keylet) const
+        -> std::optional<typename TKeylet::template TWrapped<false>>
+    {
+        // "read" will be called "readSLE" here
+        if (auto sle = read(keylet))
+        {
+            return typename TKeylet::template TWrapped<false>(sle);
+        }
+        return {};
+    }
 
     // Accounts in a payment are not allowed to use assets acquired during that
     // payment. The PaymentSandbox tracks the debits, credits, and owner count

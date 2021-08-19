@@ -49,6 +49,20 @@ struct Keylet
     check(STLedgerEntry const&) const;
 };
 
+template <bool>
+class AccountRootWrapper;
+
+struct AccountRootKeylet : Keylet
+{
+    template <bool Writable>
+    using TWrapped = AccountRootWrapper<Writable>;
+    using Keylet::check;
+
+    AccountRootKeylet(uint256 const& key) : Keylet(ltACCOUNT_ROOT, key)
+    {
+    }
+};
+
 }  // namespace ripple
 
 #endif

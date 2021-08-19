@@ -53,6 +53,11 @@ namespace keylet {
 Keylet
 account(AccountID const& id) noexcept;
 
+/** Don't use `account` for now so we don't have to convert _all_ the code. But
+ * the real patch will use `account` */
+AccountRootKeylet
+accountXXX(AccountID const& id) noexcept;
+
 /** The index of the amendment table */
 Keylet const&
 amendments() noexcept;

@@ -132,6 +132,12 @@ account(AccountID const& id) noexcept
     return {ltACCOUNT_ROOT, indexHash(LedgerNameSpace::ACCOUNT, id)};
 }
 
+AccountRootKeylet
+accountXXX(AccountID const& id) noexcept
+{
+    return {indexHash(LedgerNameSpace::ACCOUNT, id)};
+}
+
 Keylet
 child(uint256 const& key) noexcept
 {
