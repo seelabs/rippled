@@ -6,7 +6,7 @@ from typing import Dict
 import sys
 
 from app import App
-from common import Asset, eprint, disable_eprint, XRP
+from common import Asset, eprint, disable_eprint, drops, XRP
 import interactive
 from sidechain import Params
 import sidechain
@@ -18,33 +18,41 @@ from transaction import Payment, Trust
 def simple_xrp_test(mc_app: App, sc_app: App, params: Params):
     alice = mc_app.account_from_alias('alice')
     adam = sc_app.account_from_alias('adam')
+    mc_door = mc_app.account_from_alias('door')
+    sc_door = sc_app.account_from_alias('door')
 
     # main to side
     # First txn funds the side chain account
     with test_utils.test_context(mc_app, sc_app):
-        to_send_asset = XRP(1000)
-        pre_bal = sc_app.get_balance(adam, to_send_asset)
+        to_send_asset = XRP(9999)
+        mc_pre_bal = mc_app.get_balance(mc_door, to_send_asset)
+        sc_pre_bal = sc_app.get_balance(adam, to_send_asset)
         sidechain.main_to_side_transfer(mc_app, sc_app, alice, adam,
                                         to_send_asset, params)
-        test_utils.wait_for_balance_change(sc_app, adam, pre_bal,
+        test_utils.wait_for_balance_change(mc_app, mc_door, mc_pre_bal,
+                                           to_send_asset)
+        test_utils.wait_for_balance_change(sc_app, adam, sc_pre_bal,
                                            to_send_asset)
 
     for i in range(2):
         # even amounts for main to side
-        for value in range(10, 20, 2):
+        for value in range(20, 30, 2):
             with test_utils.test_context(mc_app, sc_app):
-                to_send_asset = XRP(value)
-                pre_bal = sc_app.get_balance(adam, to_send_asset)
+                to_send_asset = drops(value)
+                mc_pre_bal = mc_app.get_balance(mc_door, to_send_asset)
+                sc_pre_bal = sc_app.get_balance(adam, to_send_asset)
                 sidechain.main_to_side_transfer(mc_app, sc_app, alice, adam,
                                                 to_send_asset, params)
-                test_utils.wait_for_balance_change(sc_app, adam, pre_bal,
+                test_utils.wait_for_balance_change(mc_app, mc_door, mc_pre_bal,
+                                                   to_send_asset)
+                test_utils.wait_for_balance_change(sc_app, adam, sc_pre_bal,
                                                    to_send_asset)
 
         # side to main
         # odd amounts for side to main
-        for value in range(9, 19, 2):
+        for value in range(19, 29, 2):
             with test_utils.test_context(mc_app, sc_app):
-                to_send_asset = XRP(value)
+                to_send_asset = drops(value)
                 pre_bal = mc_app.get_balance(alice, to_send_asset)
                 sidechain.side_to_main_transfer(mc_app, sc_app, adam, alice,
                                                 to_send_asset, params)
@@ -118,8 +126,23 @@ def run(mc_app: App, sc_app: App, params: Params):
         p.start()
     try:
         # TODO: Tests fail without this sleep. Fix this bug.
-        time.sleep(10)
+        # time.sleep(10)
+        while 0:
+            federator_info = sc_app.federator_info()
+            should_loop = False
+            for v in federator_info.values():
+                for c in ['mainchain', 'sidechain']:
+                    state = v['info'][c]['listener_info']['state']
+                    logging.error(f'XYZZY: {state = }')
+                    if state != 'normal':
+                        should_loop = True
+            if not should_loop:
+                break
+            time.sleep(1)
+
         setup_accounts(mc_app, sc_app, params)
+        logging.info(f'mainchain:\n{mc_app.key_manager.to_string()}')
+        logging.info(f'sidechain:\n{sc_app.key_manager.to_string()}')
         simple_xrp_test(mc_app, sc_app, params)
         simple_iou_test(mc_app, sc_app, params)
     finally:
