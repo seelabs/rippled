@@ -91,57 +91,41 @@ boundariesIndex(std::uint8_t numChildren)
         std::lower_bound(boundaries.begin(), boundaries.end(), numChildren));
 }
 
+template <std::size_t I>
+void*
+allocArrayFun()
+{
+    return malloc(arrayChunkSizeBytes[I]);
+}
+
 template <std::size_t... I>
 std::array<std::function<void*()>, boundaries.size()> initAllocateArrayFuns(
     std::index_sequence<I...>)
 {
     return std::array<std::function<void*()>, boundaries.size()>{
-        boost::singleton_pool<
-            boost::fast_pool_allocator_tag,
-            arrayChunkSizeBytes[I],
-            boost::default_user_allocator_new_delete,
-            std::mutex,
-            chunksPerBlock[I],
-            chunksPerBlock[I]>::malloc...,
+        allocArrayFun<I>...,
     };
 }
 std::array<std::function<void*()>, boundaries.size()> const allocateArrayFuns =
     initAllocateArrayFuns(std::make_index_sequence<boundaries.size()>{});
+
+template <std::size_t>
+void
+freeArrayFun(void* m)
+{
+    free(m);
+}
 
 template <std::size_t... I>
 std::array<std::function<void(void*)>, boundaries.size()> initFreeArrayFuns(
     std::index_sequence<I...>)
 {
     return std::array<std::function<void(void*)>, boundaries.size()>{
-        static_cast<void (*)(void*)>(boost::singleton_pool<
-                                     boost::fast_pool_allocator_tag,
-                                     arrayChunkSizeBytes[I],
-                                     boost::default_user_allocator_new_delete,
-                                     std::mutex,
-                                     chunksPerBlock[I],
-                                     chunksPerBlock[I]>::free)...,
+        freeArrayFun<I>...,
     };
 }
 std::array<std::function<void(void*)>, boundaries.size()> const freeArrayFuns =
     initFreeArrayFuns(std::make_index_sequence<boundaries.size()>{});
-
-template <std::size_t... I>
-std::array<std::function<bool(void*)>, boundaries.size()> initIsFromArrayFuns(
-    std::index_sequence<I...>)
-{
-    return std::array<std::function<bool(void*)>, boundaries.size()>{
-        boost::singleton_pool<
-            boost::fast_pool_allocator_tag,
-            arrayChunkSizeBytes[I],
-            boost::default_user_allocator_new_delete,
-            std::mutex,
-            chunksPerBlock[I],
-            chunksPerBlock[I]>::is_from...,
-    };
-}
-std::array<std::function<bool(void*)>, boundaries.size()> const
-    isFromArrayFuns =
-        initIsFromArrayFuns(std::make_index_sequence<boundaries.size()>{});
 
 // This function returns an untagged pointer
 [[nodiscard]] inline std::pair<std::uint8_t, void*>
@@ -155,7 +139,6 @@ allocateArrays(std::uint8_t numChildren)
 inline void
 deallocateArrays(std::uint8_t boundaryIndex, void* p)
 {
-    assert(isFromArrayFuns[boundaryIndex](p));
     freeArrayFuns[boundaryIndex](p);
 }
 
