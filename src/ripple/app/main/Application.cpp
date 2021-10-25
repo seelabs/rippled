@@ -1661,7 +1661,8 @@ void
 ApplicationImp::startFederator()
 {
     if (sidechainFederator_)
-        sidechainFederator_->unlockMainLoop();
+        sidechainFederator_->unlockMainLoop(
+            sidechain::Federator::UnlockMainLoopKey::app);
 }
 
 int
