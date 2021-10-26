@@ -391,6 +391,9 @@ parseFederatorSecrets(BasicConfig const& config, beast::Journal j)
 
         auto seed = parseBase58<Seed>(elements[0]);
         if (!seed)
+            seed = parseRippleLibSeed(elements[0]);
+
+        if (!seed)
         {
             std::string const msg =
                 "invalid sidechain_federators_secrets key: " + elements[0];
