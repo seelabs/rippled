@@ -680,7 +680,10 @@ make_Federator(
     auto key = parseBase58<SecretKey>(TokenType::AccountSecret, *keyStr);
     if (!key)
     {
-        if (auto const seed = parseBase58<Seed>(*keyStr))
+        std::optional<Seed> seed = parseRippleLibSeed(*keyStr);
+        if (!seed)
+            seed = parseBase58<Seed>(*keyStr);
+        if (seed)
         {
             // TODO: we don't know the key type
             key = generateKeyPair(KeyType::ed25519, *seed).second;
