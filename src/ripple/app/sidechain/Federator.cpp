@@ -177,7 +177,7 @@ getTxn(
     return txnJson;
 };
 
-[[nodiscard]] STTx
+[[nodiscard]] std::optional<STTx>
 getSignedTxn(
     std::vector<std::pair<PublicKey, Buffer*>> const& sigs,
     AccountID const& acc,
@@ -227,6 +227,7 @@ getSignedTxn(
         JLOGV(j.fatal(), "invalid transaction", jv("txn", txnJson));
         assert(0);
     }
+    return std::nullopt;
 };
 
 // Return the serialization of the txn with all the fields except the signing ID
@@ -1663,7 +1664,7 @@ Federator::addPendingTxnSig(
         }();
 
         // not const so it may be moved from
-        STTx txn = detail::getSignedTxn(
+        std::optional<STTx> txn = detail::getSignedTxn(
             sigs,
             account_[chaintype],
             dstChainDstAccount,
@@ -1671,6 +1672,11 @@ Federator::addPendingTxnSig(
             seq,
             detail::getMemos(txnType, srcChainTxnHash, dstChainTxnHash),
             j_);
+
+        if (!txn)
+        {
+            return;  // should not happen
+        }
 
         {
             std::lock_guard l{toSendTxnsM_};
@@ -1682,7 +1688,7 @@ Federator::addPendingTxnSig(
                 jv("seq", seq),
                 jv("srcChainTxnHash", srcChainTxnHash),
                 jv("count", txns.sequenceInfo[seq].count));
-            toSendTxns_[chaintype].emplace(seq, std::move(txn));
+            toSendTxns_[chaintype].emplace(seq, std::move(*txn));
         }
 
         txns.queuedToSend_ = true;
