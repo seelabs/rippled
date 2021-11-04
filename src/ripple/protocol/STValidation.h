@@ -83,6 +83,11 @@ public:
         assert(nodeID_.isNonZero());
     }
 
+    explicit STValidation(SerialIter& sit)
+        : STObject(validationFormat(), sit, sfValidation)
+    {
+    }
+
     /** Construct, sign and trust a new STValidation issued by this node.
 
         @param signTime When the validation is signed
@@ -222,7 +227,7 @@ private:
     mutable std::optional<bool> valid_;
 
     // The public key associated with the key used to sign this validation
-    PublicKey const signingPubKey_;
+    PublicKey signingPubKey_;
 
     // The ID of the validator that issued this validation. For validators
     // that use manifests this will be derived from the master public key.

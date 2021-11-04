@@ -180,7 +180,6 @@ public:
         return LockedSociSession(session_, lock_);
     }
 
-private:
     void
     setupCheckpointing(JobQueue*, Logs&);
 

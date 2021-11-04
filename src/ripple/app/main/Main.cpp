@@ -31,8 +31,10 @@
 #include <ripple/json/to_string.h>
 #include <ripple/net/RPCCall.h>
 #include <ripple/protocol/BuildInfo.h>
+#include <ripple/protocol/STValidation.h>
 #include <ripple/resource/Fees.h>
 #include <ripple/rpc/RPCHandler.h>
+#include "protocol/SField.h"
 
 #ifdef ENABLE_TESTS
 #include <beast/unit_test/match.hpp>
@@ -776,11 +778,179 @@ run(int argc, char** argv)
         *config, vm["parameters"].as<std::vector<std::string>>(), *logs);
 }
 
+namespace XYZZY {
+
+DatabaseCon
+create_db(std::string const& out_file)
+{
+    std::array<char const*, 2> const& pragma{
+        "PRAGMA synchronous = OFF;", "PRAGMA journal_mode = MEMORY;"};
+    constexpr std::array<char const*, 3> initSQL{
+        {"BEGIN TRANSACTION;",
+
+         "CREATE TABLE IF NOT EXISTS Validations (  \
+        PeerKey         CHARACTER(53),              \
+        LedgerHash      CHARACTER(64),              \
+        LedgerSequence  BIGINT UNSIGNED,            \
+        CloseTime       BIGINT UNSIGNED,            \
+        SigningTime     BIGINT UNSIGNED,            \
+        ConsensusHash   CHARACTER(64),              \
+        ValidatedHash   CHARACTER(64),              \
+        Cookie          BIGINT UNSIGNED,            \
+        NumAmendments   BIGINT UNSIGNED,            \
+        ServerVersion   BIGINT UNSIGNED             \
+    );",
+
+         "END TRANSACTION;"}};
+    return DatabaseCon(out_file, nullptr, pragma, initSQL);
+}
+
+// Soci doesn't like std::optional
+template <class T>
+boost::optional<T>
+toBoostOpt(std::optional<T> const& o)
+{
+    if (!o)
+    {
+        return {};
+    }
+    return *o;
+}
+
+void
+insert_rows(
+    soci::session& session,
+    std::vector<std::string> const& peerKeys,
+    std::vector<STValidation> const& validations)
+{
+    if (validations.empty())
+        return;
+
+    std::vector<std::string> ledgerHash;
+    std::vector<std::uint32_t> ledgerSeq;
+    std::vector<boost::optional<std::uint32_t>> closeTime;
+    std::vector<boost::optional<std::uint32_t>> signTime;
+    std::vector<boost::optional<std::string>> consensusHash;
+    std::vector<boost::optional<std::string>> validatedHash;
+    std::vector<boost::optional<std::uint64_t>> cookie;
+    std::vector<boost::optional<std::uint64_t>> numAmendments;
+    std::vector<boost::optional<std::uint64_t>> serverVersion;
+
+    int const batchSize = validations.size();
+    ledgerHash.reserve(batchSize);
+    ledgerSeq.reserve(batchSize);
+    closeTime.reserve(batchSize);
+    signTime.reserve(batchSize);
+    consensusHash.reserve(batchSize);
+    validatedHash.reserve(batchSize);
+    cookie.reserve(batchSize);
+    numAmendments.reserve(batchSize);
+    serverVersion.reserve(batchSize);
+
+    for (auto const& validation : validations)
+    {
+        ledgerHash.emplace_back(to_string(validation[sfLedgerHash]));
+        ledgerSeq.emplace_back(validation[sfLedgerSequence]);
+        closeTime.emplace_back(toBoostOpt(validation[~sfCloseTime]));
+        signTime.emplace_back(toBoostOpt(validation[~sfSigningTime]));
+        consensusHash.emplace_back([&]() -> boost::optional<std::string> {
+            if (auto const opt = validation[~sfConsensusHash])
+            {
+                return to_string(*opt);
+            }
+            return {};
+        }());
+        validatedHash.emplace_back([&]() -> boost::optional<std::string> {
+            if (auto const opt = validation[~sfValidatedHash])
+            {
+                return to_string(*opt);
+            }
+            return {};
+            ;
+        }());
+        cookie.emplace_back(toBoostOpt(validation[~sfCookie]));
+        numAmendments.emplace_back([&]() -> boost::optional<std::uint64_t> {
+            if (auto const a = toBoostOpt(validation[~sfAmendments]))
+            {
+                return a->size();
+            }
+            return {};
+        }());
+        serverVersion.emplace_back(toBoostOpt(validation[~sfServerVersion]));
+    }
+
+    soci::transaction tr(session);
+    session << "INSERT INTO Validations ("
+               "PeerKey,LedgerHash,LedgerSequence,CloseTime,SigningTime,"
+               "ConsensusHash,ValidatedHash,Cookie,NumAmendments,ServerVersion)"
+               "VALUES ("
+               ":peerKey, :ledgerHash, :ledgerSeq, :closeTime,"
+               ":signTime, :consensusHash, :validatedHash,"
+               ":cookie, :numAmendments, :serverVersion);",
+        soci::use(peerKeys), soci::use(ledgerHash), soci::use(ledgerSeq),
+        soci::use(closeTime), soci::use(signTime), soci::use(consensusHash),
+        soci::use(validatedHash), soci::use(cookie), soci::use(numAmendments),
+        soci::use(serverVersion);
+    tr.commit();
+}
+
+void
+load_validations(std::string const& in_file, std::string const& out_file)
+{
+    using namespace std;
+    DatabaseCon con = create_db(out_file);
+    ifstream in_stream(in_file);
+    string line;
+
+    int line_num = 0;
+    soci::session& session = con.getSession();
+    std::vector<STValidation> validations;
+    std::vector<std::string> keys;
+    int const batchSize = 1000;
+    validations.reserve(batchSize);
+    keys.reserve(batchSize);
+    while (getline(in_stream, line))
+    {
+        ++line_num;
+        int seq;
+        string key;
+        string hex_data;
+
+        std::replace(line.begin(), line.end(), ',', ' ');
+
+        stringstream ss(line);
+
+        ss >> seq;
+        ss >> key;
+        ss >> hex_data;
+        hex_data.erase(0, 2);
+
+        auto blob = ripple::strUnHex(hex_data);
+        if (!blob)
+        {
+            cout << "Invalid blob, line: " << line_num;
+            continue;
+        }
+        SerialIter s(blob->data(), blob->size());
+        validations.emplace_back(s);
+        keys.emplace_back(std::move(key));
+        if (validations.size() == batchSize)
+        {
+            insert_rows(session, keys, validations);
+            keys.clear();
+            validations.clear();
+        }
+    }
+    insert_rows(session, keys, validations);
+}
+}  // namespace XYZZY
 }  // namespace ripple
 
 int
 main(int argc, char** argv)
 {
+    ripple::XYZZY::load_validations(argv[1], argv[2]);
+    return 0;
 #if BOOST_OS_WINDOWS
     {
         // Work around for https://svn.boost.org/trac/boost/ticket/10657
