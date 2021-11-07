@@ -265,6 +265,14 @@ private:
     Workers m_workers;
     Job::CancelCallback m_cancelCallback;
 
+    // Restrict the number of running lower priority jobs to this limit. This
+    // will reserve the remaining thread pool slots for higher priority jobs.
+    // "Lower priority" is defined by the first element in the pair.
+    // Note: it would be very easy to extend this to support multiple priority
+    // limits by making this a collection. If this is done the variable should
+    // be renamed to `priorityPoolSizes` or somesuch.
+    std::pair<JobType, std::uint32_t> m_lowPriorityLimit{jtINVALID, 0};
+
     // Statistics tracking
     perf::PerfLog& perfLog_;
     beast::insight::Collector::ptr m_collector;

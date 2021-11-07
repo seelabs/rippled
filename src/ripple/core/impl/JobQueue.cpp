@@ -159,6 +159,15 @@ JobQueue::setThreadCount(int c, bool const standaloneMode)
                                << " validation/transaction/proposal threads.";
     }
 
+    if (c > 1)
+    {
+        m_lowPriorityLimit = {
+            jtBATCH,  // TODO: Decide lowpriority boundary and how many threads
+                      // to reserve for high priority tasks.
+            (5 * c + 5) / 6};  // reserve round_up(numThreads*5/6) of the
+                               // threads for lower priority jobs. Make sure
+                               // there is always at least one thread.
+    }
     m_workers.setNumberOfThreads(c);
 }
 
@@ -440,6 +449,9 @@ JobQueue::getJobLimit(JobType type)
 {
     JobTypeInfo const& j(JobTypes::instance().get(type));
     assert(j.type() != jtINVALID);
+
+    if (j.type() <= m_lowPriorityLimit.first)
+        return std::min<int>(m_lowPriorityLimit.second, j.limit());
 
     return j.limit();
 }
