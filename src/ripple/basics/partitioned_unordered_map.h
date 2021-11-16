@@ -143,7 +143,7 @@ public:
         {
         }
 
-        const_iterator(iterator& orig)
+        const_iterator(iterator const& orig)
         {
             map_ = orig.map_;
             ait_ = orig.ait_;
@@ -349,7 +349,7 @@ public:
 
     template <class T, class U>
     std::pair<iterator, bool>
-    emplace(T key, U val)
+    emplace(T&& key, U&& val)
     {
         iterator it(&map_);
         it.ait_ = it.map_->begin() + partitioner(key);

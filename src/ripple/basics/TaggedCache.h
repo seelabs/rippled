@@ -29,7 +29,6 @@
 #include <atomic>
 #include <functional>
 #include <mutex>
-#include <stack>
 #include <thread>
 #include <type_traits>
 #include <vector>
@@ -193,7 +192,7 @@ public:
             ++m_stats.misses;
             return false;
         }
-        iter->second.last_access = m_clock.now();
+        iter->second.touch(m_clock.now());
         ++m_stats.hits;
         return true;
     }
@@ -204,7 +203,7 @@ public:
         // Keep references to all the stuff we sweep
         // For performance, each worker thread should exit before the swept data
         // is destroyed but still within the main cache lock.
-        std::vector<std::stack<std::shared_ptr<mapped_type>>> allStuffToSweep(
+        std::vector<std::vector<std::shared_ptr<mapped_type>>> allStuffToSweep(
             m_cache.partitions());
 
         clock_type::time_point const now(m_clock.now());
@@ -250,6 +249,7 @@ public:
                         // Keep references to all the stuff we sweep
                         // so that we can destroy them outside the lock.
                         auto& stuffToSweep = allStuffToSweep[partitionNum];
+                        stuffToSweep.reserve(partition.size());
                         {
                             auto cit = partition.begin();
                             while (cit != partition.end())
@@ -276,7 +276,8 @@ public:
                                         ++cacheRemovals;
                                         if (cit->second.ptr.unique())
                                         {
-                                            stuffToSweep.push(cit->second.ptr);
+                                            stuffToSweep.push_back(
+                                                cit->second.ptr);
                                             ++mapRemovals;
                                             cit = partition.erase(cit);
                                         }
@@ -470,10 +471,10 @@ public:
     std::shared_ptr<T>
     fetch(const key_type& key)
     {
-        auto ret = initialFetch(key);
+        std::lock_guard<mutex_type> l(m_mutex);
+        auto ret = initialFetch(key, l);
         if (!ret)
         {
-            std::lock_guard<Mutex> lock(m_mutex);
             ++m_misses;
         }
         return ret;
@@ -483,15 +484,18 @@ public:
         If the key already exists, nothing happens.
         @return `true` If the element was inserted
     */
-    bool
+    template <class ReturnType = bool>
+    auto
     insert(key_type const& key, T const& value)
+        -> std::enable_if_t<!IsKeyCache, ReturnType>
     {
         auto p = std::make_shared<T>(std::cref(value));
         return canonicalize_replace_client(key, p);
     }
 
-    bool
-    insert(key_type const& key)
+    template <class ReturnType = bool>
+    auto
+    insert(key_type const& key) -> std::enable_if_t<IsKeyCache, ReturnType>
     {
         std::lock_guard lock(m_mutex);
         clock_type::time_point const now(m_clock.now());
@@ -564,15 +568,18 @@ public:
     std::shared_ptr<T>
     fetch(key_type const& digest, Handler const& h)
     {
-        auto ret = initialFetch(digest);
-        if (ret)
-            return ret;
+        {
+            std::lock_guard l(m_mutex);
+            auto ret = initialFetch(digest, l);
+            if (ret)
+                return ret;
+        }
 
         auto sle = h();
         if (!sle)
             return {};
 
-        std::lock_guard lock(m_mutex);
+        std::lock_guard l(m_mutex);
         ++m_misses;
         auto const [it, inserted] =
             m_cache.emplace(digest, Entry(m_clock.now(), std::move(sle)));
@@ -584,9 +591,8 @@ public:
 
 private:
     std::shared_ptr<T>
-    initialFetch(key_type const& key)
+    initialFetch(key_type const& key, std::lock_guard<mutex_type> const& l)
     {
-        std::lock_guard<mutex_type> lock(m_mutex);
         auto cit = m_cache.find(key);
         if (cit == m_cache.end())
             return {};
@@ -660,6 +666,12 @@ private:
         explicit KeyOnlyEntry(clock_type::time_point const& last_access_)
             : last_access(last_access_)
         {
+        }
+
+        void
+        touch(clock_type::time_point const& now)
+        {
+            last_access = now;
         }
     };
 

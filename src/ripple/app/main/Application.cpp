@@ -285,13 +285,13 @@ public:
               logs_->journal("Collector")))
 
         , m_jobQueue(std::make_unique<JobQueue>(
-              [this]() {
-                  if (config_->standalone() && !config_->reporting() &&
-                      !config_->FORCE_MULTI_THREAD)
+              [&config = this->config_, &j = this->m_journal]() {
+                  if (config->standalone() && !config->reporting() &&
+                      !config->FORCE_MULTI_THREAD)
                       return 1;
 
-                  if (config_->WORKERS)
-                      return config_->WORKERS;
+                  if (config->WORKERS)
+                      return config->WORKERS;
 
                   auto count =
                       static_cast<int>(std::thread::hardware_concurrency());
@@ -299,12 +299,12 @@ public:
                   // Be more aggressive about the number of threads to use
                   // for the job queue if the server is configured as "large"
                   // or "huge".
-                  if (config_->NODE_SIZE >= 3)
+                  if (config->NODE_SIZE >= 3)
                       count = 4 + std::min(count, 8);
                   else
                       count = 2 + std::min(count, 4);
 
-                  JLOG(m_journal.info())
+                  JLOG(j.info())
                       << "Automatically tuned for " << count << " threads";
 
                   return count;

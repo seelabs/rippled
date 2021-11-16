@@ -39,20 +39,14 @@ extract(SHAMapHash const& key)
 }
 
 std::size_t
-extract(LedgerIndex const key)
+extract(LedgerIndex key)
 {
     return static_cast<std::size_t>(key);
 }
-
 std::size_t
-extract(std::string key)
+extract(std::string const& key)
 {
-    constexpr std::size_t retSize =
-        (sizeof(std::size_t) % CHAR_BIT ? (sizeof(std::size_t) / CHAR_BIT + 1)
-                                        : sizeof(std::size_t) / CHAR_BIT);
-    if (key.size() < retSize)
-        key.resize(retSize);
-    return *reinterpret_cast<std::size_t const*>(key.data());
+    return ::beast::uhash<>{}(key);
 }
 
 template <typename Key>
