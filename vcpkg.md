@@ -39,6 +39,8 @@ Currently, I get build errors with non-static configurations (hopefully I can fi
 -Dstatic=Off
 ```
 
+This issue seems to be the cause of the static link issue: https://github.com/facebook/folly/issues/1623
+
 For reference, here's the cmake command I use locally:
 ```
 cmake -DCMAKE_MAKE_PROGRAM=/usr/bin/ninja -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache -Dunity=On -DCMAKE_C_COMPILER=/home/swd/apps/gcc-latest/bin/gcc -DCMAKE_CXX_COMPILER=/home/swd/apps/gcc-latest/bin/g++ -DCMAKE_BUILD_TYPE=Debug      -DCMAKE_TOOLCHAIN_FILE=/home/swd/projs/packages/vcpkg-rippled/scripts/buildsystems/vcpkg.cmake -Dlocal_protobuf=On -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -GNinja ../..

@@ -39,6 +39,10 @@ if (target)
   message (FATAL_ERROR "The target option has been removed - use native cmake options to control build")
 endif ()
 
+find_package(gflags REQUIRED)
+find_package(fmt REQUIRED)
+find_package(folly REQUIRED)
+
 include(RippledSanity)
 include(RippledVersion)
 include(RippledSettings)
