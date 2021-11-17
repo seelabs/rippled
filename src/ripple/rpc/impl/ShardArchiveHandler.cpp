@@ -417,7 +417,7 @@ ShardArchiveHandler::complete(path dstPath)
 
     // Make lambdas mutable captured vars can be moved from
     auto wrapper =
-        jobCounter_.wrap([=, dstPath = std::move(dstPath)](Job&) mutable {
+        jobCounter_.wrap([=, this, dstPath = std::move(dstPath)](Job&) mutable {
             if (stopping_)
                 return;
 
@@ -432,7 +432,7 @@ ShardArchiveHandler::complete(path dstPath)
                     10));
 
                 auto wrapper = timerCounter_.wrap(
-                    [=, dstPath = std::move(dstPath)](
+                    [=, this, dstPath = std::move(dstPath)](
                         boost::system::error_code const& ec) mutable {
                         if (ec != boost::asio::error::operation_aborted)
                             complete(std::move(dstPath));

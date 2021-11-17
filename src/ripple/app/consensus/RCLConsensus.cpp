@@ -425,7 +425,7 @@ RCLConsensus::Adaptor::onAccept(
     app_.getJobQueue().addJob(
         jtACCEPT,
         "acceptLedger",
-        [=, cj = std::move(consensusJson)](auto&) mutable {
+        [=, this, cj = std::move(consensusJson)](auto&) mutable {
             // Note that no lock is held or acquired during this job.
             // This is because generic Consensus guarantees that once a ledger
             // is accepted, the consensus results and capture by reference state
