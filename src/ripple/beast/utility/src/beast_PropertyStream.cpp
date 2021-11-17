@@ -414,13 +414,13 @@ PropertyStream::add(std::string const& key, unsigned char value)
     lexical_add(key, value);
 }
 
+#if 0
 void
 PropertyStream::add(std::string const& key, wchar_t value)
 {
     lexical_add(key, value);
 }
 
-#if 0
 void PropertyStream::add (std::string const& key, char16_t value)
 {
     lexical_add (key, value);
@@ -524,14 +524,13 @@ PropertyStream::add(unsigned char value)
 {
     lexical_add(value);
 }
-
+#if 0
 void
 PropertyStream::add(wchar_t value)
 {
     lexical_add(value);
 }
 
-#if 0
 void PropertyStream::add (char16_t value)
 {
     lexical_add (value);
