@@ -53,7 +53,8 @@ private:
     std::uint32_t fullBelowGen_ = 0;
     std::uint16_t isBranch_ = 0;
 
-    static std::mutex childLock;
+    // One lock bit for each child:
+    mutable std::atomic<std::uint16_t> lock_ = 0;
 
     /** Convert arrays stored in `hashesAndChildren_` so they can store the
         requested number of children.

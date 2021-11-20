@@ -19,11 +19,9 @@
 
 #include <ripple/shamap/SHAMapInnerNode.h>
 
-#include <ripple/basics/ByteUtilities.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/Slice.h>
 #include <ripple/basics/contract.h>
-#include <ripple/basics/safe_cast.h>
 #include <ripple/beast/core/LexicalCast.h>
 #include <ripple/protocol/HashPrefix.h>
 #include <ripple/protocol/digest.h>
@@ -33,14 +31,63 @@
 #include <openssl/sha.h>
 
 #include <algorithm>
-#include <array>
 #include <iterator>
-#include <mutex>
 #include <utility>
+
+// This is used for the _mm_pause instruction:
+#include <immintrin.h>
+
 
 namespace ripple {
 
-std::mutex SHAMapInnerNode::childLock;
+class spinlock_x
+{
+private:
+    std::atomic<std::uint16_t>& lock_;
+    std::uint16_t mask_;
+
+public:
+    spinlock_x(std::atomic<std::uint16_t>& lock)
+        : lock_(lock), mask_(0xFFFF)
+    {
+    }
+
+    spinlock_x(std::atomic<std::uint16_t>& lock, int index)
+        : lock_(lock), mask_(1 << index)
+    {
+        assert(index >= 0 && index < 16);
+    }
+
+    bool try_lock()
+    {
+        return (lock_.fetch_or(mask_, std::memory_order_acquire) & mask_) == 0;
+    }
+
+    void lock()
+    {
+        if (try_lock())
+            return;
+
+        do
+        {
+            // We try to spin for a few times:
+            for (int i = 0; i != 100; ++i)
+            {
+                if (try_lock())
+                    return;
+
+                _mm_pause();
+            }
+
+            std::this_thread::yield();
+        } while (true);
+    }
+
+    void unlock()
+    {
+        lock_.fetch_and(~mask_, std::memory_order_release);
+    }
+};
 
 SHAMapInnerNode::SHAMapInnerNode(
     std::uint32_t cowid,
@@ -108,7 +155,10 @@ SHAMapInnerNode::clone(std::uint32_t cowid) const
             cloneHashes[branchNum] = thisHashes[indexNum];
         });
     }
-    std::lock_guard lock(childLock);
+
+    spinlock_x sl(lock_);
+    std::lock_guard lock(sl);
+
     if (thisIsSparse)
     {
         int cloneChildIndex = 0;
@@ -335,8 +385,11 @@ SHAMapInnerNode::getChildPointer(int branch)
     assert(branch >= 0 && branch < branchFactor);
     assert(!isEmptyBranch(branch));
 
-    std::lock_guard lock(childLock);
-    return hashesAndChildren_.getChildren()[*getChildIndex(branch)].get();
+    auto const index = *getChildIndex(branch);
+
+    spinlock_x sl(lock_, index);
+    std::lock_guard lock(sl);
+    return hashesAndChildren_.getChildren()[index].get();
 }
 
 std::shared_ptr<SHAMapTreeNode>
@@ -345,8 +398,11 @@ SHAMapInnerNode::getChild(int branch)
     assert(branch >= 0 && branch < branchFactor);
     assert(!isEmptyBranch(branch));
 
-    std::lock_guard lock(childLock);
-    return hashesAndChildren_.getChildren()[*getChildIndex(branch)];
+    auto const index = *getChildIndex(branch);
+
+    spinlock_x sl(lock_, index);
+    std::lock_guard lock(sl);
+    return hashesAndChildren_.getChildren()[index];
 }
 
 SHAMapHash const&
@@ -371,7 +427,9 @@ SHAMapInnerNode::canonicalizeChild(
     auto [_, hashes, children] = hashesAndChildren_.getHashesAndChildren();
     assert(node->getHash() == hashes[childIndex]);
 
-    std::lock_guard lock(childLock);
+    spinlock_x sl(lock_, childIndex);
+    std::lock_guard lock(sl);
+
     if (children[childIndex])
     {
         // There is already a node hooked up, return it
