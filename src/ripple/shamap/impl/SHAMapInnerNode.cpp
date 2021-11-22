@@ -28,17 +28,26 @@
 #include <ripple/shamap/SHAMapTreeNode.h>
 #include <ripple/shamap/impl/TaggedPointer.ipp>
 
+#include <chrono>
+#include <mutex>
 #include <openssl/sha.h>
 
 #include <algorithm>
+#include <fstream>
 #include <iterator>
+#include <mutex>
+#include <shared_mutex>
+#include <thread>
 #include <utility>
 
 // This is used for the _mm_pause instruction:
 #include <immintrin.h>
 
-
 namespace ripple {
+
+#ifdef USE_GLOBAL_LOCK
+std::shared_mutex lock_;
+#endif
 
 class spinlock_x
 {
@@ -47,8 +56,7 @@ private:
     std::uint16_t mask_;
 
 public:
-    spinlock_x(std::atomic<std::uint16_t>& lock)
-        : lock_(lock), mask_(0xFFFF)
+    spinlock_x(std::atomic<std::uint16_t>& lock) : lock_(lock), mask_(0xFFFF)
     {
     }
 
@@ -58,12 +66,14 @@ public:
         assert(index >= 0 && index < 16);
     }
 
-    bool try_lock()
+    bool
+    try_lock()
     {
         return (lock_.fetch_or(mask_, std::memory_order_acquire) & mask_) == 0;
     }
 
-    void lock()
+    void
+    lock()
     {
         if (try_lock())
             return;
@@ -83,11 +93,130 @@ public:
         } while (true);
     }
 
-    void unlock()
+    void
+    unlock()
     {
         lock_.fetch_and(~mask_, std::memory_order_release);
     }
 };
+
+std::atomic<std::size_t> lockAttempts{};
+std::atomic<std::size_t> lockFails{};
+std::atomic<std::size_t> lockLongestWaitPeriod;
+std::atomic<std::size_t> lockLongestWait;
+std::atomic<std::size_t> totalWait;
+
+std::thread monitorThread;
+bool shouldExitMonitor = false;
+
+struct TimeIt
+{
+    std::chrono::high_resolution_clock::time_point begin =
+        std::chrono::high_resolution_clock::now();
+    TimeIt()
+    {
+    }
+    ~TimeIt()
+    {
+        std::chrono::high_resolution_clock::time_point end =
+            std::chrono::high_resolution_clock::now();
+        std::size_t const delta =
+            std::chrono::duration_cast<std::chrono::microseconds>(end - begin)
+                .count();
+        lockLongestWaitPeriod = std::max(lockLongestWaitPeriod.load(), delta);
+        lockLongestWait = std::max(lockLongestWait.load(), delta);
+        totalWait += delta;
+    }
+};
+
+void
+monitorLockAttempts()
+{
+    using namespace std::chrono_literals;
+    std::ofstream mutexStream("MutexStats.txt");
+    while (!shouldExitMonitor)
+    {
+        std::this_thread::sleep_for(30s);
+        auto attempts = lockAttempts.load();
+        auto fails = lockFails.load();
+        mutexStream << attempts << " " << fails << " "
+                    << 100 * double(fails) / double(attempts) << "% "
+                    << lockLongestWaitPeriod << " " << lockLongestWait << " "
+                    << double(totalWait) / double(attempts) << " "
+                    << (fails ? double(totalWait) / double(fails) : 0.0)
+                    << std::endl;
+        lockLongestWaitPeriod = 0;
+    }
+}
+
+void
+startMonitorLockAttempts()
+{
+    monitorThread = std::thread(monitorLockAttempts);
+}
+
+void
+stopMonitorLockAttempts()
+{
+    shouldExitMonitor = true;
+    monitorThread.join();
+}
+
+std::lock_guard<spinlock_x>
+lockWrapper(spinlock_x& l)
+{
+    ++lockAttempts;
+    TimeIt timeIt;
+    if (l.try_lock())
+        return std::lock_guard<spinlock_x>{l, std::adopt_lock};
+    ++lockFails;
+    return std::lock_guard<spinlock_x>{l};
+}
+
+std::lock_guard<spinlock_x>
+writeLockWrapper(spinlock_x& l)
+{
+    return lockWrapper(l);
+}
+
+std::lock_guard<std::mutex>
+lockWrapper(std::mutex& l)
+{
+    ++lockAttempts;
+    TimeIt timeIt;
+    if (l.try_lock())
+        return std::lock_guard<std::mutex>{l, std::adopt_lock};
+    ++lockFails;
+    return std::lock_guard<std::mutex>{l};
+}
+
+std::lock_guard<std::mutex>
+writeLockWrapper(std::mutex& l)
+{
+    return lockWrapper(l);
+}
+
+std::shared_lock<std::shared_mutex>
+lockWrapper(std::shared_mutex& l)
+{
+    ++lockAttempts;
+    TimeIt timeIt;
+    if (l.try_lock_shared())
+        return std::shared_lock<std::shared_mutex>{l, std::adopt_lock};
+    ++lockFails;
+    return std::shared_lock<std::shared_mutex>{l};
+}
+
+std::unique_lock<std::shared_mutex>
+writeLockWrapper(std::shared_mutex& l)
+{
+    ++lockAttempts;
+    TimeIt timeIt;
+    if (l.try_lock())
+        return std::unique_lock<std::shared_mutex>{l, std::adopt_lock};
+    ++lockFails;
+    return std::unique_lock<std::shared_mutex>{l};
+}
 
 SHAMapInnerNode::SHAMapInnerNode(
     std::uint32_t cowid,
@@ -156,8 +285,12 @@ SHAMapInnerNode::clone(std::uint32_t cowid) const
         });
     }
 
+#ifdef USE_SPINLOCK_X
     spinlock_x sl(lock_);
-    std::lock_guard lock(sl);
+#else
+    auto& sl = lock_;
+#endif
+    auto lock = writeLockWrapper(sl);
 
     if (thisIsSparse)
     {
@@ -387,8 +520,12 @@ SHAMapInnerNode::getChildPointer(int branch)
 
     auto const index = *getChildIndex(branch);
 
+#ifdef USE_SPINLOCK_X
     spinlock_x sl(lock_, index);
-    std::lock_guard lock(sl);
+#else
+    auto& sl = lock_;
+#endif
+    auto lock = lockWrapper(sl);
     return hashesAndChildren_.getChildren()[index].get();
 }
 
@@ -400,8 +537,12 @@ SHAMapInnerNode::getChild(int branch)
 
     auto const index = *getChildIndex(branch);
 
+#ifdef USE_SPINLOCK_X
     spinlock_x sl(lock_, index);
-    std::lock_guard lock(sl);
+#else
+    auto& sl = lock_;
+#endif
+    auto lock = lockWrapper(sl);
     return hashesAndChildren_.getChildren()[index];
 }
 
@@ -427,8 +568,12 @@ SHAMapInnerNode::canonicalizeChild(
     auto [_, hashes, children] = hashesAndChildren_.getHashesAndChildren();
     assert(node->getHash() == hashes[childIndex]);
 
+#ifdef USE_SPINLOCK_X
     spinlock_x sl(lock_, childIndex);
-    std::lock_guard lock(sl);
+#else
+    auto& sl = lock_;
+#endif
+    auto lock = writeLockWrapper(sl);
 
     if (children[childIndex])
     {

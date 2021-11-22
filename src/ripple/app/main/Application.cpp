@@ -77,6 +77,7 @@
 #include <boost/asio/steady_timer.hpp>
 #include <boost/system/error_code.hpp>
 
+#include "shamap/SHAMapInnerNode.h"
 #include <date/date.h>
 
 #include <chrono>
@@ -496,6 +497,7 @@ public:
         //
 
         add(ledgerCleaner_.get());
+        startMonitorLockAttempts();
     }
 
     //--------------------------------------------------------------------------
@@ -972,6 +974,8 @@ public:
     stop()
     {
         JLOG(m_journal.debug()) << "Application stopping";
+
+        stopMonitorLockAttempts();
 
         m_io_latency_sampler.cancel_async();
 

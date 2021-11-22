@@ -32,7 +32,11 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <shared_mutex>
 #include <string>
+
+// #define USE_SPINLOCK_X
+#define USE_GLOBAL_LOCK
 
 namespace ripple {
 
@@ -53,8 +57,14 @@ private:
     std::uint32_t fullBelowGen_ = 0;
     std::uint16_t isBranch_ = 0;
 
+#ifndef USE_GLOBAL_LOCK
+#ifdef USE_SPINLOCK_X
     // One lock bit for each child:
     mutable std::atomic<std::uint16_t> lock_ = 0;
+#else
+    mutable std::shared_mutex lock_;
+#endif
+#endif
 
     /** Convert arrays stored in `hashesAndChildren_` so they can store the
         requested number of children.
@@ -210,5 +220,9 @@ SHAMapInnerNode::setFullBelowGen(std::uint32_t gen)
     fullBelowGen_ = gen;
 }
 
+void
+startMonitorLockAttempts();
+void
+stopMonitorLockAttempts();
 }  // namespace ripple
 #endif
