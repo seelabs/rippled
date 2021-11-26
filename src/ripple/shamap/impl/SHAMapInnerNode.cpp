@@ -30,6 +30,7 @@
 #include <ripple/shamap/SHAMapTreeNode.h>
 #include <ripple/shamap/impl/TaggedPointer.ipp>
 
+#include "shamap/impl/TaggedPointer.h"
 #include <openssl/sha.h>
 
 #include <algorithm>
@@ -40,7 +41,12 @@
 
 namespace ripple {
 
+#ifdef SWD_USE_FOLLY_PTR
+#define LOCK_CHILDREN
+#else
 std::mutex SHAMapInnerNode::childLock;
+#define LOCK_CHILDREN std::lock_guard lock(childLock);
+#endif
 
 SHAMapInnerNode::SHAMapInnerNode(
     std::uint32_t cowid,
@@ -88,7 +94,7 @@ SHAMapInnerNode::clone(std::uint32_t cowid) const
     p->isBranch_ = isBranch_;
     p->fullBelowGen_ = fullBelowGen_;
     SHAMapHash *cloneHashes, *thisHashes;
-    std::shared_ptr<SHAMapTreeNode>*cloneChildren, *thisChildren;
+    TaggedPointer::ChildPtr<SHAMapTreeNode>*cloneChildren, *thisChildren;
     // structured bindings can't be captured in c++ 17; use tie instead
     std::tie(std::ignore, cloneHashes, cloneChildren) =
         p->hashesAndChildren_.getHashesAndChildren();
@@ -108,18 +114,26 @@ SHAMapInnerNode::clone(std::uint32_t cowid) const
             cloneHashes[branchNum] = thisHashes[indexNum];
         });
     }
-    std::lock_guard lock(childLock);
+    LOCK_CHILDREN;
     if (thisIsSparse)
     {
         int cloneChildIndex = 0;
         iterNonEmptyChildIndexes([&](auto branchNum, auto indexNum) {
+#ifdef SWD_USE_FOLLY_PTR
+            cloneChildren[cloneChildIndex++] = thisChildren[indexNum].load();
+#else
             cloneChildren[cloneChildIndex++] = thisChildren[indexNum];
+#endif
         });
     }
     else
     {
         iterNonEmptyChildIndexes([&](auto branchNum, auto indexNum) {
+#ifdef SWD_USE_FOLLY_PTR
+            cloneChildren[branchNum] = thisChildren[indexNum].load();
+#else
             cloneChildren[branchNum] = thisChildren[indexNum];
+#endif
         });
     }
 
@@ -209,13 +223,18 @@ void
 SHAMapInnerNode::updateHashDeep()
 {
     SHAMapHash* hashes;
-    std::shared_ptr<SHAMapTreeNode>* children;
+    TaggedPointer::ChildPtr<SHAMapTreeNode>* children;
     // structured bindings can't be captured in c++ 17; use tie instead
     std::tie(std::ignore, hashes, children) =
         hashesAndChildren_.getHashesAndChildren();
     iterNonEmptyChildIndexes([&](auto branchNum, auto indexNum) {
-        if (children[indexNum] != nullptr)
+#ifdef SWD_USE_FOLLY_PTR
+        if (auto child = children[indexNum].load())
+            hashes[indexNum] = child->getHash();
+#else
+        if (children[indexNum])
             hashes[indexNum] = children[indexNum]->getHash();
+#endif
     });
     updateHash();
 }
@@ -335,8 +354,14 @@ SHAMapInnerNode::getChildPointer(int branch)
     assert(branch >= 0 && branch < branchFactor);
     assert(!isEmptyBranch(branch));
 
-    std::lock_guard lock(childLock);
+    LOCK_CHILDREN;
+#ifdef SWD_USE_FOLLY_PTR
+    return hashesAndChildren_.getChildren()[*getChildIndex(branch)]
+        .load()
+        .get();
+#else
     return hashesAndChildren_.getChildren()[*getChildIndex(branch)].get();
+#endif
 }
 
 std::shared_ptr<SHAMapTreeNode>
@@ -345,8 +370,12 @@ SHAMapInnerNode::getChild(int branch)
     assert(branch >= 0 && branch < branchFactor);
     assert(!isEmptyBranch(branch));
 
-    std::lock_guard lock(childLock);
+    LOCK_CHILDREN;
+#ifdef SWD_USE_FOLLY_PTR
+    return hashesAndChildren_.getChildren()[*getChildIndex(branch)].load();
+#else
     return hashesAndChildren_.getChildren()[*getChildIndex(branch)];
+#endif
 }
 
 SHAMapHash const&
@@ -371,7 +400,19 @@ SHAMapInnerNode::canonicalizeChild(
     auto [_, hashes, children] = hashesAndChildren_.getHashesAndChildren();
     assert(node->getHash() == hashes[childIndex]);
 
-    std::lock_guard lock(childLock);
+    LOCK_CHILDREN;
+#ifdef SWD_USE_FOLLY_PTR
+    if (auto child = children[childIndex].load())
+    {
+        // There is already a node hooked up, return it
+        node = child;
+    }
+    else
+    {
+        // Hook this node up
+        children[childIndex].store(node);
+    }
+#else
     if (children[childIndex])
     {
         // There is already a node hooked up, return it
@@ -382,6 +423,7 @@ SHAMapInnerNode::canonicalizeChild(
         // Hook this node up
         children[childIndex] = node;
     }
+#endif
     return node;
 }
 
@@ -398,8 +440,13 @@ SHAMapInnerNode::invariants(bool is_root) const
         for (int i = 0; i < branchCount; ++i)
         {
             assert(hashes[i].isNonZero());
+#ifdef SWD_USE_FOLLY_PTR
+            if (auto child = children[i].load())
+                child->invariants();
+#else
             if (children[i] != nullptr)
                 children[i]->invariants();
+#endif
             ++count;
         }
     }
@@ -410,8 +457,13 @@ SHAMapInnerNode::invariants(bool is_root) const
             if (hashes[i].isNonZero())
             {
                 assert((isBranch_ & (1 << i)) != 0);
+#ifdef SWD_USE_FOLLY_PTR
+                if (auto child = children[i].load())
+                    child->invariants();
+#else
                 if (children[i] != nullptr)
                     children[i]->invariants();
+#endif
                 ++count;
             }
             else
