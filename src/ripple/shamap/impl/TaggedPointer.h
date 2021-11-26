@@ -22,6 +22,11 @@
 
 #include <ripple/shamap/SHAMapTreeNode.h>
 
+#define SWD_USE_FOLLY_PTR
+#ifdef SWD_USE_FOLLY_PTR
+#include <folly/concurrency/AtomicSharedPtr.h>
+#endif
+
 #include <cstdint>
 #include <optional>
 
@@ -56,6 +61,41 @@ namespace ripple {
 */
 class TaggedPointer
 {
+public:
+#ifdef SWD_USE_FOLLY_PTR
+    template <class T>
+    using ChildPtr = folly::atomic_shared_ptr<T>;
+    template <class T, class... A>
+    static ChildPtr<T>
+    make_shared(A&&... args)
+    {
+        return folly::atomic_shared_ptr<T>(new T{std::forward<A>(args)...});
+    }
+
+    template <class T>
+    static void
+    reset(ChildPtr<T>& p)
+    {
+        p.store({});
+    }
+#else
+    template <class T>
+    using ChildPtr = std::shared_ptr<T>;
+    template <class T, class... A>
+    static ChildPtr<T>
+    make_shared(A&&... args)
+    {
+        return std::make_shared<T>(std::forward<A>(args)...);
+    }
+    template <class T>
+    static void
+    reset(ChildPtr<T>& p)
+    {
+        p.reset();
+    }
+#endif
+
+private:
     static_assert(
         alignof(SHAMapHash) >= 4,
         "Bad alignment: Tag pointer requires low two bits to be zero.");
@@ -169,7 +209,7 @@ public:
         of each array.
     */
     [[nodiscard]] std::
-        tuple<std::uint8_t, SHAMapHash*, std::shared_ptr<SHAMapTreeNode>*>
+        tuple<std::uint8_t, SHAMapHash*, ChildPtr<SHAMapTreeNode>*>
         getHashesAndChildren() const;
 
     /** Get the `hashes` array */
@@ -177,7 +217,7 @@ public:
     getHashes() const;
 
     /** Get the `children` array */
-    [[nodiscard]] std::shared_ptr<SHAMapTreeNode>*
+    [[nodiscard]] ChildPtr<SHAMapTreeNode>*
     getChildren() const;
 
     /** Call the `f` callback for all 16 (branchFactor) branches - even if

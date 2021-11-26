@@ -53,7 +53,9 @@ private:
     std::uint32_t fullBelowGen_ = 0;
     std::uint16_t isBranch_ = 0;
 
+#ifndef SWD_USE_FOLLY_PTR
     static std::mutex childLock;
+#endif
 
     /** Convert arrays stored in `hashesAndChildren_` so they can store the
         requested number of children.
