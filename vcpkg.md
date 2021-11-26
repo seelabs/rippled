@@ -23,7 +23,7 @@ rename this `vcpkg` to `vcpkg-rippled` or somesuch.
 # Install the dependencies
 
 ```
-vcpkg-rippled install boost libarchive lz4 openssl rocksdb 'soci[sqlite3]' sqlite3 zlib
+vcpkg-rippled install boost libarchive lz4 openssl rocksdb 'soci[sqlite3]' sqlite3 zlib folly
 ```
 
 # Build rippled
