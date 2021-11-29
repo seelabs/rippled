@@ -25,6 +25,9 @@
 #include <ripple/basics/hardened_hash.h>
 #include <ripple/beast/clock/abstract_clock.h>
 #include <ripple/beast/insight/Insight.h>
+
+#include <folly/concurrency/ConcurrentHashMap.h>
+
 #include <atomic>
 #include <functional>
 #include <mutex>
@@ -173,9 +176,6 @@ public:
     retrieve(const key_type& key, T& data) -> bool;
 
     auto
-    peekMutex() -> mutex_type&;
-
-    auto
     getKeys() const -> std::vector<key_type>;
 
     // CachedSLEs functions.
@@ -196,8 +196,7 @@ public:
 
 private:
     auto
-    initialFetch(key_type const& key, std::lock_guard<mutex_type> const& l)
-        -> std::shared_ptr<T>;
+    initialFetch(key_type const& key) -> std::shared_ptr<T>;
 
     auto
     collect_metrics() -> void;
@@ -236,6 +235,12 @@ private:
         {
         }
 
+        friend bool
+        operator==(KeyOnlyEntry const& lhs, KeyOnlyEntry const& rhs)
+        {
+            return lhs.last_access == rhs.last_access;
+        }
+
         auto
         touch(clock_type::time_point const& now) -> void
         {
@@ -255,6 +260,18 @@ private:
             std::shared_ptr<mapped_type> const& ptr_)
             : ptr(ptr_), weak_ptr(ptr_), last_access(last_access_)
         {
+        }
+
+        friend bool
+        operator==(ValueEntry const& lhs, ValueEntry const& rhs)
+        {
+            if (lhs.last_access != rhs.last_access)
+                return false;
+            if (lhs.ptr || rhs.ptr)
+            {
+                return lhs.ptr == rhs.ptr;
+            }
+            return lhs.weak_ptr.lock() == rhs.weak_ptr.lock();
         }
 
         auto
@@ -284,42 +301,50 @@ private:
         }
     };
 
+    // Folly's ConcurrentHashMap constructs the hasher on demand. Since
+    // hardened_hash creates a new random seed every time it's constructed, this
+    // can't work (keys would hash to different values every time). This class
+    // wraps the hasher in a static to work around this limitation.
+    struct HashWrapper
+    {
+        static Hash h_;
+
+        template <class TH>
+        auto
+        operator()(TH const& t) const noexcept
+        {
+            return h_(t);
+        }
+    };
+
     typedef
         typename std::conditional<IsKeyCache, KeyOnlyEntry, ValueEntry>::type
             Entry;
 
     using KeyOnlyCacheType =
-        hardened_partitioned_hash_map<key_type, KeyOnlyEntry, Hash, KeyEqual>;
+        folly::ConcurrentHashMap<key_type, KeyOnlyEntry, HashWrapper, KeyEqual>;
 
     using KeyValueCacheType =
-        hardened_partitioned_hash_map<key_type, ValueEntry, Hash, KeyEqual>;
+        folly::ConcurrentHashMap<key_type, ValueEntry, HashWrapper, KeyEqual>;
 
     using cache_type =
-        hardened_partitioned_hash_map<key_type, Entry, Hash, KeyEqual>;
+        folly::ConcurrentHashMap<key_type, Entry, HashWrapper, KeyEqual>;
 
     [[nodiscard]] auto
     sweepHelper(
         clock_type::time_point const& when_expire,
         [[maybe_unused]] clock_type::time_point const& now,
-        typename KeyValueCacheType::map_type& partition,
-        std::vector<std::shared_ptr<mapped_type>>& stuffToSweep,
-        std::atomic<int>& allRemovals,
-        std::lock_guard<std::recursive_mutex> const& lock) -> std::thread;
+        KeyValueCacheType& partition) -> std::size_t;
 
     [[nodiscard]] auto
     sweepHelper(
         clock_type::time_point const& when_expire,
         clock_type::time_point const& now,
-        typename KeyOnlyCacheType::map_type& partition,
-        std::vector<std::shared_ptr<mapped_type>>& stuffToSweep,
-        std::atomic<int>& allRemovals,
-        std::lock_guard<std::recursive_mutex> const& lock) -> std::thread;
+        KeyOnlyCacheType& partition) -> std::size_t;
 
     beast::Journal m_journal;
     clock_type& m_clock;
     Stats m_stats;
-
-    mutex_type mutable m_mutex;
 
     // Used for logging
     std::string m_name;
@@ -328,13 +353,19 @@ private:
     int m_target_size;
 
     // Desired maximum cache age
-    clock_type::duration m_target_age;
+    std::atomic<clock_type::duration> m_target_age;
+
+    cache_type m_cache;  // Hold strong reference to recent objects
 
     // Number of items cached
-    int m_cache_count;
-    cache_type m_cache;  // Hold strong reference to recent objects
-    std::uint64_t m_hits;
-    std::uint64_t m_misses;
+    // TODO: The lock free version may have incorrect m_cache_count, m_hits, and
+    // m_misses. There can be data races when manipulating these variables.
+    // However, since it appears this is only used for stats, this is probably
+    // OK (???). At any rate, it's probably worth the sometimes bogus
+    // m_cache_count in exchange for a lockless cache.
+    std::atomic<int> m_cache_count;
+    std::atomic<std::uint64_t> m_hits;
+    std::atomic<std::uint64_t> m_misses;
 };
 
 }  // namespace ripple

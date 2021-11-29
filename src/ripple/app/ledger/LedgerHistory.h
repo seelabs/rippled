@@ -153,9 +153,14 @@ private:
         std::optional<Json::Value> consensus;
     };
     using ConsensusValidated = TaggedCache<LedgerIndex, cv_entry>;
+    // TODO: Audit this. Used to use mutex peeked from TaggedCache
+    // Protects canonical shared ptr modifications in m_consensus_validated
+    std::mutex m_consensus_validated_mutex;
     ConsensusValidated m_consensus_validated;
 
     // Maps ledger indexes to the corresponding hash.
+    // TODO: Audit this. Used to use mutex peeked from TaggedCache
+    std::mutex mLedgersByIndexMutex;  // Protects mLedgersByIndex
     std::map<LedgerIndex, LedgerHash> mLedgersByIndex;  // validated ledgers
 
     beast::Journal j_;
