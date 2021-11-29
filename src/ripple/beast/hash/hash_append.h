@@ -286,6 +286,14 @@ hash_append(
     Hasher& h,
     std::basic_string<CharT, Traits, Alloc> const& s) noexcept;
 
+template <class Hasher, std::size_t N>
+void
+hash_append(Hasher& h, char const (&a)[N]) noexcept;
+
+template <class Hasher>
+void
+hash_append(Hasher& h, std::string_view const& s) noexcept;
+
 template <class Hasher, class T, class U>
 std::enable_if_t<!is_contiguously_hashable<std::pair<T, U>, Hasher>::value>
 hash_append(Hasher& h, std::pair<T, U> const& p) noexcept;
@@ -358,6 +366,26 @@ hash_append(
     std::basic_string<CharT, Traits, Alloc> const& s) noexcept
 {
     h(s.data(), s.size() * sizeof(CharT));
+    hash_append(h, s.size());
+}
+
+// c-string
+
+template <class Hasher, std::size_t N>
+inline void
+hash_append(Hasher& h, char const (&a)[N]) noexcept
+{
+    h(a, N - 1);
+    hash_append(h, N - 1);
+}
+
+// string_view
+
+template <class Hasher>
+inline void
+hash_append(Hasher& h, std::string_view const& s) noexcept
+{
+    h(s.data(), s.size());
     hash_append(h, s.size());
 }
 

@@ -360,6 +360,18 @@ public:
         return {it, inserted};
     }
 
+    template <class T, class U>
+    std::pair<iterator, bool>
+    insert_or_assign(T&& key, U&& val)
+    {
+        iterator it(&map_);
+        it.ait_ = it.map_->begin() + partitioner(key);
+        auto [eit, inserted] = it.ait_->insert_or_assign(
+            std::forward<T>(key), std::forward<U>(val));
+        it.mit_ = eit;
+        return {it, inserted};
+    }
+
     void
     clear()
     {
