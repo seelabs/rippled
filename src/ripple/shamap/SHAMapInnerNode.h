@@ -100,6 +100,11 @@ private:
     void
     iterNonEmptyChildIndexes(F&& f) const;
 
+    static std::shared_ptr<SHAMapInnerNode>
+    makeInnerHelper(
+        std::uint16_t isBranch,
+        std::array<SHAMapHash, 16> const& hashes);
+
 public:
     explicit SHAMapInnerNode(
         std::uint32_t cowid,

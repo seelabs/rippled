@@ -126,6 +126,22 @@ SHAMapInnerNode::clone(std::uint32_t cowid) const
     return p;
 }
 
+std::shared_ptr<SHAMapInnerNode>
+SHAMapInnerNode::makeInnerHelper(
+    std::uint16_t isBranch,
+    std::array<SHAMapHash, 16> const& denseHashes)
+{
+    auto const numChildren = popcnt16(isBranch);
+    auto ret = std::make_shared<SHAMapInnerNode>(0, numChildren);
+    ret->isBranch_ = isBranch;
+    auto hashes = ret->hashesAndChildren_.getHashes();
+    ret->iterNonEmptyChildIndexes([&](auto branchNum, auto indexNum) {
+        hashes[indexNum] = denseHashes[branchNum];
+    });
+
+    return ret;
+}
+
 std::shared_ptr<SHAMapTreeNode>
 SHAMapInnerNode::makeFullInner(
     Slice data,
@@ -136,21 +152,20 @@ SHAMapInnerNode::makeFullInner(
     if (data.size() != branchFactor * uint256::bytes)
         Throw<std::runtime_error>("Invalid FI node");
 
-    auto ret = std::make_shared<SHAMapInnerNode>(0, branchFactor);
+    std::array<SHAMapHash, 16> hashes{};
+    std::uint16_t isBranch{0};
 
     SerialIter si(data);
 
-    auto hashes = ret->hashesAndChildren_.getHashes();
-
-    for (int i = 0; i < branchFactor; ++i)
+    for (int i = 0; i < SHAMapInnerNode::branchFactor; ++i)
     {
         hashes[i].as_uint256() = si.getBitString<256>();
 
         if (hashes[i].isNonZero())
-            ret->isBranch_ |= (1 << i);
+            isBranch |= (1 << i);
     }
 
-    ret->resizeChildArrays(ret->getBranchCount());
+    auto ret = makeInnerHelper(isBranch, hashes);
 
     if (hashValid)
         ret->hash_ = hash;
@@ -171,27 +186,27 @@ SHAMapInnerNode::makeCompressedInner(Slice data)
         (s % chunkSize != 0) || (s > chunkSize * branchFactor))
         Throw<std::runtime_error>("Invalid CI node");
 
+    std::array<SHAMapHash, 16> hashes{};
+    std::uint16_t isBranch{0};
+
     SerialIter si(data);
-
-    auto ret = std::make_shared<SHAMapInnerNode>(0, branchFactor);
-
-    auto hashes = ret->hashesAndChildren_.getHashes();
 
     while (!si.empty())
     {
         auto const hash = si.getBitString<256>();
         auto const pos = si.get8();
 
-        if ((pos < 0) || (pos >= branchFactor))
+        if (pos >= SHAMapInnerNode::branchFactor)
             Throw<std::runtime_error>("invalid CI node");
 
         hashes[pos].as_uint256() = hash;
 
         if (hashes[pos].isNonZero())
-            ret->isBranch_ |= (1 << pos);
+            isBranch |= (1 << pos);
     }
 
-    ret->resizeChildArrays(ret->getBranchCount());
+    auto ret = makeInnerHelper(isBranch, hashes);
+
     ret->updateHash();
     return ret;
 }
