@@ -328,6 +328,8 @@ public:
 
     void
     walkMap(std::vector<SHAMapMissingNode>& missingNodes, int maxMissing) const;
+    void
+    walkMapParallel(std::vector<SHAMapMissingNode>& missingNodes, int maxMissing) const;
     bool
     deepCompare(SHAMap& other) const;  // Intended for debug/test only
 

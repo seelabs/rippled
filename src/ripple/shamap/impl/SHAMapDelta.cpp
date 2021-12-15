@@ -286,4 +286,73 @@ SHAMap::walkMap(std::vector<SHAMapMissingNode>& missingNodes, int maxMissing)
     }
 }
 
+void
+SHAMap::walkMapParallel(std::vector<SHAMapMissingNode>& missingNodes, int maxMissing)
+const
+{
+    if (!root_->isInner())  // root_ is only node, and we have it
+        return;
+
+    using StackEntry = std::shared_ptr<SHAMapInnerNode>;
+    std::vector<std::shared_ptr<SHAMapTreeNode>> topChildren(16);
+    auto const& innerRoot = std::static_pointer_cast<SHAMapInnerNode>(root_);
+    for (int i = 0; i < 16; ++i)
+    {
+        if (!innerRoot->isEmptyBranch(i))
+            topChildren[i] = descendNoStore(innerRoot, i);
+    }
+    std::vector<std::thread> workers;
+    workers.reserve(16);
+
+    std::vector<std::stack<StackEntry, std::vector<StackEntry>>> nodeStacks(16);
+
+//    nodeStack.push(std::static_pointer_cast<SHAMapInnerNode>(root_));
+
+//    for (auto const& child : topChildren)
+    for (int i = 0; i < 16; ++i)
+    {
+        auto const& child = topChildren[i];
+        auto& nodeStack = nodeStacks[i];
+        nodeStack.push(std::static_pointer_cast<SHAMapInnerNode>(child));
+
+        JLOG(journal_.debug()) << "starting worker " << i;
+        workers.push_back(std::thread([&]()
+        {
+            while (!nodeStack.empty())
+            {
+                std::shared_ptr<SHAMapInnerNode> node = std::move(
+                    nodeStack.top());
+                nodeStack.pop();
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    if (!node->isEmptyBranch(i))
+                    {
+                        std::shared_ptr<SHAMapTreeNode> nextNode =
+                            descendNoStore(node, i);
+
+                        if (nextNode)
+                        {
+                            if (nextNode->isInner())
+                                nodeStack.push(
+                                    std::static_pointer_cast<SHAMapInnerNode>(
+                                        nextNode));
+                        } else
+                        {
+                            missingNodes.emplace_back(type_,
+                                node->getChildHash(i));
+                            if (--maxMissing <= 0)
+                                return;
+                        }
+                    }
+                }
+            }
+        }));
+    }
+
+    for (std::thread& worker : workers)
+        worker.join();
+}
+
+
 }  // namespace ripple
