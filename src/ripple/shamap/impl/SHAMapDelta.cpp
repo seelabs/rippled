@@ -19,6 +19,8 @@
 
 #include <ripple/basics/contract.h>
 #include <ripple/shamap/SHAMap.h>
+#include <stack>
+#include <vector>
 
 namespace ripple {
 
@@ -312,11 +314,11 @@ const
     for (int i = 0; i < 16; ++i)
     {
         auto const& child = topChildren[i];
-        auto& nodeStack = nodeStacks[i];
-        nodeStack.push(std::static_pointer_cast<SHAMapInnerNode>(child));
+        nodeStacks[i].push(std::static_pointer_cast<SHAMapInnerNode>(child));
 
         JLOG(journal_.debug()) << "starting worker " << i;
-        workers.push_back(std::thread([&]()
+        workers.push_back(std::thread([&](
+            std::stack<StackEntry, std::vector<StackEntry>> nodeStack)
         {
             while (!nodeStack.empty())
             {
@@ -347,12 +349,11 @@ const
                     }
                 }
             }
-        }));
+        }, nodeStacks[i]));
     }
 
     for (std::thread& worker : workers)
         worker.join();
 }
-
 
 }  // namespace ripple
