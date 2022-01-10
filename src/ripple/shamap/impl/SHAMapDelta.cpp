@@ -19,6 +19,8 @@
 
 #include <ripple/basics/contract.h>
 #include <ripple/shamap/SHAMap.h>
+
+#include <array>
 #include <stack>
 #include <vector>
 
@@ -289,47 +291,54 @@ SHAMap::walkMap(std::vector<SHAMapMissingNode>& missingNodes, int maxMissing)
 }
 
 void
-SHAMap::walkMapParallel(std::vector<SHAMapMissingNode>& missingNodes, int maxMissing)
-const
+SHAMap::walkMapParallel(
+    std::vector<SHAMapMissingNode>& missingNodes,
+    int maxMissing) const
 {
     if (!root_->isInner())  // root_ is only node, and we have it
         return;
 
     using StackEntry = std::shared_ptr<SHAMapInnerNode>;
-    std::vector<std::shared_ptr<SHAMapTreeNode>> topChildren(16);
-    auto const& innerRoot = std::static_pointer_cast<SHAMapInnerNode>(root_);
-    for (int i = 0; i < 16; ++i)
+    std::array<std::shared_ptr<SHAMapTreeNode>, 16> topChildren;
     {
-        if (!innerRoot->isEmptyBranch(i))
-            topChildren[i] = descendNoStore(innerRoot, i);
+        auto const& innerRoot =
+            std::static_pointer_cast<SHAMapInnerNode>(root_);
+        for (int i = 0; i < 16; ++i)
+        {
+            if (!innerRoot->isEmptyBranch(i))
+                topChildren[i] = descendNoStore(innerRoot, i);
+        }
     }
     std::vector<std::thread> workers;
     workers.reserve(16);
 
-    std::vector<std::stack<StackEntry, std::vector<StackEntry>>> nodeStacks(16);
+    std::array<std::stack<StackEntry, std::vector<StackEntry>>, 16> nodeStacks;
 
-//    nodeStack.push(std::static_pointer_cast<SHAMapInnerNode>(root_));
-
-//    for (auto const& child : topChildren)
-    for (int i = 0; i < 16; ++i)
+    for (int rootChildIndex = 0; rootChildIndex < 16; ++rootChildIndex)
     {
-        auto const& child = topChildren[i];
-        nodeStacks[i].push(std::static_pointer_cast<SHAMapInnerNode>(child));
+        auto const& child = topChildren[rootChildIndex];
+        if (!child || !child->isInner())
+            continue;
 
-        JLOG(journal_.debug()) << "starting worker " << i;
-        workers.push_back(std::thread([&](
-            std::stack<StackEntry, std::vector<StackEntry>> nodeStack)
-        {
-            while (!nodeStack.empty())
-            {
-                std::shared_ptr<SHAMapInnerNode> node = std::move(
-                    nodeStack.top());
-                nodeStack.pop();
+        nodeStacks[rootChildIndex].push(
+            std::static_pointer_cast<SHAMapInnerNode>(child));
 
-                for (int i = 0; i < 16; ++i)
+        JLOG(journal_.debug()) << "starting worker " << rootChildIndex;
+        std::mutex m;
+        workers.push_back(std::thread(
+            [&m, &missingNodes, &maxMissing, this](
+                std::stack<StackEntry, std::vector<StackEntry>> nodeStack) {
+                while (!nodeStack.empty())
                 {
-                    if (!node->isEmptyBranch(i))
+                    std::shared_ptr<SHAMapInnerNode> node =
+                        std::move(nodeStack.top());
+                    assert(node);
+                    nodeStack.pop();
+
+                    for (int i = 0; i < 16; ++i)
                     {
+                        if (node->isEmptyBranch(i))
+                            continue;
                         std::shared_ptr<SHAMapTreeNode> nextNode =
                             descendNoStore(node, i);
 
@@ -339,17 +348,19 @@ const
                                 nodeStack.push(
                                     std::static_pointer_cast<SHAMapInnerNode>(
                                         nextNode));
-                        } else
+                        }
+                        else
                         {
-                            missingNodes.emplace_back(type_,
-                                node->getChildHash(i));
+                            std::lock_guard l{m};
+                            missingNodes.emplace_back(
+                                type_, node->getChildHash(i));
                             if (--maxMissing <= 0)
                                 return;
                         }
                     }
                 }
-            }
-        }, nodeStacks[i]));
+            },
+            std::move(nodeStacks[rootChildIndex])));
     }
 
     for (std::thread& worker : workers)
