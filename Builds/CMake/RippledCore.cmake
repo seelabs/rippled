@@ -137,6 +137,8 @@ target_compile_options (xrpl_core
 target_link_libraries (xrpl_core
   PUBLIC
     OpenSSL::Crypto
+    SOCI::soci_core_static
+    SOCI::soci_sqlite3_static
     Ripple::boost
     Ripple::syslibs
     NIH::secp256k1
@@ -976,7 +978,16 @@ if (tests)
     src/test/unit_test/multi_runner.cpp)
 endif () #tests
 
+find_library(LIBARCHIVE_LIBRARY archive)
+if (NOT LIBARCHIVE_LIBRARY)
+  message(FATAL_ERROR "Could not find archive library")
+endif()
+
 target_link_libraries (rippled
+  lz4::lz4
+  ${LIBARCHIVE_LIBRARY}
+  SOCI::soci_core_static
+  SOCI::soci_sqlite3_static
   Ripple::boost
   Ripple::opts
   Ripple::libs

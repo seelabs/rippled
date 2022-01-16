@@ -6,6 +6,13 @@ endif ()
 
 project (rippled)
 
+
+find_package(OpenSSL REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(lz4 REQUIRED)
+find_package(Boost REQUIRED)
+find_package(SOCI REQUIRED)
+
 # make GIT_COMMIT_HASH define available to all sources
 find_package(Git)
 if(Git_FOUND)
@@ -51,15 +58,9 @@ include(RippledInterface)
 ###
 
 include(deps/Boost)
-include(deps/OpenSSL)
 include(deps/Secp256k1)
 include(deps/Ed25519-donna)
-include(deps/Lz4)
-include(deps/Libarchive)
-include(deps/Sqlite)
-include(deps/Soci)
 include(deps/Snappy)
-include(deps/Rocksdb)
 include(deps/Nudb)
 include(deps/date)
 include(deps/Protobuf)

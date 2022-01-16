@@ -136,64 +136,6 @@ else ()
     add_dependencies (c-ares::cares c-ares_src)
     exclude_if_included (c-ares::cares)
 
-    if (NOT has_zlib)
-      #[===========================[
-         zlib (grpc requires)
-      #]===========================]
-      if (MSVC)
-        set (zlib_debug_postfix "d") # zlib cmake sets this internally for MSVC, so we really don't have a choice
-        set (zlib_base "zlibstatic")
-      else ()
-        set (zlib_debug_postfix "_d")
-        set (zlib_base "z")
-      endif ()
-      ExternalProject_Add (zlib_src
-        PREFIX ${nih_cache_path}
-        GIT_REPOSITORY https://github.com/madler/zlib.git
-        GIT_TAG v1.2.11
-        CMAKE_ARGS
-          -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-          $<$<BOOL:${CMAKE_VERBOSE_MAKEFILE}>:-DCMAKE_VERBOSE_MAKEFILE=ON>
-          -DCMAKE_DEBUG_POSTFIX=${zlib_debug_postfix}
-          $<$<NOT:$<BOOL:${is_multiconfig}>>:-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}>
-          -DCMAKE_INSTALL_PREFIX=<BINARY_DIR>/_installed_
-          -DBUILD_SHARED_LIBS=OFF
-          $<$<BOOL:${MSVC}>:
-            "-DCMAKE_C_FLAGS=-GR -Gd -fp:precise -FS -MP"
-            "-DCMAKE_C_FLAGS_DEBUG=-MTd"
-            "-DCMAKE_C_FLAGS_RELEASE=-MT"
-          >
-        LOG_BUILD ON
-        LOG_CONFIGURE ON
-        BUILD_COMMAND
-          ${CMAKE_COMMAND}
-            --build .
-            --config $<CONFIG>
-            $<$<VERSION_GREATER_EQUAL:${CMAKE_VERSION},3.12>:--parallel ${ep_procs}>
-        TEST_COMMAND ""
-        INSTALL_COMMAND
-          ${CMAKE_COMMAND} -E env --unset=DESTDIR ${CMAKE_COMMAND} --build . --config $<CONFIG> --target install
-        BUILD_BYPRODUCTS
-          <BINARY_DIR>/_installed_/lib/${ep_lib_prefix}${zlib_base}${ep_lib_suffix}
-          <BINARY_DIR>/_installed_/lib/${ep_lib_prefix}${zlib_base}${zlib_debug_postfix}${ep_lib_suffix}
-      )
-      exclude_if_included (zlib_src)
-      ExternalProject_Get_Property (zlib_src BINARY_DIR)
-      set (zlib_binary_dir "${BINARY_DIR}")
-
-      add_library (ZLIB::ZLIB STATIC IMPORTED GLOBAL)
-      file (MAKE_DIRECTORY ${BINARY_DIR}/_installed_/include)
-      set_target_properties (ZLIB::ZLIB PROPERTIES
-        IMPORTED_LOCATION_DEBUG
-          ${BINARY_DIR}/_installed_/lib/${ep_lib_prefix}${zlib_base}${zlib_debug_postfix}${ep_lib_suffix}
-        IMPORTED_LOCATION_RELEASE
-          ${BINARY_DIR}/_installed_/lib/${ep_lib_prefix}${zlib_base}${ep_lib_suffix}
-        INTERFACE_INCLUDE_DIRECTORIES
-          ${BINARY_DIR}/_installed_/include)
-      add_dependencies (ZLIB::ZLIB zlib_src)
-      exclude_if_included (ZLIB::ZLIB)
-    endif ()
-
     #[===========================[
        grpc
     #]===========================]
