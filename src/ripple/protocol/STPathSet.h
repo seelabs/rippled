@@ -20,6 +20,7 @@
 #ifndef RIPPLE_PROTOCOL_STPATHSET_H_INCLUDED
 #define RIPPLE_PROTOCOL_STPATHSET_H_INCLUDED
 
+#include <ripple/basics/CountedObject.h>
 #include <ripple/json/json_value.h>
 #include <ripple/protocol/SField.h>
 #include <ripple/protocol/STBase.h>
@@ -30,7 +31,7 @@
 
 namespace ripple {
 
-class STPathElement
+class STPathElement final : public CountedObject<STPathElement>
 {
 public:
     enum Type {
@@ -209,7 +210,7 @@ private:
     std::size_t hash_value_;
 };
 
-class STPath
+class STPath final : public CountedObject<STPath>
 {
 public:
     STPath() = default;
@@ -306,7 +307,7 @@ private:
 //------------------------------------------------------------------------------
 
 // A set of zero or more payment paths
-class STPathSet final : public STBase
+class STPathSet final : public STBase, public CountedObject<STPathSet>
 {
 public:
     STPathSet() = default;
