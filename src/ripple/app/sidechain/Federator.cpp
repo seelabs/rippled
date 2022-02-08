@@ -2106,6 +2106,7 @@ Federator::getInfo() const
         }
         r[jss::pending_transactions] = pending;
         r[jss::listener_info] = listener.getInfo();
+        r[jss::door_account] = listener.getDoorAccountStr();
         r[jss::sequence] = accountSeq_[chaintype].load();
         r[jss::last_transaction_sent_seq] = lastTxnSeqSent_[chaintype].load();
         if (chaintype == ChainType::mainChain)

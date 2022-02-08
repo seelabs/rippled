@@ -81,6 +81,9 @@ public:
     Json::Value
     getInfo() const EXCLUDES(m_);
 
+    std::string const&
+    getDoorAccountStr() const EXCLUDES(m_);
+
     using RpcCallback = std::function<void(Json::Value const&)>;
 
     /**

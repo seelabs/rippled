@@ -852,5 +852,11 @@ ChainListener::getInfo() const
     return ret;
 }
 
+std::string const&
+ChainListener::getDoorAccountStr() const EXCLUDES(m_)
+{
+    return doorAccountStr_;
+}
+
 }  // namespace sidechain
 }  // namespace ripple

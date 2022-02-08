@@ -226,6 +226,7 @@ JSS(dir_index);               // out: DirectoryEntryIterator
 JSS(dir_root);                // out: DirectoryEntryIterator
 JSS(directory);               // in: LedgerEntry
 JSS(domain);                  // out: ValidatorInfo, Manifest
+JSS(door_account);            // out: federator_info
 JSS(drops);                   // out: TxQ
 JSS(duration_us);             // out: NetworkOPs
 JSS(effective);               // out: ValidatorList
