@@ -129,10 +129,11 @@ def convert_log(in_file_name: str,
                         result.append(log_line.to_pure_json())
                     else:
                         if pure_json:
-                            print(log_line.to_pure_json_str(f_id),
+                            print(log_line.to_pure_json_str(),
                                   file=out,
                                   flush=True)
                         else:
+                            assert False
                             print(log_line.to_mixed_json_str(),
                                   file=out,
                                   flush=True)
