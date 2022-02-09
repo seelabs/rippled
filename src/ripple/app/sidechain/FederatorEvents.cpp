@@ -88,6 +88,8 @@ XChainTransferDetected::toJson() const
     result["src"] = toBase58(src_);
     result["dst"] = toBase58(dst_);
     result["deliveredAmt"] = deliveredAmt_.getJson(JsonOptions::none);
+    if (dstFee_)
+        result["dstFee"] = std::to_string(dstFee_->drops());
     result["txnSeq"] = txnSeq_;
     result["txnHash"] = to_string(txnHash_);
     result["rpcOrder"] = rpcOrder_;

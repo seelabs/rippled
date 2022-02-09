@@ -26,6 +26,7 @@
 #include <ripple/protocol/Issue.h>
 #include <ripple/protocol/STAmount.h>
 #include <ripple/protocol/TER.h>
+#include "basics/XRPAmount.h"
 #include <beast/utility/Journal.h>
 
 #include <boost/format.hpp>
@@ -61,6 +62,11 @@ struct XChainTransferDetected
     // Dst account on the dst chain
     AccountID dst_;
     STAmount deliveredAmt_;
+    // Requested fee on the dst chain
+    // For xrp cross chain transactions, this will be dedected from the
+    // delivered amount. For iou cross chain transactions, this can not
+    // be present. Fees will still be hard coded.
+    std::optional<XRPAmount> dstFee_;
     std::uint32_t txnSeq_;
     uint256 txnHash_;
     std::int32_t rpcOrder_;

@@ -33,6 +33,7 @@
 #include <ripple/protocol/TxFlags.h>
 #include <ripple/protocol/jss.h>
 
+#include <optional>
 #include <type_traits>
 
 namespace ripple {
@@ -84,6 +85,33 @@ getMemoData<uint256>(Json::Value const& v, std::uint32_t index)
         if (result.parseHex(
                 v[jss::Memos][index][jss::Memo][jss::MemoData].asString()))
             return result;
+    }
+    catch (...)
+    {
+    }
+    return {};
+}
+
+template <>
+std::optional<uint32_t>
+getMemoData<uint32_t>(Json::Value const& v, std::uint32_t index)
+{
+    try
+    {
+        auto const hexData =
+            v[jss::Memos][index][jss::Memo][jss::MemoData].asString();
+        auto d = hexData.data();
+        if (hexData.size() != 4)
+            return {};
+        std::uint32_t result = 0;
+        for (int i = 0; i < 4; ++i)
+        {
+            auto const nibble = charUnHex(d[i]);
+            if (nibble < 0)
+                return {};
+            result = (result << 4) | nibble;
+        }
+        return result;
     }
     catch (...)
     {
@@ -471,6 +499,41 @@ ChainListener::processMessage(Json::Value const& msg)
             return;
         }
 
+        // User specified fee for the dst chain transaction
+        // Will only be seated for PaymentType::user
+        auto const dstFee = [&]() -> std::optional<XRPAmount> {
+            try
+            {
+                if (paymentType != PaymentType::user)
+                {
+                    return std::nullopt;
+                }
+                // This is the destination of the "other chain"
+                // transfer, which is specified as a memo.
+                if (!msg.isMember(jss::transaction))
+                {
+                    return std::nullopt;
+                }
+                // the memo data is a hex encoded big endian unsigned
+                // integer representing the fee in drops
+                if (std::optional<std::uint32_t> drops =
+                        detail::getMemoData<std::uint32_t>(jss::transaction, 1))
+                {
+                    return XRPAmount{*drops};
+                }
+                else
+                {
+                    return {};
+                }
+            }
+            catch (...)
+            {
+            }
+            // TODO: this is an insane input stream
+            // Detect and connect to another server
+            return {};
+        }();
+
         switch (paymentType)
         {
             case PaymentType::federator: {
@@ -577,6 +640,7 @@ ChainListener::processMessage(Json::Value const& msg)
                         *src,
                         *dst,
                         *deliveredAmt,
+                        dstFee,
                         *seq,
                         *txnHash,
                         txnHistoryIndex};
