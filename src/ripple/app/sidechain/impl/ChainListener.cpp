@@ -100,11 +100,15 @@ getMemoData<uint32_t>(Json::Value const& v, std::uint32_t index)
     {
         auto const hexData =
             v[jss::Memos][index][jss::Memo][jss::MemoData].asString();
-        auto d = hexData.data();
-        if (hexData.size() != 4)
+        auto const d = hexData.data();
+        auto const sz = hexData.size();
+        if (sz > 8)
+        {
+            // must be 32 bits or less
             return {};
+        }
         std::uint32_t result = 0;
-        for (int i = 0; i < 4; ++i)
+        for (int i = 0; i < sz; ++i)
         {
             auto const nibble = charUnHex(d[i]);
             if (nibble < 0)
@@ -517,7 +521,8 @@ ChainListener::processMessage(Json::Value const& msg)
                 // the memo data is a hex encoded big endian unsigned
                 // integer representing the fee in drops
                 if (std::optional<std::uint32_t> drops =
-                        detail::getMemoData<std::uint32_t>(jss::transaction, 1))
+                        detail::getMemoData<std::uint32_t>(
+                            msg[jss::transaction], 1))
                 {
                     return XRPAmount{*drops};
                 }

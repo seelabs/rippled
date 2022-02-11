@@ -30,6 +30,7 @@
 #include <ripple/basics/Buffer.h>
 #include <ripple/basics/ThreadSaftyAnalysis.h>
 #include <ripple/basics/UnorderedContainers.h>
+#include <ripple/basics/XRPAmount.h>
 #include <ripple/basics/base_uint.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/core/Config.h>
@@ -159,6 +160,7 @@ private:
     struct PendingTransaction
     {
         STAmount amount;
+        XRPAmount fee;
         AccountID srcChainSrcAccount;
         AccountID dstChainDstAccount;
         // Key is the federator's public key
@@ -242,6 +244,7 @@ public:
         uint256 const& srcChainTxnHash,
         std::optional<uint256> const& dstChainTxnHash,
         STAmount const& amt,
+        XRPAmount const& fee,
         AccountID const& srcChainSrcAccount,
         AccountID const& dstChainDstAccount,
         std::uint32_t seq,
@@ -334,6 +337,7 @@ private:
         TxnType txnType,
         ChainType dstChain,
         STAmount const& amt,
+        XRPAmount const& fee,
         // srcChainSrcAccount is the origional sending account in a cross chain
         // transaction. Note, for refunds, the srcChainSrcAccount and the dst
         // will be the same.
@@ -352,6 +356,7 @@ private:
     sendRefund(
         ChainType chaintype,
         STAmount const& amt,
+        XRPAmount const& fee,
         AccountID const& dst,
         uint256 const& txnHash,
         uint256 const& triggeringResultTxnHash);
@@ -397,6 +402,7 @@ crossChainTxnSignatureId(
     uint256 const& srcChainTxnHash,
     std::optional<uint256> const& dstChainTxnHash,
     STAmount const& amt,
+    XRPAmount const& fee,
     AccountID const& src,
     AccountID const& dst,
     std::uint32_t seq,

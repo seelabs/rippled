@@ -20,13 +20,13 @@
 #ifndef RIPPLE_SIDECHAIN_FEDERATOR_EVENTS_H_INCLUDED
 #define RIPPLE_SIDECHAIN_FEDERATOR_EVENTS_H_INCLUDED
 
+#include <ripple/basics/XRPAmount.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/json/json_value.h>
 #include <ripple/protocol/AccountID.h>
 #include <ripple/protocol/Issue.h>
 #include <ripple/protocol/STAmount.h>
 #include <ripple/protocol/TER.h>
-#include "basics/XRPAmount.h"
 #include <beast/utility/Journal.h>
 
 #include <boost/format.hpp>

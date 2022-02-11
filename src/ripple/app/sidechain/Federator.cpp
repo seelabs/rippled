@@ -21,12 +21,14 @@
 #include <ripple/app/misc/HashRouter.h>
 #include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/app/sidechain/Federator.h>
+#include <ripple/basics/XRPAmount.h>
 #include <ripple/beast/core/CurrentThreadName.h>
 #include <ripple/json/Output.h>
 #include <ripple/json/json_reader.h>
 #include <ripple/json/json_writer.h>
 #include <ripple/overlay/Message.h>
 #include <ripple/overlay/Overlay.h>
+#include <ripple/protocol/AmountConversions.h>
 #include <ripple/protocol/SField.h>
 #include <ripple/protocol/STAccount.h>
 #include <ripple/protocol/STParsedJSON.h>
@@ -41,7 +43,6 @@
 #include <ripple/rpc/Role.h>
 #include <ripple/rpc/impl/RPCHelpers.h>
 #include <ripple/rpc/impl/TransactionSign.h>
-#include <mutex>
 #include <ripple.pb.h>
 
 #include <boost/algorithm/string/classification.hpp>
@@ -49,7 +50,9 @@
 
 #include <chrono>
 #include <cmath>
+#include <mutex>
 #include <sstream>
+#include <string>
 
 namespace ripple {
 namespace sidechain {
@@ -95,6 +98,7 @@ crossChainTxnSignatureId(
     uint256 const& srcChainTxnHash,
     std::optional<uint256> const& dstChainTxnHash,
     STAmount const& amt,
+    XRPAmount const& fee,
     AccountID const& src,
     AccountID const& dst,
     std::uint32_t seq,
@@ -105,6 +109,7 @@ crossChainTxnSignatureId(
     s.addBitString(dst);
     amt.add(s);
     s.add32(seq);
+    s.add64(fee.drops());
     s.addBitString(srcChainTxnHash);
     if (dstChainTxnHash)
         s.addBitString(*dstChainTxnHash);
@@ -159,12 +164,11 @@ getTxn(
     AccountID const& acc,
     AccountID const& dst,
     STAmount const& amt,
+    XRPAmount const& fee,
     std::uint32_t seq,
     Json::Value memos)
 {
     Json::Value txnJson;
-    // TODO: determine fee
-    XRPAmount const fee{100};
     txnJson[jss::TransactionType] = "Payment";
     // TODO: Cache these strings instead of always converting to base 58
     txnJson[jss::Account] = toBase58(acc);
@@ -183,12 +187,14 @@ getSignedTxn(
     AccountID const& acc,
     AccountID const& dst,
     STAmount const& amt,
+    XRPAmount const& fee,
     std::uint32_t seq,
     Json::Value memos,
     beast::Journal j)
 {
     assert(sigs.size() > 1);
-    auto const txnJson = detail::getTxn(acc, dst, amt, seq, std::move(memos));
+    auto const txnJson =
+        detail::getTxn(acc, dst, amt, fee, seq, std::move(memos));
 
     STParsedJSONObject parsed(std::string(jss::tx_json), txnJson);
     if (parsed.object == std::nullopt)
@@ -237,11 +243,13 @@ getPartialSerializedTxn(
     AccountID const& acc,
     AccountID const& dst,
     STAmount const& amt,
+    XRPAmount const& fee,
     std::uint32_t seq,
     Json::Value memos,
     beast::Journal j)
 {
-    auto const txnJson = detail::getTxn(acc, dst, amt, seq, std::move(memos));
+    auto const txnJson =
+        detail::getTxn(acc, dst, amt, fee, seq, std::move(memos));
 
     STParsedJSONObject parsed(std::string(jss::tx_json), txnJson);
     if (parsed.object == std::nullopt)
@@ -919,6 +927,7 @@ Federator::payTxn(
     TxnType txnType,
     ChainType dstChain,
     STAmount const& amt,
+    XRPAmount const& fee,
     AccountID const& srcChainSrcAccount,
     AccountID const& dst,
     uint256 const& srcChainTxnHash,
@@ -936,6 +945,7 @@ Federator::payTxn(
            (dstChain == Federator::ChainType::mainChain ? "main" : "side")),
         jv("account", dst),
         jv("amt", amt),
+        jv("fee", fee.drops()),
         jv("memos", memos));
 
     if (amt.signum() <= 0)
@@ -954,6 +964,7 @@ Federator::payTxn(
                 thisChainSrcAccount = account_[dstChain],
                 dstAccount = dst,
                 amt,
+                fee,
                 srcChainTxnHash,
                 dstChainTxnHash,
                 memos = std::move(memos),
@@ -962,7 +973,7 @@ Federator::payTxn(
                 signingSK = signingSK_,
                 j = j_](Job&) mutable {
         auto const txnJson = detail::getTxn(
-            thisChainSrcAccount, dstAccount, amt, seq, std::move(memos));
+            thisChainSrcAccount, dstAccount, amt, fee, seq, std::move(memos));
 
         std::optional<Buffer> optSig = [&]() -> std::optional<Buffer> {
             STParsedJSONObject parsed(std::string(jss::tx_json), txnJson);
@@ -1031,6 +1042,7 @@ Federator::payTxn(
                     thisChainSrcAccount.data(), thisChainSrcAccount.size());
                 m.set_dstchaindstaccount(dstAccount.data(), dstAccount.size());
                 m.set_seq(seq);
+                m.set_fee(fee.drops());
                 m.set_signature(sig.data(), sig.size());
 
                 return std::make_shared<Message>(
@@ -1044,6 +1056,7 @@ Federator::payTxn(
                 srcChainTxnHash,
                 dstChainTxnHash,
                 amt,
+                fee,
                 thisChainSrcAccount,
                 dstAccount,
                 seq,
@@ -1079,6 +1092,7 @@ Federator::payTxn(
             srcChainTxnHash,
             dstChainTxnHash,
             amt,
+            fee,
             srcChainSrcAccount,
             dstAccount,
             seq,
@@ -1143,6 +1157,7 @@ Federator::payTxn(
                         srcChainTxnHash,
                         dstChainTxnHash,
                         amt,
+                        fee,
                         srcChainSrcAccount,
                         dstAccount,
                         seq,
@@ -1184,10 +1199,69 @@ Federator::onEvent(event::XChainTransferDetected const& e)
             jv("dst", e.dst_));
         return;
     }
+
+    XRPAmount const minFee{100};
+    // Protect against both overflow and fees that are clearly too high.
+    XRPAmount const maxFee{100000000};
+    std::optional<XRPAmount> fee;
+    bool const dstIsXrp = toSendAmt->native();
+    bool const hasUserFee = e.dstFee_.has_value();
+    if (dstIsXrp && hasUserFee)
+    {
+        fee = e.dstFee_;
+    }
+    else if (!dstIsXrp && !hasUserFee)
+    {
+        // IOU fees are fixed at 100
+        // TODO: Design for IOU fees
+        fee = minFee;
+    }
+    else if (dstIsXrp && !hasUserFee)
+    {
+        // default to min fee
+        fee = minFee;
+    }
+    else if (!dstIsXrp && hasUserFee)
+    {
+        // This is ill formed, reject and send a refund
+        JLOGV(
+            j_.trace(),
+            "XChainTransferDetected fee specified on IOU transfer",
+            jv("dstChain",
+               (dstChainType(e.dir_) == Federator::ChainType::mainChain
+                    ? "main"
+                    : "side")),
+            jv("amt", e.deliveredAmt_),
+            jv("src", e.src_),
+            jv("dst", e.dst_),
+            jv("dstFee", e.dstFee_->drops()));
+    }
+
+    if (!fee || *fee > maxFee)
+    {
+        // TODO: Send refund
+        // Subtract the refund penalty and the min fee
+    }
+
+    if (dstIsXrp)
+    {
+        XRPAmount toSendXRP = toAmount<XRPAmount>(*toSendAmt);
+        // TODO: Does 2x fee make sense?
+        XRPAmount const feeX2 = (*fee) + (*fee);
+        if (toSendXRP <= feeX2)
+        {
+            // Fee would eat up entire dest amount
+            return;
+        }
+        toSendXRP -= feeX2;
+        toSendAmt = toSTAmount(toSendXRP);
+    }
+
     payTxn(
         TxnType::xChain,
         dstChainType(e.dir_),
         *toSendAmt,
+        *fee,
         e.src_,
         e.dst_,
         e.txnHash_,
@@ -1198,6 +1272,7 @@ void
 Federator::sendRefund(
     ChainType chaintype,
     STAmount const& amt,
+    XRPAmount const& fee,
     AccountID const& dst,
     uint256 const& xChainTxnHash,
     uint256 const& triggeringResultTxnHash)
@@ -1206,6 +1281,7 @@ Federator::sendRefund(
         j_.trace(),
         "sendRefund",
         jv("amt", amt),
+        jv("fee", fee.drops()),
         jv("dst", dst),
         jv("chain", (chaintype == ChainType::mainChain ? "main" : "side")),
         jv("xChainTxnHash", xChainTxnHash),
@@ -1215,6 +1291,7 @@ Federator::sendRefund(
         TxnType::refund,
         chaintype,
         amt,
+        fee,
         // the src chain src account and the dst and the same when refunding
         dst,
         dst,
@@ -1286,19 +1363,30 @@ Federator::onEvent(event::XChainTransferResult const& e)
                     return;
                 }
 
-                if (*sentAmt <= *penalty)
+                auto const xrpFee = pendingTxn.fee;
+                auto const fee = toSTAmount(xrpFee);
+                // xrp transactions do not have their fees returned
+                STAmount toDeduct =
+                    penalty->native() ? (*penalty + fee) : *penalty;
+
+                if (*sentAmt <= toDeduct)
                 {
                     JLOGV(
                         j_.trace(),
                         "Failed XChainTransferResult Refund",
-                        jv("reason", "Refund amount is less than penalty"),
+                        jv("reason",
+                           "Refund amount is less than penalty and fee"),
                         jv("penalty", *penalty),
+                        jv("fee", fee),
                         jv("event", e.toJson()),
                         jv("sentAmt", *sentAmt));
+                    return;
                 }
-                STAmount const amt{*sentAmt - *penalty};
+                STAmount amt{*sentAmt - toDeduct};
+
                 AccountID dst = pendingTxn.srcChainSrcAccount;
-                sendRefund(srcChain, amt, dst, e.srcChainTxnHash_, e.txnHash_);
+                sendRefund(
+                    srcChain, amt, xrpFee, dst, e.srcChainTxnHash_, e.txnHash_);
             }
         }
         else
@@ -1467,6 +1555,7 @@ Federator::addPendingTxnSig(
     uint256 const& srcChainTxnHash,
     std::optional<uint256> const& dstChainTxnHash,
     STAmount const& amt,
+    XRPAmount const& fee,
     AccountID const& srcChainSrcAccount,
     AccountID const& dstChainDstAccount,
     std::uint32_t seq,
@@ -1487,6 +1576,7 @@ Federator::addPendingTxnSig(
                 "unknown sending federator",
                 jv("public_key", strHex(federatorPK)),
                 jv("amt", amt),
+                jv("fee", fee.drops()),
                 jv("srcChainTxnHash", srcChainTxnHash));
             return;
         }
@@ -1499,6 +1589,7 @@ Federator::addPendingTxnSig(
             "transaction already sent",
             jv("public_key", strHex(federatorPK)),
             jv("amt", amt),
+            jv("fee", fee.drops()),
             jv("seq", seq),
             jv("srcChainTxnHash", srcChainTxnHash));
         return;
@@ -1512,13 +1603,14 @@ Federator::addPendingTxnSig(
 
         bool const isLocalFederator = (federatorPK == signingPK_);
         if (isLocalFederator &&
-            (amt != txns.amount ||
+            (amt != txns.amount || fee != txns.fee ||
              dstChainDstAccount != txns.dstChainDstAccount ||
              srcChainSrcAccount != txns.srcChainSrcAccount))
         {
             // another federator sent a transaction that disagrees with the
             // local federator's txn.
             txns.amount = amt;
+            txns.fee = fee;
             txns.srcChainSrcAccount = srcChainSrcAccount;
             txns.dstChainDstAccount = dstChainDstAccount;
             txns.sigs.clear();
@@ -1558,6 +1650,7 @@ Federator::addPendingTxnSig(
                         account_[chaintype],
                         dstChainDstAccount,
                         amt,
+                        fee,
                         seq,
                         detail::getMemos(
                             txnType, srcChainTxnHash, dstChainTxnHash),
@@ -1584,6 +1677,7 @@ Federator::addPendingTxnSig(
                         "invalid federator signature",
                         jv("federator", strHex(federatorPK)),
                         jv("amt", amt),
+                        jv("fee", fee.drops()),
                         jv("srcChainTxnHash", srcChainTxnHash));
                     return;
                 }
@@ -1618,6 +1712,7 @@ Federator::addPendingTxnSig(
                 "not enouth signatures to send",
                 jv("federator", strHex(federatorPK)),
                 jv("amt", amt),
+                jv("fee", fee.drops()),
                 jv("seq", seq),
                 jv("srcChainTxnHash", srcChainTxnHash),
                 jv("count", txns.sequenceInfo[seq].count));
@@ -1631,6 +1726,7 @@ Federator::addPendingTxnSig(
                 j_.trace(),
                 "transaction already queued to send",
                 jv("amt", amt),
+                jv("fee", fee.drops()),
                 jv("seq", seq),
                 jv("srcChainTxnHash", srcChainTxnHash));
             return;
@@ -1669,6 +1765,7 @@ Federator::addPendingTxnSig(
             account_[chaintype],
             dstChainDstAccount,
             amt,
+            fee,
             seq,
             detail::getMemos(txnType, srcChainTxnHash, dstChainTxnHash),
             j_);
@@ -1685,6 +1782,7 @@ Federator::addPendingTxnSig(
                 "adding to toSendTxns",
                 jv("chain", (chaintype == sideChain ? "Side" : "Main")),
                 jv("amt", amt),
+                jv("fee", fee.drops()),
                 jv("seq", seq),
                 jv("srcChainTxnHash", srcChainTxnHash),
                 jv("count", txns.sequenceInfo[seq].count));

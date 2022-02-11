@@ -481,7 +481,8 @@ message TMFederatorXChainTxnSignature
     required bytes dstChainSrcAccount = 8; // account id (unencoded bigendian binary data)
     required bytes dstChainDstAccount = 9; // account id (unencoded bigendian binary data)
     required uint32 seq = 10; // sequence number
-    required bytes signature = 11; // (unencoded bigendian binary data)
+    required uint32 fee = 11; // fee in drops
+    required bytes signature = 12; // (unencoded bigendian binary data)
 }
 
 message TMFederatorAccountCtrlSignature

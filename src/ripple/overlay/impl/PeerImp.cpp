@@ -46,6 +46,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/beast/core/ostream.hpp>
 
+#include "basics/XRPAmount.h"
 #include "protocol/SField.h"
 #include <algorithm>
 #include <memory>
@@ -3010,6 +3011,7 @@ PeerImp::onMessage(
         return badData("Invalid dst account");
     }
     auto const seq = m->seq();
+    XRPAmount const fee{m->fee()};
     auto const amt = [&m]() -> std::optional<STAmount> {
         try
         {
@@ -3055,6 +3057,7 @@ PeerImp::onMessage(
         *srcChainTxnHash,
         dstChainTxnHash,
         *amt,
+        fee,
         *dstChainSrcAccount,
         *dstChainDstAccount,
         seq,
@@ -3073,6 +3076,7 @@ PeerImp::onMessage(
          srcChainTxnHash,
          dstChainTxnHash,
          amt,
+         fee,
          srcChainSrcAccount,
          dstChainDstAccount,
          seq,
@@ -3114,6 +3118,7 @@ PeerImp::onMessage(
                     *srcChainTxnHash,
                     dstChainTxnHash,
                     *amt,
+                    fee,
                     *srcChainSrcAccount,
                     *dstChainDstAccount,
                     seq,
