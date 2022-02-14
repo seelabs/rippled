@@ -100,7 +100,7 @@ public:
     doUpdate(
         std::shared_ptr<RippleLineCache> const&,
         bool fast,
-        std::function<bool(void)> continueCallback = {});
+        std::function<bool(void)> const& continueCallback = {});
     InfoSub::pointer
     getSubscriber() const;
     bool
@@ -117,7 +117,7 @@ private:
         Currency const&,
         STAmount const&,
         int const,
-        std::function<bool(void)>);
+        std::function<bool(void)> const&);
 
     /** Finds and sets a PathSet in the JSON argument.
         Returns false if the source currencies are inavlid.
@@ -127,7 +127,7 @@ private:
         std::shared_ptr<RippleLineCache> const&,
         int const,
         Json::Value&,
-        std::function<bool(void)>);
+        std::function<bool(void)> const&);
 
     int
     parseJson(Json::Value const&);

@@ -57,13 +57,15 @@ public:
     initPathTable();
 
     bool
-    findPaths(int searchLevel, std::function<bool(void)> continueCallback = {});
+    findPaths(
+        int searchLevel,
+        std::function<bool(void)> const& continueCallback = {});
 
     /** Compute the rankings of the paths. */
     void
     computePathRanks(
         int maxPaths,
-        std::function<bool(void)> continueCallback = {});
+        std::function<bool(void)> const& continueCallback = {});
 
     /* Get the best paths, up to maxPaths in number, from mCompletePaths.
 
@@ -76,7 +78,7 @@ public:
         STPath& fullLiquidityPath,
         STPathSet const& extraPaths,
         AccountID const& srcIssuer,
-        std::function<bool(void)> continueCallback = {});
+        std::function<bool(void)> const& continueCallback = {});
 
     enum NodeType {
         nt_SOURCE,     // The source account: with an issuer account, if needed.
@@ -133,7 +135,7 @@ private:
     STPathSet&
     addPathsForType(
         PathType const& type,
-        std::function<bool(void)> continueCallback);
+        std::function<bool(void)> const& continueCallback);
 
     bool
     issueMatchesOrigin(Issue const&);
@@ -144,14 +146,14 @@ private:
         AccountID const& account,
         bool isDestCurrency,
         AccountID const& dest,
-        std::function<bool(void)> continueCallback);
+        std::function<bool(void)> const& continueCallback);
 
     void
     addLink(
         STPath const& currentPath,
         STPathSet& incompletePaths,
         int addFlags,
-        std::function<bool(void)> continueCallback);
+        std::function<bool(void)> const& continueCallback);
 
     // Call addLink() for each path in currentPaths.
     void
@@ -159,7 +161,7 @@ private:
         STPathSet const& currentPaths,
         STPathSet& incompletePaths,
         int addFlags,
-        std::function<bool(void)> continueCallback);
+        std::function<bool(void)> const& continueCallback);
 
     // Compute the liquidity for a path.  Return tesSUCCESS if it has has enough
     // liquidity to be worth keeping, otherwise an error.
@@ -188,7 +190,7 @@ private:
         int maxPaths,
         STPathSet const& paths,
         std::vector<PathRank>& rankedPaths,
-        std::function<bool(void)> continueCallback);
+        std::function<bool(void)> const& continueCallback);
 
     AccountID mSrcAccount;
     AccountID mDstAccount;

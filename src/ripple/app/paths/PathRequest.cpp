@@ -470,7 +470,7 @@ PathRequest::getPathFinder(
     Currency const& currency,
     STAmount const& dst_amount,
     int const level,
-    std::function<bool(void)> continueCallback)
+    std::function<bool(void)> const& continueCallback)
 {
     auto i = currency_map.find(currency);
     if (i != currency_map.end())
@@ -496,7 +496,7 @@ PathRequest::findPaths(
     std::shared_ptr<RippleLineCache> const& cache,
     int const level,
     Json::Value& jvArray,
-    std::function<bool(void)> continueCallback)
+    std::function<bool(void)> const& continueCallback)
 {
     auto sourceCurrencies = sciSourceCurrencies;
     if (sourceCurrencies.empty() && saSendMax)
@@ -650,7 +650,7 @@ Json::Value
 PathRequest::doUpdate(
     std::shared_ptr<RippleLineCache> const& cache,
     bool fast,
-    std::function<bool(void)> continueCallback)
+    std::function<bool(void)> const& continueCallback)
 {
     using namespace std::chrono;
     JLOG(m_journal.debug())

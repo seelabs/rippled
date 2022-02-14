@@ -207,7 +207,7 @@ Pathfinder::Pathfinder(
 bool
 Pathfinder::findPaths(
     int searchLevel,
-    std::function<bool(void)> continueCallback)
+    std::function<bool(void)> const& continueCallback)
 {
     JLOG(j_.trace()) << "findPaths start";
     if (mDstAmount == beast::zero)
@@ -423,7 +423,7 @@ Pathfinder::getPathLiquidity(
 void
 Pathfinder::computePathRanks(
     int maxPaths,
-    std::function<bool(void)> continueCallback)
+    std::function<bool(void)> const& continueCallback)
 {
     mRemainingAmount = convertAmount(mDstAmount, convert_all_);
 
@@ -503,7 +503,7 @@ Pathfinder::rankPaths(
     int maxPaths,
     STPathSet const& paths,
     std::vector<PathRank>& rankedPaths,
-    std::function<bool(void)> continueCallback)
+    std::function<bool(void)> const& continueCallback)
 {
     JLOG(j_.trace()) << "rankPaths with " << paths.size() << " candidates, and "
                      << maxPaths << " maximum";
@@ -582,7 +582,7 @@ Pathfinder::getBestPaths(
     STPath& fullLiquidityPath,
     STPathSet const& extraPaths,
     AccountID const& srcIssuer,
-    std::function<bool(void)> continueCallback)
+    std::function<bool(void)> const& continueCallback)
 {
     JLOG(j_.debug()) << "findPaths: " << mCompletePaths.size() << " paths and "
                      << extraPaths.size() << " extras";
@@ -723,7 +723,7 @@ Pathfinder::getPathsOut(
     AccountID const& account,
     bool isDstCurrency,
     AccountID const& dstAccount,
-    std::function<bool(void)> continueCallback)
+    std::function<bool(void)> const& continueCallback)
 {
     Issue const issue(currency, account);
 
@@ -787,7 +787,7 @@ Pathfinder::addLinks(
     STPathSet const& currentPaths,  // The paths to build from
     STPathSet& incompletePaths,     // The set of partial paths we add to
     int addFlags,
-    std::function<bool(void)> continueCallback)
+    std::function<bool(void)> const& continueCallback)
 {
     JLOG(j_.debug()) << "addLink< on " << currentPaths.size()
                      << " source(s), flags=" << addFlags;
@@ -802,7 +802,7 @@ Pathfinder::addLinks(
 STPathSet&
 Pathfinder::addPathsForType(
     PathType const& pathType,
-    std::function<bool(void)> continueCallback)
+    std::function<bool(void)> const& continueCallback)
 {
     JLOG(j_.warn()) << "addPathsForType " << pathType;
     // See if the set of paths for this type already exists.
@@ -945,7 +945,7 @@ Pathfinder::addLink(
     const STPath& currentPath,   // The path to build from
     STPathSet& incompletePaths,  // The set of partial paths we add to
     int addFlags,
-    std::function<bool(void)> continueCallback)
+    std::function<bool(void)> const& continueCallback)
 {
     auto const& pathEnd = currentPath.empty() ? mSource : currentPath.back();
     auto const& uEndCurrency = pathEnd.getCurrency();
