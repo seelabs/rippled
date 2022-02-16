@@ -24,6 +24,7 @@
 #include <ripple/app/paths/RippleLineCache.h>
 #include <ripple/app/paths/impl/PathfinderUtils.h>
 #include <ripple/basics/Log.h>
+#include <ripple/basics/join.h>
 #include <ripple/core/Config.h>
 #include <ripple/core/JobQueue.h>
 #include <ripple/json/to_string.h>
@@ -156,20 +157,6 @@ smallestUsefulAmount(STAmount const& amount, int maxPaths)
     return divide(amount, STAmount(maxPaths + 2), amount.issue());
 }
 }  // namespace
-
-template <class Stream>
-Stream&
-operator<<(Stream& s, Pathfinder::PathType const& v)
-{
-    auto iter = v.begin();
-    if (iter != v.end())
-    {
-        s << *iter;
-        for (++iter; iter != v.end(); ++iter)
-            s << ", " << *iter;
-    }
-    return s;
-}
 
 Pathfinder::Pathfinder(
     std::shared_ptr<RippleLineCache> const& cache,
@@ -804,7 +791,8 @@ Pathfinder::addPathsForType(
     PathType const& pathType,
     std::function<bool(void)> const& continueCallback)
 {
-    JLOG(j_.warn()) << "addPathsForType " << pathType;
+    JLOG(j_.warn()) << "addPathsForType "
+                    << CollectionAndDelimiter(pathType, ", ");
     // See if the set of paths for this type already exists.
     auto it = mPaths.find(pathType);
     if (it != mPaths.end())
