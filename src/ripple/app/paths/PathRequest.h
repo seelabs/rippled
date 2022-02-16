@@ -102,7 +102,7 @@ public:
         bool fast,
         std::function<bool(void)> continueCallback = {});
     InfoSub::pointer
-    getSubscriber();
+    getSubscriber() const;
     bool
     hasCompletion();
 

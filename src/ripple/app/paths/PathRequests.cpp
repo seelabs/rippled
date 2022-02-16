@@ -90,7 +90,8 @@ PathRequests::updateAll(
 
     int processed = 0, removed = 0;
 
-    auto getSubscriber = [](PathRequest::pointer& request) -> InfoSub::pointer {
+    auto getSubscriber =
+        [](PathRequest::pointer const& request) -> InfoSub::pointer {
         if (auto ipSub = request->getSubscriber();
             ipSub && ipSub->getRequest() == request)
         {
@@ -115,6 +116,12 @@ PathRequests::updateAll(
 
             if (request)
             {
+                auto continueCallback = [&getSubscriber, &request]() {
+                    // This callback is used by doUpdate to determine whether to
+                    // continue working. If getSubscriber returns null, that
+                    // indicates that this request is no longer relevant.
+                    return (bool)getSubscriber(request);
+                };
                 if (!request->needsUpdate(
                         newRequests, cache->getLedger()->seq()))
                     remove = false;
@@ -129,9 +136,7 @@ PathRequests::updateAll(
                             // thus fail to lock later.
                             ipSub.reset();
                             Json::Value update = request->doUpdate(
-                                cache, false, [&getSubscriber, &request]() {
-                                    return (bool)getSubscriber(request);
-                                });
+                                cache, false, continueCallback);
                             request->updateComplete();
                             update[jss::type] = "path_find";
                             if ((ipSub = getSubscriber(request)))

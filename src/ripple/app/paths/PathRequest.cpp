@@ -752,7 +752,7 @@ PathRequest::doUpdate(
 }
 
 InfoSub::pointer
-PathRequest::getSubscriber()
+PathRequest::getSubscriber() const
 {
     return wpSubscriber.lock();
 }
