@@ -19,6 +19,9 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #ifndef JOIN_H_INCLUDED
 #define JOIN_H_INCLUDED
 
+// Needed for std::begin and end
+#include <array>
+
 namespace ripple {
 
 template <class Stream, class Iter, class Str>
@@ -57,7 +60,7 @@ public:
     }
 };
 
-template <class Collection, size_t N, class Str>
+template <class Collection, std::size_t N, class Str>
 class CollectionAndDelimiter<Collection[N], Str>
 {
 public:
@@ -78,7 +81,7 @@ public:
 };
 
 // Specialization for const char* strings
-template <size_t N, class Str>
+template <std::size_t N, class Str>
 class CollectionAndDelimiter<char[N], Str>
 {
 public:
