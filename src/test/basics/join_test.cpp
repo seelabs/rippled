@@ -45,6 +45,10 @@ struct join_test : beast::unit_test::suite
         test(
             CollectionAndDelimiter(std::array<int, 4>{2, -1, 5, 10}, '/'),
             "2/-1/5/10");
+        // One item C++ array edge case
+        test(
+            CollectionAndDelimiter(std::array<std::string, 1>{"test"}, " & "),
+            "test");
         // Empty C++ array edge case
         test(CollectionAndDelimiter(std::array<int, 0>{}, uint256{5}), "");
         {
@@ -57,28 +61,39 @@ struct join_test : beast::unit_test::suite
             std::string words[]{"one", "two", "three", "four"};
             test(CollectionAndDelimiter(words, "\n"), "one\ntwo\nthree\nfour");
         }
+        {
+            // One item C-style array edge case
+            std::string words[]{"thing"};
+            test(CollectionAndDelimiter(words, "\n"), "thing");
+        }
         // Initializer list
         test(
             CollectionAndDelimiter(std::initializer_list<size_t>{19, 25}, "+"),
             "19+25");
+        // vector
+        test(CollectionAndDelimiter(std::vector<int>{0, 42}, 99), "09942");
         {
-            using namespace jtx;
-            // vector
-            test(CollectionAndDelimiter(std::vector<int>{0, 42}, 99), "09942");
             // vector with one item edge case
+            using namespace jtx;
             test(
                 CollectionAndDelimiter(
                     std::vector<Account>{Account::master}, "xxx"),
                 Account::master.human());
         }
+        // empty vector edge case
+        test(CollectionAndDelimiter(std::vector<uint256>{}, -1), "");
         // C-style string
         test(CollectionAndDelimiter("string", " "), "s t r i n g");
         // Empty C-style string edge case
         test(CollectionAndDelimiter("", "*"), "");
-        // C-style string
+        // Single char C-style string edge case
+        test(CollectionAndDelimiter("x", "*"), "x");
+        // std::string
         test(CollectionAndDelimiter(std::string{"string"}, " "), "s t r i n g");
-        // Empty C-style string edge case
+        // Empty std::string edge case
         test(CollectionAndDelimiter(std::string{""}, "*"), "");
+        // Single char std::string edge case
+        test(CollectionAndDelimiter(std::string{"y"}, "*"), "y");
     }
 };  // namespace test
 
