@@ -21,12 +21,13 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 // Needed for std::begin and end
 #include <array>
+#include <string>
 
 namespace ripple {
 
-template <class Stream, class Iter, class Str>
+template <class Stream, class Iter>
 Stream&
-join(Stream& s, Iter iter, Iter end, Str const& delimiter)
+join(Stream& s, Iter iter, Iter end, std::string const& delimiter)
 {
     if (iter == end)
         return s;
@@ -36,15 +37,15 @@ join(Stream& s, Iter iter, Iter end, Str const& delimiter)
     return s;
 }
 
-template <class Collection, class Str>
+template <class Collection>
 class CollectionAndDelimiter
 {
 public:
     Collection const& collection;
-    Str const& delimiter;
+    std::string const delimiter;
 
-    explicit CollectionAndDelimiter(Collection const& c, Str const& delim)
-        : collection(c), delimiter(delim)
+    explicit CollectionAndDelimiter(Collection const& c, std::string delim)
+        : collection(c), delimiter(std::move(delim))
     {
     }
 
@@ -60,15 +61,15 @@ public:
     }
 };
 
-template <class Collection, std::size_t N, class Str>
-class CollectionAndDelimiter<Collection[N], Str>
+template <class Collection, std::size_t N>
+class CollectionAndDelimiter<Collection[N]>
 {
 public:
     Collection const* collection;
-    Str const& delimiter;
+    std::string const delimiter;
 
-    explicit CollectionAndDelimiter(Collection const c[N], Str const& delim)
-        : collection(c), delimiter(delim)
+    explicit CollectionAndDelimiter(Collection const c[N], std::string delim)
+        : collection(c), delimiter(std::move(delim))
     {
     }
 
@@ -81,15 +82,15 @@ public:
 };
 
 // Specialization for const char* strings
-template <std::size_t N, class Str>
-class CollectionAndDelimiter<char[N], Str>
+template <std::size_t N>
+class CollectionAndDelimiter<char[N]>
 {
 public:
     char const* collection;
-    Str const& delimiter;
+    std::string const delimiter;
 
-    explicit CollectionAndDelimiter(char const c[N], Str const& delim)
-        : collection(c), delimiter(delim)
+    explicit CollectionAndDelimiter(char const c[N], std::string delim)
+        : collection(c), delimiter(std::move(delim))
     {
     }
 
