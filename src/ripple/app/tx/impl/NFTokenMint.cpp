@@ -44,8 +44,16 @@ NFTokenMint::preflight(PreflightContext const& ctx)
     if (ctx.tx.getFlags() & tfNFTokenMintMask)
         return temINVALID_FLAG;
 
-    if (auto const f = ctx.tx[~sfTransferFee]; f > maxTransferFee)
-        return temBAD_TRANSFER_FEE;
+    if (auto const f = ctx.tx[~sfTransferFee])
+    {
+        if (f > maxTransferFee)
+            return temBAD_TRANSFER_FEE;
+
+        // If a non-zero TransferFee is set then the tfTransferable flag
+        // must also be set.
+        if (f > 0u && !ctx.tx.isFlag(tfTransferable))
+            return temMALFORMED;
+    }
 
     // An issuer must only be set if the tx is executed by the minter
     if (auto iss = ctx.tx[~sfIssuer]; iss == ctx.tx[sfAccount])

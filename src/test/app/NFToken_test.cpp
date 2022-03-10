@@ -530,9 +530,16 @@ class NFToken_test : public beast::unit_test::suite
         // Set an invalid flag.
         env(token::mint(alice, 0u), txflags(0x00008000), ter(temINVALID_FLAG));
 
+        // Can't set a transfer fee if the NFT does not have the tfTRANSFERABLE
+        // flag set.
+        env(token::mint(alice, 0u),
+            token::xferFee(maxTransferFee),
+            ter(temMALFORMED));
+
         // Set a bad transfer fee.
         env(token::mint(alice, 0u),
             token::xferFee(maxTransferFee + 1),
+            txflags(tfTransferable),
             ter(temBAD_TRANSFER_FEE));
 
         // Account can't also be issuer.
@@ -1734,7 +1741,7 @@ class NFToken_test : public beast::unit_test::suite
             BEAST_EXPECT(ownerCount(env, alice) == 0);
             uint256 const nftAliceNoTransferID{
                 token::getNextID(env, alice, 0u)};
-            env(token::mint(alice, 0u));
+            env(token::mint(alice, 0u), token::xferFee(0));
             env.close();
             BEAST_EXPECT(ownerCount(env, alice) == 1);
 
