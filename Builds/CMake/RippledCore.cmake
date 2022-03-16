@@ -707,6 +707,7 @@ if (tests)
     src/test/app/Manifest_test.cpp
     src/test/app/MultiSign_test.cpp
     src/test/app/NFToken_test.cpp
+    src/test/app/NFTokenBurn_test.cpp
     src/test/app/NFTokenDir_test.cpp
     src/test/app/OfferStream_test.cpp
     src/test/app/Offer_test.cpp

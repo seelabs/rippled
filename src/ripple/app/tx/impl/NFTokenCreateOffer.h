@@ -21,11 +21,6 @@
 #define RIPPLE_TX_NFTOKENOFFERCREATE_H_INCLUDED
 
 #include <ripple/app/tx/impl/Transactor.h>
-#include <ripple/basics/Log.h>
-#include <ripple/protocol/TxFlags.h>
-#include <ripple/protocol/UintTypes.h>
-#include <string_view>
-#include <utility>
 
 namespace ripple {
 

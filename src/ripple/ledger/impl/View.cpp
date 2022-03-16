@@ -367,7 +367,7 @@ void
 forEachItem(
     ReadView const& view,
     Keylet const& root,
-    std::function<void(std::shared_ptr<SLE const> const&)> f)
+    std::function<void(std::shared_ptr<SLE const> const&)> const& f)
 {
     assert(root.type == ltDIR_NODE);
 
@@ -397,7 +397,7 @@ forEachItemAfter(
     uint256 const& after,
     std::uint64_t const hint,
     unsigned int limit,
-    std::function<bool(std::shared_ptr<SLE const> const&)> f)
+    std::function<bool(std::shared_ptr<SLE const> const&)> const& f)
 {
     assert(root.type == ltDIR_NODE);
 

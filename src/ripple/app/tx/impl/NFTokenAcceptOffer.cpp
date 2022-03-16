@@ -204,7 +204,7 @@ TER
 NFTokenAcceptOffer::pay(
     AccountID const& from,
     AccountID const& to,
-    STAmount amount)
+    STAmount const& amount)
 {
     // This should never happen, but it's easy and quick to check.
     if (amount < beast::zero)
@@ -245,22 +245,23 @@ NFTokenAcceptOffer::acceptOffer(std::shared_ptr<SLE> const& offer)
     }
 
     // Now transfer the NFT:
-    auto nft = nft::findToken(view(), seller, tokenID);
+    auto tokenAndPage = nft::findTokenAndPage(view(), seller, tokenID);
 
-    if (!nft)
+    if (!tokenAndPage)
         return tecINTERNAL;
 
-    if (auto const ret = nft::removeToken(view(), seller, tokenID);
+    if (auto const ret = nft::removeToken(
+            view(), seller, tokenID, std::move(tokenAndPage->page));
         !isTesSuccess(ret))
         return ret;
 
-    return nft::insertToken(view(), buyer, *nft);
+    return nft::insertToken(view(), buyer, std::move(tokenAndPage->token));
 }
 
 TER
 NFTokenAcceptOffer::doApply()
 {
-    auto const loadToken = [this](std::optional<uint256> id) {
+    auto const loadToken = [this](std::optional<uint256> const& id) {
         std::shared_ptr<SLE> sle;
         if (id)
             sle = view().peek(keylet::nftoffer(*id));
@@ -342,16 +343,17 @@ NFTokenAcceptOffer::doApply()
                 return r;
         }
 
-        auto token = nft::findToken(view(), seller, tokenID);
+        auto tokenAndPage = nft::findTokenAndPage(view(), seller, tokenID);
 
-        if (!token)
+        if (!tokenAndPage)
             return tecINTERNAL;
 
-        if (auto const ret = nft::removeToken(view(), seller, tokenID);
+        if (auto const ret = nft::removeToken(
+                view(), seller, tokenID, std::move(tokenAndPage->page));
             !isTesSuccess(ret))
             return ret;
 
-        return nft::insertToken(view(), buyer, *token);
+        return nft::insertToken(view(), buyer, std::move(tokenAndPage->token));
     }
 
     if (bo)

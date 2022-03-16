@@ -24,6 +24,7 @@
 #include <ripple/protocol/Feature.h>
 #include <ripple/protocol/STArray.h>
 #include <ripple/protocol/SystemParameters.h>
+#include <ripple/protocol/nftPageMask.h>
 
 namespace ripple {
 
@@ -496,12 +497,8 @@ ValidNFTokenPage::visitEntry(
     std::shared_ptr<SLE const> const& before,
     std::shared_ptr<SLE const> const& after)
 {
-    using namespace std::string_view_literals;
-
-    static uint256 constexpr accountBits(
-        "ffffffffffffffffffffffffffffffffffffffff000000000000000000000000"sv);
-
-    static uint256 constexpr pageBits = ~accountBits;
+    static constexpr uint256 const& pageBits = nft::pageMask;
+    static constexpr uint256 const accountBits = ~pageBits;
 
     auto check = [this](std::shared_ptr<SLE const> const& sle) {
         auto const account = sle->key() & accountBits;
@@ -599,7 +596,8 @@ NFTokenCountTracking::finalize(
     ReadView const& view,
     beast::Journal const& j)
 {
-    if (tx.getTxnType() == ttNFTOKEN_MINT && tx.getTxnType() == ttNFTOKEN_BURN)
+    if (TxType const txType = tx.getTxnType();
+        txType != ttNFTOKEN_MINT && txType != ttNFTOKEN_BURN)
     {
         if (beforeMintedTotal != afterMintedTotal)
         {

@@ -21,10 +21,6 @@
 #define RIPPLE_TX_BURNNFT_H_INCLUDED
 
 #include <ripple/app/tx/impl/Transactor.h>
-#include <ripple/app/tx/impl/details/NFTokenUtils.h>
-#include <ripple/basics/Log.h>
-#include <ripple/protocol/TxFlags.h>
-#include <ripple/protocol/UintTypes.h>
 
 namespace ripple {
 

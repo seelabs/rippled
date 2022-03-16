@@ -96,7 +96,7 @@ constexpr static ErrorInfo unorderedErrorInfos[]{
     {rpcUNKNOWN_COMMAND,         "unknownCmd",             "Unknown method."},
     {rpcSENDMAX_MALFORMED,       "sendMaxMalformed",       "SendMax amount malformed."},
     {rpcOBJECT_NOT_FOUND,        "objectNotFound",         "The requested object was not found."}};
-// clang-format off
+// clang-format on
 
 // C++ does not allow you to return an array from a function.  You must
 // return an object which may in turn contain an array.  The following

@@ -114,14 +114,13 @@ enum TEMcodes : TERUnderlyingType {
     temINVALID_ACCOUNT_ID,
     temCANNOT_PREAUTH_SELF,
     temINVALID_COUNT,
-    temBAD_TRANSFER_FEE,
-    temTOKEN_IS_NONFLAMMABLE,
 
     temUNCERTAIN,  // An internal intermediate result; should never be returned.
     temUNKNOWN,    // An internal intermediate result; should never be returned.
 
     temSEQ_AND_TICKET,
-    tefNOT_POSSIBLE,
+    temBAD_TRANSFER_FEE,
+    temTOKEN_IS_NONFLAMMABLE,
 };
 
 //------------------------------------------------------------------------------
@@ -164,7 +163,8 @@ enum TEFcodes : TERUnderlyingType {
     tefINVARIANT_FAILED,
     tefTOO_BIG,
     tefNO_TICKET,
-    tefTOKEN_IS_NOT_TRANSFERABLE
+    tefTOKEN_IS_NOT_TRANSFERABLE,
+    tefNOT_POSSIBLE,
 };
 
 //------------------------------------------------------------------------------

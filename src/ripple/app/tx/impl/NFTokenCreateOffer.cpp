@@ -37,6 +37,7 @@ NFTokenCreateOffer::preflight(PreflightContext const& ctx)
         return ret;
 
     auto const txFlags = ctx.tx.getFlags();
+    bool const isSellOffer = txFlags & tfSellToken;
 
     if (txFlags & tfNFTokenCreateOfferMask)
         return temINVALID_FLAG;
@@ -58,7 +59,7 @@ NFTokenCreateOffer::preflight(PreflightContext const& ctx)
 
         // If this is an offer to buy, you must offer something; if it's an
         // offer to sell, you can ask for nothing.
-        if ((txFlags & tfSellToken) == 0 && !amount)
+        if (!isSellOffer && !amount)
             return temBAD_AMOUNT;
     }
 
@@ -69,7 +70,7 @@ NFTokenCreateOffer::preflight(PreflightContext const& ctx)
 
     // The 'Owner' field must be present when offering to buy, but can't
     // be present when selling (it's implicit):
-    if (owner.has_value() == static_cast<bool>(txFlags & tfSellToken))
+    if (owner.has_value() == isSellOffer)
         return temMALFORMED;
 
     if (owner && owner == account)
@@ -79,7 +80,7 @@ NFTokenCreateOffer::preflight(PreflightContext const& ctx)
     {
         // The destination field is only valid on a sell offer; it makes no
         // sense in a buy offer.
-        if (!static_cast<bool>(txFlags & tfSellToken))
+        if (!isSellOffer)
             return temMALFORMED;
 
         // The destination can't be the account executing the transaction.
@@ -97,11 +98,10 @@ NFTokenCreateOffer::preclaim(PreclaimContext const& ctx)
         return tecEXPIRED;
 
     auto const tokenID = ctx.tx[sfTokenID];
+    bool const isSellOffer = ctx.tx.isFlag(tfSellToken);
 
     if (!nft::findToken(
-            ctx.view,
-            ctx.tx[(ctx.tx.getFlags() & tfSellToken) ? sfAccount : sfOwner],
-            tokenID))
+            ctx.view, ctx.tx[isSellOffer ? sfAccount : sfOwner], tokenID))
         return tecNO_ENTRY;
 
     auto const nftFlags = nft::getFlags(tokenID);
@@ -140,8 +140,8 @@ NFTokenCreateOffer::preclaim(PreclaimContext const& ctx)
 
     // If this is an offer to buy the token, the account must have the
     // needed funds at hand; but note that funds aren't reserved and the
-    // offer may later become unfunded:
-    if (!ctx.tx.isFlag(tfSellToken))
+    // offer may later become unfunded.
+    if (!isSellOffer)
     {
         auto const funds = accountHolds(
             ctx.view,
@@ -167,7 +167,7 @@ NFTokenCreateOffer::preclaim(PreclaimContext const& ctx)
 TER
 NFTokenCreateOffer::doApply()
 {
-    if (auto const acct = view().peek(keylet::account(ctx_.tx[sfAccount]));
+    if (auto const acct = view().read(keylet::account(ctx_.tx[sfAccount]));
         mPriorBalance < view().fees().accountReserve((*acct)[sfOwnerCount] + 1))
         return tecINSUFFICIENT_RESERVE;
 
@@ -185,18 +185,17 @@ NFTokenCreateOffer::doApply()
         if (!ownerNode)
             return tecDIR_FULL;
 
-        auto const txFlags = ctx_.tx.getFlags();
+        bool const isSellOffer = ctx_.tx.isFlag(tfSellToken);
 
         // Token offers are also added to the token's buy or sell offer
         // directory
         auto const offerNode = view().dirInsert(
-            (txFlags & tfSellToken) ? keylet::nft_sells(tokenID)
-                                    : keylet::nft_buys(tokenID),
+            isSellOffer ? keylet::nft_sells(tokenID)
+                        : keylet::nft_buys(tokenID),
             offerID,
-            [&tokenID, txFlags](std::shared_ptr<SLE> const& sle) {
-                (*sle)[sfFlags] = (txFlags & tfSellToken)
-                    ? lsfNonFungibleTokenSellOffers
-                    : lsfNonFungibleTokenBuyOffers;
+            [&tokenID, isSellOffer](std::shared_ptr<SLE> const& sle) {
+                (*sle)[sfFlags] = isSellOffer ? lsfNonFungibleTokenSellOffers
+                                              : lsfNonFungibleTokenBuyOffers;
                 (*sle)[sfTokenID] = tokenID;
             });
 
@@ -205,7 +204,7 @@ NFTokenCreateOffer::doApply()
 
         std::uint32_t sleFlags = 0;
 
-        if (txFlags & tfSellToken)
+        if (isSellOffer)
             sleFlags |= lsfSellToken;
 
         auto offer = std::make_shared<SLE>(offerID);

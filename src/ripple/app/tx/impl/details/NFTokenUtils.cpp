@@ -177,12 +177,21 @@ getPageForToken(
 static bool
 compareTokens(uint256 const& a, uint256 const& b)
 {
-    return (a & nft::pageMask) < (b & nft::pageMask);
+    // The sort of NFTokens needs to be fully deterministic, but the sort
+    // is weird because we sort on the low 96-bits first. But if the low
+    // 96-bits are identical we still need a fully deterministic sort.
+    // So we sort on the low 96-bits first. If those are equal we sort on
+    // the whole thing.
+    if (auto const lowBitsCmp = compare(a & nft::pageMask, b & nft::pageMask);
+        lowBitsCmp != 0)
+        return lowBitsCmp < 0;
+
+    return a < b;
 }
 
 /** Insert the token in the owner's token directory. */
 TER
-insertToken(ApplyView& view, AccountID owner, STObject nft)
+insertToken(ApplyView& view, AccountID owner, STObject&& nft)
 {
     assert(nft.isFieldPresent(sfTokenID));
 
@@ -206,7 +215,7 @@ insertToken(ApplyView& view, AccountID owner, STObject nft)
 
     {
         auto arr = page->getFieldArray(sfNonFungibleTokens);
-        arr.push_back(nft);
+        arr.push_back(std::move(nft));
 
         arr.sort([](STObject const& o1, STObject const& o2) {
             return compareTokens(
@@ -290,12 +299,23 @@ mergePages(
 TER
 removeToken(ApplyView& view, AccountID const& owner, uint256 const& tokenID)
 {
-    auto curr = locatePage(view, owner, tokenID);
+    std::shared_ptr<SLE> page = locatePage(view, owner, tokenID);
 
     // If the page couldn't be found, the given NFT isn't owned by this account
-    if (!curr)
+    if (!page)
         return tecNO_ENTRY;
 
+    return removeToken(view, owner, tokenID, std::move(page));
+}
+
+/** Remove the token from the owner's token directory. */
+TER
+removeToken(
+    ApplyView& view,
+    AccountID const& owner,
+    uint256 const& tokenID,
+    std::shared_ptr<SLE>&& curr)
+{
     // We found a page, but the given NFT may not be in it.
     auto arr = curr->getFieldArray(sfNonFungibleTokens);
 
@@ -413,7 +433,7 @@ removeToken(ApplyView& view, AccountID const& owner, uint256 const& tokenID)
 std::optional<STObject>
 findToken(ReadView const& view, AccountID const& owner, uint256 const& tokenID)
 {
-    auto page = locatePage(view, owner, tokenID);
+    std::shared_ptr<SLE const> page = locatePage(view, owner, tokenID);
 
     // If the page couldn't be found, the given NFT isn't owned by this account
     if (!page)
@@ -429,6 +449,28 @@ findToken(ReadView const& view, AccountID const& owner, uint256 const& tokenID)
     return std::nullopt;
 }
 
+std::optional<TokenAndPage>
+findTokenAndPage(
+    ApplyView& view,
+    AccountID const& owner,
+    uint256 const& tokenID)
+{
+    std::shared_ptr<SLE> page = locatePage(view, owner, tokenID);
+
+    // If the page couldn't be found, the given NFT isn't owned by this account
+    if (!page)
+        return std::nullopt;
+
+    // We found a candidate page, but the given NFT may not be in it.
+    for (auto const& t : page->getFieldArray(sfNonFungibleTokens))
+    {
+        if (t[sfTokenID] == tokenID)
+            // This std::optional constructor is explicit, so it is spelled out.
+            return std::optional<TokenAndPage>(
+                std::in_place, t, std::move(page));
+    }
+    return std::nullopt;
+}
 void
 removeAllTokenOffers(ApplyView& view, Keylet const& directory)
 {

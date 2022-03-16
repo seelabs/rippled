@@ -729,7 +729,6 @@ removeExpiredTokenOffers(
     {
         if (auto const offer = view.peek(keylet::nftoffer(index)))
         {
-            // offer is unfunded
             nft::deleteTokenOffer(view, offer);
             if (++removed == expiredOfferRemoveLimit)
                 return;

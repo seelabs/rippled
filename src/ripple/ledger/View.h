@@ -123,7 +123,7 @@ void
 forEachItem(
     ReadView const& view,
     Keylet const& root,
-    std::function<void(std::shared_ptr<SLE const> const&)> f);
+    std::function<void(std::shared_ptr<SLE const> const&)> const& f);
 
 /** Iterate all items after an item in the given directory.
     @param after The key of the item to start after
@@ -138,16 +138,16 @@ forEachItemAfter(
     uint256 const& after,
     std::uint64_t const hint,
     unsigned int limit,
-    std::function<bool(std::shared_ptr<SLE const> const&)> f);
+    std::function<bool(std::shared_ptr<SLE const> const&)> const& f);
 
 /** Iterate all items in an account's owner directory. */
 inline void
 forEachItem(
     ReadView const& view,
     AccountID const& id,
-    std::function<void(std::shared_ptr<SLE const> const&)> f)
+    std::function<void(std::shared_ptr<SLE const> const&)> const& f)
 {
-    return forEachItem(view, keylet::ownerDir(id), std::move(f));
+    return forEachItem(view, keylet::ownerDir(id), f);
 }
 
 /** Iterate all items after an item in an owner directory.
@@ -163,10 +163,9 @@ forEachItemAfter(
     uint256 const& after,
     std::uint64_t const hint,
     unsigned int limit,
-    std::function<bool(std::shared_ptr<SLE const> const&)> f)
+    std::function<bool(std::shared_ptr<SLE const> const&)> const& f)
 {
-    return forEachItemAfter(
-        view, keylet::ownerDir(id), after, hint, limit, std::move(f));
+    return forEachItemAfter(view, keylet::ownerDir(id), after, hint, limit, f);
 }
 
 [[nodiscard]] Rate

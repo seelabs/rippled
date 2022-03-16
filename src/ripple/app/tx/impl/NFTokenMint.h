@@ -21,11 +21,7 @@
 #define RIPPLE_TX_NFTTOKENMINT_H_INCLUDED
 
 #include <ripple/app/tx/impl/Transactor.h>
-#include <ripple/basics/Log.h>
-#include <ripple/protocol/TxFlags.h>
-#include <ripple/protocol/UintTypes.h>
-#include <string_view>
-#include <utility>
+#include <ripple/app/tx/impl/details/NFTokenUtils.h>
 
 namespace ripple {
 
@@ -53,7 +49,7 @@ public:
         std::uint16_t flags,
         std::uint16_t fee,
         AccountID const& issuer,
-        std::uint32_t taxon,
+        nft::Taxon taxon,
         std::uint32_t tokenSeq);
 };
 

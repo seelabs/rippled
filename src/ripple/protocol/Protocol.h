@@ -81,7 +81,7 @@ std::size_t constexpr maxDeletableTokenOfferEntries = 500;
 std::uint16_t constexpr maxTransferFee = 50000;
 
 /** The maximum length of a URI inside an NFT */
-std::size_t constexpr maxTokenURILength = 512;
+std::size_t constexpr maxTokenURILength = 256;
 
 /** The maximum length of a domain */
 std::size_t constexpr maxDomainLength = 256;

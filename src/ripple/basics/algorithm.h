@@ -115,18 +115,6 @@ remove_if_intersect_or_match(
     return first1;
 }
 
-// Move second half of c into separate container and return it
-template <class Container>
-Container
-split(Container& c)
-{
-    auto e = c.end();
-    auto m = std::next(c.begin(), c.size() / 2);
-    Container c2(std::make_move_iterator(m), std::make_move_iterator(e));
-    c.erase(m, e);
-    return c2;
-}
-
 }  // namespace ripple
 
 #endif

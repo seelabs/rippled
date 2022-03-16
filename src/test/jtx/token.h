@@ -45,7 +45,7 @@ private:
     std::uint16_t xferFee_;
 
 public:
-    xferFee(std::uint16_t fee) : xferFee_(fee)
+    explicit xferFee(std::uint16_t fee) : xferFee_(fee)
     {
     }
 
@@ -60,7 +60,7 @@ private:
     std::string issuer_;
 
 public:
-    issuer(jtx::Account const& issue) : issuer_(issue.human())
+    explicit issuer(jtx::Account const& issue) : issuer_(issue.human())
     {
     }
 
@@ -75,7 +75,7 @@ private:
     std::string uri_;
 
 public:
-    uri(std::string const& u) : uri_(strHex(u))
+    explicit uri(std::string const& u) : uri_(strHex(u))
     {
     }
 
@@ -119,7 +119,7 @@ private:
     std::string owner_;
 
 public:
-    owner(jtx::Account const& ownedBy) : owner_(ownedBy.human())
+    explicit owner(jtx::Account const& ownedBy) : owner_(ownedBy.human())
     {
     }
 
@@ -134,7 +134,7 @@ private:
     std::uint32_t expires_;
 
 public:
-    expiration(std::uint32_t const& expires) : expires_(expires)
+    explicit expiration(std::uint32_t const& expires) : expires_(expires)
     {
     }
 
@@ -149,7 +149,7 @@ private:
     std::string dest_;
 
 public:
-    destination(jtx::Account const& dest) : dest_(dest.human())
+    explicit destination(jtx::Account const& dest) : dest_(dest.human())
     {
     }
 
@@ -175,7 +175,7 @@ private:
     std::string rootIndex_;
 
 public:
-    rootIndex(uint256 const& index) : rootIndex_(to_string(index))
+    explicit rootIndex(uint256 const& index) : rootIndex_(to_string(index))
     {
     }
 
@@ -205,7 +205,7 @@ private:
     STAmount const brokerFee_;
 
 public:
-    brokerFee(STAmount const fee) : brokerFee_(fee)
+    explicit brokerFee(STAmount const fee) : brokerFee_(fee)
     {
     }
 

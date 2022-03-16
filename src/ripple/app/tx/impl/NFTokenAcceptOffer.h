@@ -28,7 +28,7 @@ class NFTokenAcceptOffer : public Transactor
 {
 private:
     TER
-    pay(AccountID const& from, AccountID const& to, STAmount amount);
+    pay(AccountID const& from, AccountID const& to, STAmount const& amount);
 
     TER
     acceptOffer(std::shared_ptr<SLE> const& offer);

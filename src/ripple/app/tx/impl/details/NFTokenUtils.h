@@ -21,14 +21,32 @@
 #define RIPPLE_TX_IMPL_DETAILS_NFTOKENUTILS_H_INCLUDED
 
 #include <ripple/basics/base_uint.h>
+#include <ripple/basics/tagged_integer.h>
 #include <ripple/ledger/ApplyView.h>
-#include <ripple/ledger/ReadView.h>
 #include <ripple/protocol/AccountID.h>
 #include <ripple/protocol/TER.h>
 
 namespace ripple {
 
 namespace nft {
+
+// Separate taxons from regular integers.
+struct TaxonTag
+{
+};
+using Taxon = tagged_integer<std::uint32_t, TaxonTag>;
+
+inline Taxon
+toTaxon(std::uint32_t i)
+{
+    return static_cast<Taxon>(i);
+}
+
+inline std::uint32_t
+toUInt32(Taxon t)
+{
+    return static_cast<std::uint32_t>(t);
+}
 
 constexpr std::uint16_t const flagBurnable = 0x0001;
 constexpr std::uint16_t const flagOnlyXRP = 0x0002;
@@ -48,13 +66,37 @@ removeAllTokenOffers(ApplyView& view, Keylet const& directory);
 std::optional<STObject>
 findToken(ReadView const& view, AccountID const& owner, uint256 const& tokenID);
 
+/** Finds the token in the owner's token directory.  Returns token and page. */
+struct TokenAndPage
+{
+    STObject token;
+    std::shared_ptr<SLE> page;
+
+    TokenAndPage(STObject const& token_, std::shared_ptr<SLE> page_)
+        : token(token_), page(std::move(page_))
+    {
+    }
+};
+std::optional<TokenAndPage>
+findTokenAndPage(
+    ApplyView& view,
+    AccountID const& owner,
+    uint256 const& tokenID);
+
 /** Insert the token in the owner's token directory. */
 TER
-insertToken(ApplyView& view, AccountID owner, STObject nft);
+insertToken(ApplyView& view, AccountID owner, STObject&& nft);
 
 /** Remove the token from the owner's token directory. */
 TER
 removeToken(ApplyView& view, AccountID const& owner, uint256 const& tokenID);
+
+TER
+removeToken(
+    ApplyView& view,
+    AccountID const& owner,
+    uint256 const& tokenID,
+    std::shared_ptr<SLE>&& page);
 
 /** Deletes the given token offer.
 
@@ -92,8 +134,8 @@ getSerial(uint256 const& id)
     return boost::endian::big_to_native(seq);
 }
 
-inline std::uint32_t
-cipheredTaxon(std::uint32_t tokenSeq, std::uint32_t taxon)
+inline Taxon
+cipheredTaxon(std::uint32_t tokenSeq, Taxon taxon)
 {
     // An issuer may issue several NFTs with the same taxon; to ensure that NFTs
     // are spread across multiple pages we lightly mix the taxon up by using the
@@ -113,10 +155,10 @@ cipheredTaxon(std::uint32_t tokenSeq, std::uint32_t taxon)
     // **IMPORTANT** Changing these numbers would be a breaking change requiring
     //               an amendment along with a way to distinguish token IDs that
     //               were generated with the old code.
-    return taxon ^ ((384160001 * tokenSeq) + 2459);
+    return taxon ^ toTaxon(((384160001 * tokenSeq) + 2459));
 }
 
-inline std::uint32_t
+inline Taxon
 getTaxon(uint256 const& id)
 {
     std::uint32_t taxon;
@@ -125,7 +167,7 @@ getTaxon(uint256 const& id)
 
     // The taxon cipher is just an XOR, so it is reversible by applying the
     // XOR a second time.
-    return cipheredTaxon(getSerial(id), taxon);
+    return cipheredTaxon(getSerial(id), toTaxon(taxon));
 }
 
 inline AccountID

@@ -69,8 +69,8 @@ static SField::private_access_tag_t access;
 // clang-format off
 
 // SFields which, for historical reasons, do not follow naming conventions.
-SField const sfInvalid(access, -1, false);
-SField const sfGeneric(access, 0, false);
+SField const sfInvalid(access, -1);
+SField const sfGeneric(access, 0);
 SField const sfHash(access, STI_UINT256, 257, "hash");
 SField const sfIndex(access, STI_UINT256, 258, "index");
 
@@ -320,19 +320,7 @@ SField::SField(
     knownCodeToField[fieldCode] = this;
 }
 
-// SField::SField(private_access_tag_t, int fc)
-//    : fieldCode(fc)
-//    , fieldType(STI_UNKNOWN)
-//    , fieldValue(0)
-//    , fieldMeta(sMD_Never)
-//    , fieldNum(++num)
-//    , signingField(IsSigning::yes)
-//    , jsonName(fieldName.c_str())
-//{
-//    knownCodeToField[fieldCode] = this;
-//}
-
-SField::SField(private_access_tag_t, int fc, bool)
+SField::SField(private_access_tag_t, int fc)
     : fieldCode(fc)
     , fieldType(STI_UNKNOWN)
     , fieldValue(0)

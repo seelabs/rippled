@@ -18,7 +18,6 @@
 //==============================================================================
 
 #include <ripple/app/tx/impl/NFTokenMint.h>
-#include <ripple/app/tx/impl/details/NFTokenUtils.h>
 #include <ripple/basics/Expected.h>
 #include <ripple/basics/Log.h>
 #include <ripple/ledger/View.h>
@@ -73,7 +72,7 @@ NFTokenMint::createTokenID(
     std::uint16_t flags,
     std::uint16_t fee,
     AccountID const& issuer,
-    std::uint32_t taxon,
+    nft::Taxon taxon,
     std::uint32_t tokenSeq)
 {
     // An issuer may issue several NFTs with the same taxon; to ensure that NFTs
@@ -86,7 +85,7 @@ NFTokenMint::createTokenID(
     // that the endianess is fixed.
     flags = boost::endian::native_to_big(flags);
     fee = boost::endian::native_to_big(fee);
-    taxon = boost::endian::native_to_big(taxon);
+    taxon = nft::toTaxon(boost::endian::native_to_big(nft::toUInt32(taxon)));
     tokenSeq = boost::endian::native_to_big(tokenSeq);
 
     std::array<std::uint8_t, 32> buf{};
@@ -108,6 +107,8 @@ NFTokenMint::createTokenID(
     ptr += sizeof(taxon);
 
     std::memcpy(ptr, &tokenSeq, sizeof(tokenSeq));
+    ptr += sizeof(tokenSeq);
+    assert(std::distance(buf.data(), ptr) == buf.size());
 
     return uint256::fromVoid(buf.data());
 }
@@ -161,46 +162,50 @@ NFTokenMint::doApply()
     std::uint32_t const ownerCountBefore =
         view().read(keylet::account(account_))->getFieldU32(sfOwnerCount);
 
-    auto ret = nft::insertToken(
-        ctx_.view(),
-        account_,
-        {*InnerObjectFormats::getInstance().findSOTemplateBySField(
-             sfNonFungibleToken),
-         sfNonFungibleToken,
-         [this, &issuer, &tokenSeq](STObject& object) {
-             object.setFieldH256(
-                 sfTokenID,
-                 createTokenID(
-                     static_cast<std::uint16_t>(
-                         ctx_.tx.getFlags() & 0x0000FFFF),
-                     ctx_.tx[~sfTransferFee].value_or(0),
-                     issuer,
-                     ctx_.tx[sfTokenTaxon],
-                     tokenSeq.value()));
+    // Assemble the new NFToken.
+    SOTemplate const* nfTokenTemplate =
+        InnerObjectFormats::getInstance().findSOTemplateBySField(
+            sfNonFungibleToken);
 
-             if (auto const uri = ctx_.tx[~sfURI])
-                 object.setFieldVL(sfURI, *uri);
-         }});
+    if (nfTokenTemplate == nullptr)
+        // Should never happen.
+        return tecINTERNAL;
 
-    if (ret == tesSUCCESS)
+    STObject newToken(
+        *nfTokenTemplate,
+        sfNonFungibleToken,
+        [this, &issuer, &tokenSeq](STObject& object) {
+            object.setFieldH256(
+                sfTokenID,
+                createTokenID(
+                    static_cast<std::uint16_t>(ctx_.tx.getFlags() & 0x0000FFFF),
+                    ctx_.tx[~sfTransferFee].value_or(0),
+                    issuer,
+                    nft::toTaxon(ctx_.tx[sfTokenTaxon]),
+                    tokenSeq.value()));
+
+            if (auto const uri = ctx_.tx[~sfURI])
+                object.setFieldVL(sfURI, *uri);
+        });
+
+    if (TER const ret =
+            nft::insertToken(ctx_.view(), account_, std::move(newToken));
+        ret != tesSUCCESS)
+        return ret;
+
+    // Only check the reserve if the owner count actually changed.  This
+    // allows NFTs to be added to the page (and burn fees) without
+    // requiring the reserve to be met each time.  The reserve is
+    // only managed when a new NFT page is added.
+    if (auto const ownerCountAfter =
+            view().read(keylet::account(account_))->getFieldU32(sfOwnerCount);
+        ownerCountAfter > ownerCountBefore)
     {
-        // Only check the reserve if the owner count actually changed.  This
-        // allows NFTs to be added to the page (and burn fees) without
-        // requiring the reserve to be met each time.  The reserve is
-        // only managed when a new NFT page is added.
-        if (auto const ownerCountAfter = view()
-                                             .read(keylet::account(account_))
-                                             ->getFieldU32(sfOwnerCount);
-            ownerCountAfter > ownerCountBefore)
-        {
-            if (auto const reserve =
-                    view().fees().accountReserve(ownerCountAfter);
-                mPriorBalance < reserve)
-                ret = tecINSUFFICIENT_RESERVE;
-        }
+        if (auto const reserve = view().fees().accountReserve(ownerCountAfter);
+            mPriorBalance < reserve)
+            return tecINSUFFICIENT_RESERVE;
     }
-
-    return ret;
+    return tesSUCCESS;
 }
 
 }  // namespace ripple

@@ -80,7 +80,7 @@ getID(
     std::uint16_t xferFee)
 {
     return ripple::NFTokenMint::createTokenID(
-        flags, xferFee, issuer, tokenTaxon, nftSeq);
+        flags, xferFee, issuer, nft::toTaxon(tokenTaxon), nftSeq);
 }
 
 Json::Value
