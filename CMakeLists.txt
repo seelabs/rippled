@@ -6,6 +6,7 @@ endif ()
 
 project (rippled)
 
+include(${CMAKE_BINARY_DIR}/conan_paths.cmake)
 
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)

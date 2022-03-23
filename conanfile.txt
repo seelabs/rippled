@@ -1,0 +1,18 @@
+[requires]
+fmt/8.1.1
+folly/2022.01.31.00
+soci/4.0.3
+boost/1.76.0
+openssl/1.1.1m 
+lz4/1.9.3
+libarchive/3.6.0
+rocksdb/6.20.3
+sqlite3/3.38.1
+zlib/1.2.11
+
+[options]
+soci:with_sqlite3 = True
+
+[generators]
+cmake_find_package
+cmake_paths
