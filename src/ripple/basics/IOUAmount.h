@@ -149,6 +149,12 @@ mulRatio(
     std::uint32_t den,
     bool roundUp);
 
+inline bool
+isXRP(IOUAmount const&)
+{
+    return false;
+}
+
 }  // namespace ripple
 
 #endif

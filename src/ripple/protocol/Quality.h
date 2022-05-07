@@ -76,6 +76,13 @@ struct TAmounts
         return *this;
     }
 
+    void
+    setZero()
+    {
+        in = beast::zero;
+        out = beast::zero;
+    }
+
     In in;
     Out out;
 };

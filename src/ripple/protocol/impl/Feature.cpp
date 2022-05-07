@@ -438,6 +438,8 @@ REGISTER_FIX    (fixSTAmountCanonicalize,       Supported::yes, DefaultVote::yes
 REGISTER_FIX    (fixRmSmallIncreasedQOffers,    Supported::yes, DefaultVote::yes);
 REGISTER_FEATURE(CheckCashMakesTrustLine,       Supported::yes, DefaultVote::no);
 REGISTER_FEATURE(NonFungibleTokensV1,           Supported::yes, DefaultVote::no);
+// TODO: Rename this
+REGISTER_FIX    (fixQualityAssurance,           Supported::yes, DefaultVote::no);
 
 // The following amendments have been active for at least two years. Their
 // pre-amendment code has been removed and the identifiers are deprecated.

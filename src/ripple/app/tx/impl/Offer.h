@@ -22,9 +22,12 @@
 
 #include <ripple/basics/contract.h>
 #include <ripple/ledger/View.h>
+#include <ripple/protocol/Feature.h>
+#include <ripple/protocol/Issue.h>
 #include <ripple/protocol/Quality.h>
 #include <ripple/protocol/SField.h>
 #include <ripple/protocol/STLedgerEntry.h>
+
 #include <ostream>
 #include <stdexcept>
 
@@ -115,6 +118,25 @@ public:
             Throw<std::logic_error>("can't produce more than is available.");
 
         m_amounts -= consumed;
+
+        if (view.rules().enabled(fixQualityAssurance) && !fully_consumed() &&
+            (isXRP(m_amounts.in) || isXRP(m_amounts.out)))
+        {
+            auto const curQ = Quality(m_amounts);
+            if (curQ != m_quality)
+            {
+                auto const curR = curQ.rate();
+                auto const initR = m_quality.rate();
+                auto const ratio = divide(curR, initR, noIssue());
+                // If the current rate has change too much,
+                // consume the rest of the offer
+                if (ratio >= STAmount(noIssue(), 12, -1) ||
+                    ratio <= STAmount(noIssue(), 8, -1))
+                {
+                    m_amounts.setZero();
+                }
+            }
+        }
         setFieldAmounts();
         view.update(m_entry);
     }

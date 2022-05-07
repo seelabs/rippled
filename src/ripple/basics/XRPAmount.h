@@ -297,6 +297,12 @@ mulRatio(
     return XRPAmount(r.convert_to<XRPAmount::value_type>());
 }
 
+inline bool
+isXRP(XRPAmount const&)
+{
+    return true;
+}
+
 }  // namespace ripple
 
 #endif  // RIPPLE_BASICS_XRPAMOUNT_H_INCLUDED
