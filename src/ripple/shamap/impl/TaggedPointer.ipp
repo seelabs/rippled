@@ -148,15 +148,17 @@ std::array<std::function<bool(void*)>, boundaries.size()> const
 allocateArrays(std::uint8_t numChildren)
 {
     auto const i = boundariesIndex(numChildren);
-    return {i, allocateArrayFuns[i]()};
+    // return {i, allocateArrayFuns[i]()};
+    return {i, malloc(boundaries[i] * elementSizeBytes)};
 }
 
 // This function takes an untagged pointer
 inline void
 deallocateArrays(std::uint8_t boundaryIndex, void* p)
 {
-    assert(isFromArrayFuns[boundaryIndex](p));
-    freeArrayFuns[boundaryIndex](p);
+    // assert(isFromArrayFuns[boundaryIndex](p));
+    // freeArrayFuns[boundaryIndex](p);
+    free(p);
 }
 
 [[nodiscard]] inline int
