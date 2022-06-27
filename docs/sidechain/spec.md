@@ -898,6 +898,15 @@ At least one of `SignaturesReward` and `MinAccountCreateAmount` must be present.
 
 * Given a sidechain description, get the sidechain ledger object
 
+## Extensions
+
+The `SidechainXChainAccountCreate` transaction can be extended to provide a
+refund on the source chain when the transaction fails on the destination chain.
+The idea is similar to a `XChainAccountCreate` transaction. It would be to
+increment the `XChainAccountCreateCount` on the destination chain, and the
+transaction would have to be ordered on the source chain. This could be
+introduced with an amendment at a later time.
+
 ## Alternate designs
 
 One alternate design that was implemented was a set of servers similar to the
