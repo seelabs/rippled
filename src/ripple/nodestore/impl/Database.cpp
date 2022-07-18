@@ -68,31 +68,33 @@ Database::Database(
 
                 decltype(read_) read;
 
-                while (!isStopping())
+                while (1)
                 {
                     {
                         std::unique_lock<std::mutex> lock(readLock_);
 
+                        if (isStopping())
+                            break;
+
                         // We need to check whether we're stopping again to
                         // avoid a race condition that can stall this thread
                         // during shutdown.
-                        if (read_.empty() && !isStopping())
+                        if (read_.empty())
                         {
                             runningThreads_--;
                             readCondVar_.wait(lock);
                             runningThreads_++;
                         }
 
-                        // If we are not stopping then extract multiple object
-                        // at a time to minimize the overhead of acquiring the
-                        // mutex.
-                        if (!isStopping())
-                        {
-                            for (int cnt = 0;
-                                 !read_.empty() && cnt != requestBundle_;
-                                 ++cnt)
-                                read.insert(read_.extract(read_.begin()));
-                        }
+                        if (isStopping())
+                            break;
+
+                        // extract multiple object at a time to minimize the
+                        // overhead of acquiring the mutex.
+                        for (int cnt = 0;
+                             !read_.empty() && cnt != requestBundle_;
+                             ++cnt)
+                            read.insert(read_.extract(read_.begin()));
                     }
 
                     for (auto it = read.begin(); it != read.end(); ++it)
@@ -201,15 +203,12 @@ Database::asyncFetch(
     std::uint32_t ledgerSeq,
     std::function<void(std::shared_ptr<NodeObject> const&)>&& cb)
 {
+    std::lock_guard lock(readLock_);
+
     if (!isStopping())
     {
-        std::lock_guard lock(readLock_);
-
-        if (!isStopping())
-        {
-            read_[hash].emplace_back(ledgerSeq, std::move(cb));
-            readCondVar_.notify_one();
-        }
+        read_[hash].emplace_back(ledgerSeq, std::move(cb));
+        readCondVar_.notify_one();
     }
 }
 
