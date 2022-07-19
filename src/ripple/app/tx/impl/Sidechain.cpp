@@ -128,10 +128,25 @@ SidechainCreate::preclaim(PreclaimContext const& ctx)
         return tecDUPLICATE;
     }
 
-    if (!isXRP(sidechain.srcChainIssue()) &&
-        !ctx.view.read(keylet::account(sidechain.srcChainIssue().account)))
+    if (sidechain.srcChainDoor() == account)
     {
-        return tecNO_ISSUER;
+        if (!isXRP(sidechain.srcChainIssue()) &&
+            !ctx.view.read(keylet::account(sidechain.srcChainIssue().account)))
+        {
+            return tecNO_ISSUER;
+        }
+    }
+    else if (sidechain.dstChainDoor() == account)
+    {
+        if (!isXRP(sidechain.dstChainIssue()) &&
+            !ctx.view.read(keylet::account(sidechain.dstChainIssue().account)))
+        {
+            return tecNO_ISSUER;
+        }
+    }
+    else
+    {
+        return tecINTERNAL;
     }
 
     {
