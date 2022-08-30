@@ -264,6 +264,20 @@ message OwnerNode
     uint64 value = 1 [jstype=JS_STRING];
 }
 
+message XChainClaimIDVal
+{
+    uint64 value = 1 [jstype=JS_STRING];
+}
+
+message XChainAccountCreateCount
+{
+    uint64 value = 1 [jstype=JS_STRING];
+}
+
+message XChainAccountClaimCount
+{
+    uint64 value = 1 [jstype=JS_STRING];
+}
 
 // *** Messages wrapping 16 bytes ***
 
@@ -442,6 +456,16 @@ message ValidatorToReEnable
     bytes value = 1;
 }
 
+message ClaimAttestationSignature
+{
+    bytes value = 1;
+}
+
+message CreateAccountAttestationSignature
+{
+    bytes value = 1;
+}
+
 // *** Messages wrapping a Currency value ***
 //
 // TODO: if there's a V2 of the API, fix this misspelling.
@@ -451,6 +475,16 @@ message TakerGetsCurreny
 }
 
 message TakerPaysCurrency
+{
+    Currency value = 1;
+}
+
+message LockingChainIssue
+{
+    Currency value = 1;
+}
+
+message IssuingChainIssue
 {
     Currency value = 1;
 }
@@ -519,6 +553,26 @@ message TakerPays
     CurrencyAmount value = 1;
 }
 
+message SignatureReward
+{
+    CurrencyAmount value = 1;
+}
+
+message MinAccountCreateAmount
+{
+    CurrencyAmount value = 1;
+}
+
+message ClaimAttestationAmount
+{
+    CurrencyAmount value = 1;
+}
+
+message CreateAccountAttestationAmount
+{
+    CurrencyAmount value = 1;
+}
+
 
 // *** Messages wrapping an AccountAddress ***
 
@@ -558,6 +612,26 @@ message RegularKey
 }
 
 message Unauthorize
+{
+    AccountAddress value = 1;
+}
+
+message LockingChainDoor
+{
+    AccountAddress value = 1;
+}
+
+message IssuingChainDoor
+{
+    AccountAddress value = 1;
+}
+
+message OtherChainSource
+{
+    AccountAddress value = 1;
+}
+
+message RewardAccount
 {
     AccountAddress value = 1;
 }
@@ -604,3 +678,35 @@ message DisabledValidator
     FirstLedgerSequence ledger_sequence = 2;
 }
 
+message XChainBridge
+{
+    LockingChainDoor locking_chain_door = 1;
+    IssuingChainDoor issuing_chain_door = 2;
+    LockingChainIssue locking_chain_issue = 3;
+    IssuingChainIssue issuing_chain_issue = 4;
+}
+
+message XChainClaimAttestation
+{
+    PublicKey public_key = 1;
+    ClaimAttestationSignature signature = 2;
+    ClaimAttestationAmount amount = 3;
+    Account account = 4;
+    RewardAccount reward_account = 5;
+    bool was_locking_chain_send = 6;
+    XChainClaimIDVal claim_id = 7;
+    Destination destination = 8;
+}
+
+message XChainCreateAccountAttestation
+{
+    PublicKey public_key = 1;
+    CreateAccountAttestationSignature signature = 2;
+    CreateAccountAttestationAmount amount = 3;
+    Account account = 4;
+    RewardAccount reward_account = 5;
+    bool was_locking_chain_send = 6;
+    XChainAccountCreateCount create_count = 7;
+    Destination destination = 8;
+    SignatureReward signature_reward = 9;
+}

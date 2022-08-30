@@ -6,13 +6,14 @@ option java_multiple_files = true;
 
 import "org/xrpl/rpc/v1/common.proto";
 
-// Next field: 17
+// Next field: 20
 message LedgerObject
 {
     oneof object
     {
         AccountRoot account_root = 1;
         Amendments amendments = 2;
+        Bridge bridge = 17;
         Check check = 3;
         DepositPreauthObject deposit_preauth = 4;
         DirectoryNode directory_node = 5;
@@ -27,10 +28,12 @@ message LedgerObject
         SignerList signer_list = 12;
         NegativeUNL negative_unl = 13;
         TicketObject ticket = 14;
+        XChainClaimID xchain_claim_id = 18;
+        XChainCreateAccountClaimID xchain_account_claim_id = 19;
     }
 }
 
-// Next field: 15
+// Next field: 20
 enum LedgerEntryType
 {
     LEDGER_ENTRY_TYPE_UNSPECIFIED     = 0;
@@ -50,6 +53,9 @@ enum LedgerEntryType
     LEDGER_ENTRY_TYPE_TICKET          = 14;
     LEDGER_ENTRY_TYPE_NFTOKEN_OFFER   = 15;
     LEDGER_ENTRY_TYPE_NFTOKEN_PAGE    = 16;
+    LEDGER_ENTRY_TYPE_BRIDGE          = 17;
+    LEDGER_ENTRY_TYPE_CLAIM_ID        = 18;
+    LEDGER_ENTRY_TYPE_CREATE_ACCOUNT_CLAIM_ID = 19;
 }
 
 // Next field: 19
@@ -115,6 +121,31 @@ message Amendments
     repeated Majority majorities = 2;
 
     Flags flags = 3;
+}
+
+message Bridge
+{
+    Account account = 1;
+
+    Balance balance = 2;
+
+    SignatureReward signature_reward = 3;
+
+    MinAccountCreateAmount min_account_create_amount = 4;
+
+    XChainBridge xchain_bridge = 5;
+
+    XChainClaimIDVal xchain_claim_id = 6;
+
+    XChainAccountCreateCount xchain_account_create_count = 7;
+
+    XChainAccountClaimCount xchain_account_claim_count = 8;
+
+    OwnerNode owner_node = 9;
+
+    PreviousTransactionID previous_transaction_id = 10;
+
+    PreviousTransactionLedgerSequence previous_transaction_ledger_sequence = 11;
 }
 
 // Next field: 14
@@ -415,4 +446,44 @@ message NegativeUNL
     ValidatorToReEnable validator_to_re_enable = 3;
 
     Flags flags = 4;
+}
+
+message XChainClaimID
+{
+    Account account = 1;
+
+    XChainBridge xchain_bridge = 2;
+
+    XChainClaimIDVal xchain_claim_id = 3;
+
+    OtherChainSource other_chain_source = 4;
+
+    repeated XChainClaimAttestation xchain_attestations = 5;
+
+    SignatureReward signature_reward = 6;
+
+    OwnerNode owner_node = 7;
+
+    PreviousTransactionID previous_transaction_id = 8;
+
+    PreviousTransactionLedgerSequence previous_transaction_ledger_sequence = 9;
+}
+
+message XChainCreateAccountClaimID
+{
+    Account account = 1;
+
+    XChainBridge xchain_bridge = 2;
+
+    XChainAccountClaimCount xchain_account_create_count = 3;
+
+    OtherChainSource other_chain_source = 4;
+
+    repeated XChainCreateAccountAttestation xchain_attestations = 5;
+
+    OwnerNode owner_node = 6;
+
+    PreviousTransactionID previous_transaction_id = 7;
+
+    PreviousTransactionLedgerSequence previous_transaction_ledger_sequence = 8;
 }

@@ -269,7 +269,7 @@ LedgerFormats::LedgerFormats()
             {sfBalance,              soeREQUIRED},
             {sfSignatureReward,      soeREQUIRED},
             {sfMinAccountCreateAmount, soeOPTIONAL},
-            {sfXChainBridge,               soeREQUIRED},
+            {sfXChainBridge,        soeREQUIRED},
             {sfXChainClaimID,       soeREQUIRED},
             {sfXChainAccountCreateCount, soeREQUIRED},
             {sfXChainAccountClaimCount, soeREQUIRED},
