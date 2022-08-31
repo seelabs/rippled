@@ -26,6 +26,7 @@
 #include <ripple/protocol/Feature.h>
 #include <ripple/protocol/STArray.h>
 #include <ripple/protocol/SystemParameters.h>
+#include <ripple/protocol/TxFormats.h>
 #include <ripple/protocol/nftPageMask.h>
 
 namespace ripple {
@@ -372,6 +373,9 @@ LedgerEntryTypesMatch::visitEntry(
             case ltNEGATIVE_UNL:
             case ltNFTOKEN_PAGE:
             case ltNFTOKEN_OFFER:
+            case ltBRIDGE:
+            case ltXCHAIN_CLAIM_ID:
+            case ltXCHAIN_CREATE_ACCOUNT_CLAIM_ID:
                 break;
             default:
                 invalidTypeAdded_ = true;
@@ -449,7 +453,7 @@ ValidNewAccountRoot::visitEntry(
     if (!before && after->getType() == ltACCOUNT_ROOT)
     {
         accountsCreated_++;
-        accountSeq_ = (*after)[sfSequence];
+        accountSeqs_.push_back((*after)[sfSequence]);
     }
 }
 
@@ -461,6 +465,20 @@ ValidNewAccountRoot::finalize(
     ReadView const& view,
     beast::Journal const& j)
 {
+    if (accountSeqs_.size() != accountsCreated_)
+        return false;
+
+    if (tx.getTxnType() == ttXCHAIN_ADD_ATTESTATION && result == tesSUCCESS)
+    {
+        // attestations can create more than one account
+        std::uint32_t const startingSeq{
+            view.rules().enabled(featureDeletableAccounts) ? view.seq() : 1};
+        return std::all_of(
+            accountSeqs_.begin(), accountSeqs_.end(), [&startingSeq](auto seq) {
+                return seq == startingSeq;
+            });
+    }
+
     if (accountsCreated_ == 0)
         return true;
 
@@ -477,7 +495,7 @@ ValidNewAccountRoot::finalize(
         std::uint32_t const startingSeq{
             view.rules().enabled(featureDeletableAccounts) ? view.seq() : 1};
 
-        if (accountSeq_ != startingSeq)
+        if (accountSeqs_[0] != startingSeq)
         {
             JLOG(j.fatal()) << "Invariant failed: account created with "
                                "wrong starting sequence number";

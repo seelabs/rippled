@@ -18,6 +18,9 @@
 //==============================================================================
 
 #include <ripple/protocol/TxFormats.h>
+
+#include <ripple/protocol/SField.h>
+#include <ripple/protocol/SOTemplate.h>
 #include <ripple/protocol/jss.h>
 
 namespace ripple {
@@ -320,6 +323,71 @@ TxFormats::TxFormats()
             {sfNFTokenSellOffer, soeOPTIONAL},
             {sfNFTokenBrokerFee, soeOPTIONAL},
             {sfTicketSequence, soeOPTIONAL},
+        },
+        commonFields);
+
+    add(jss::XChainCreateBridge,
+        ttXCHAIN_CREATE_BRIDGE,
+        {
+            {sfXChainBridge, soeREQUIRED},
+            {sfSignatureReward, soeREQUIRED},
+            {sfMinAccountCreateAmount, soeOPTIONAL},
+        },
+        commonFields);
+
+    add(jss::XChainModifyBridge,
+        ttXCHAIN_MODIFY_BRIDGE,
+        {
+            {sfXChainBridge, soeREQUIRED},
+            {sfSignatureReward, soeOPTIONAL},
+            {sfMinAccountCreateAmount, soeOPTIONAL},
+        },
+        commonFields);
+
+    add(jss::XChainCreateClaimID,
+        ttXCHAIN_CREATE_CLAIM_ID,
+        {
+            {sfXChainBridge, soeREQUIRED},
+            {sfSignatureReward, soeREQUIRED},
+            {sfOtherChainSource, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::XChainCommit,
+        ttXCHAIN_COMMIT,
+        {
+            {sfXChainBridge, soeREQUIRED},
+            {sfXChainClaimID, soeREQUIRED},
+            {sfAmount, soeREQUIRED},
+            {sfOtherChainDestination, soeOPTIONAL},
+        },
+        commonFields);
+
+    add(jss::XChainClaim,
+        ttXCHAIN_CLAIM,
+        {
+            {sfXChainBridge, soeREQUIRED},
+            {sfXChainClaimID, soeREQUIRED},
+            {sfDestination, soeREQUIRED},
+            {sfDestinationTag, soeOPTIONAL},
+            {sfAmount, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::XChainAddAttestation,
+        ttXCHAIN_ADD_ATTESTATION,
+        {
+            {sfXChainAttestationBatch, soeREQUIRED},
+        },
+        commonFields);
+
+    add(jss::XChainAccountCreateCommit,
+        ttXCHAIN_ACCOUNT_CREATE_COMMIT,
+        {
+            {sfXChainBridge, soeREQUIRED},
+            {sfDestination, soeREQUIRED},
+            {sfAmount, soeREQUIRED},
+            {sfSignatureReward, soeREQUIRED},
         },
         commonFields);
 }

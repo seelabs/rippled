@@ -76,6 +76,7 @@ target_sources (xrpl_core PRIVATE
   src/ripple/protocol/impl/Indexes.cpp
   src/ripple/protocol/impl/InnerObjectFormats.cpp
   src/ripple/protocol/impl/Issue.cpp
+  src/ripple/protocol/impl/STIssue.cpp
   src/ripple/protocol/impl/Keylet.cpp
   src/ripple/protocol/impl/LedgerFormats.cpp
   src/ripple/protocol/impl/PublicKey.cpp
@@ -94,7 +95,10 @@ target_sources (xrpl_core PRIVATE
   src/ripple/protocol/impl/STObject.cpp
   src/ripple/protocol/impl/STParsedJSON.cpp
   src/ripple/protocol/impl/STPathSet.cpp
+  src/ripple/protocol/impl/STXChainBridge.cpp
   src/ripple/protocol/impl/STTx.cpp
+  src/ripple/protocol/impl/XChainAttestations.cpp
+  src/ripple/protocol/impl/STXChainAttestationBatch.cpp
   src/ripple/protocol/impl/STValidation.cpp
   src/ripple/protocol/impl/STVar.cpp
   src/ripple/protocol/impl/STVector256.cpp
@@ -181,6 +185,7 @@ install (
     src/ripple/json/Object.h
     src/ripple/json/Output.h
     src/ripple/json/Writer.h
+    src/ripple/json/json_get_or_throw.h
     src/ripple/json/json_forwards.h
     src/ripple/json/json_reader.h
     src/ripple/json/json_value.h
@@ -216,6 +221,7 @@ install (
     src/ripple/protocol/SOTemplate.h
     src/ripple/protocol/STAccount.h
     src/ripple/protocol/STAmount.h
+    src/ripple/protocol/STIssue.h
     src/ripple/protocol/STArray.h
     src/ripple/protocol/STBase.h
     src/ripple/protocol/STBitString.h
@@ -227,6 +233,9 @@ install (
     src/ripple/protocol/STParsedJSON.h
     src/ripple/protocol/STPathSet.h
     src/ripple/protocol/STTx.h
+    src/ripple/protocol/XChainAttestations.h
+    src/ripple/protocol/STXChainAttestationBatch.h
+    src/ripple/protocol/STXChainBridge.h
     src/ripple/protocol/STValidation.h
     src/ripple/protocol/STVector256.h
     src/ripple/protocol/SecretKey.h
@@ -440,6 +449,7 @@ target_sources (rippled PRIVATE
   src/ripple/app/tx/impl/SetRegularKey.cpp
   src/ripple/app/tx/impl/SetSignerList.cpp
   src/ripple/app/tx/impl/SetTrust.cpp
+  src/ripple/app/tx/impl/XChainBridge.cpp
   src/ripple/app/tx/impl/SignerEntries.cpp
   src/ripple/app/tx/impl/Taker.cpp
   src/ripple/app/tx/impl/Transactor.cpp

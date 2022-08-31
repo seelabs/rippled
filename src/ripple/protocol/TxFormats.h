@@ -139,6 +139,27 @@ enum TxType : std::uint16_t
     /** This transaction accepts an existing offer to buy or sell an existing  NFT. */
     ttNFTOKEN_ACCEPT_OFFER = 29,
 
+    /** This transactions creates a sidechain */
+    ttXCHAIN_CREATE_BRIDGE = 40,
+
+    /** This transactions creates a crosschain sequence number */
+    ttXCHAIN_CREATE_CLAIM_ID = 41,
+
+    /** This transactions initiates a crosschain transaction */
+    ttXCHAIN_COMMIT = 42,
+
+    /** This transaction completes a crosschain transaction */
+    ttXCHAIN_CLAIM = 43,
+
+    /** This transaction initiates a crosschain account create transaction */
+    ttXCHAIN_ACCOUNT_CREATE_COMMIT = 44,
+
+    /** This transaction adds attestations to claimid and account claim states*/
+    ttXCHAIN_ADD_ATTESTATION = 45,
+
+    /** This transactions modifies a sidechain */
+    ttXCHAIN_MODIFY_BRIDGE = 46,
+
     /** This system-generated transaction type is used to update the status of the various amendments.
 
         For details, see: https://xrpl.org/amendments.html

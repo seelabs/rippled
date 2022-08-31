@@ -263,6 +263,15 @@ nft_buys(uint256 const& id) noexcept;
 Keylet
 nft_sells(uint256 const& id) noexcept;
 
+Keylet
+bridge(STXChainBridge const& sidechain);
+
+Keylet
+xChainClaimID(STXChainBridge const& sidechain, std::uint64_t seq);
+
+Keylet
+xChainCreateAccountClaimID(STXChainBridge const& sidechain, std::uint64_t seq);
+
 }  // namespace keylet
 
 // Everything below is deprecated and should be removed in favor of keylets:
