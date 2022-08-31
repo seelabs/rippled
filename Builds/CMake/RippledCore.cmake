@@ -725,6 +725,7 @@ if (tests)
     src/test/app/RCLValidations_test.cpp
     src/test/app/Regression_test.cpp
     src/test/app/SHAMapStore_test.cpp
+    src/test/app/XChain_test.cpp
     src/test/app/SetAuth_test.cpp
     src/test/app/SetRegularKey_test.cpp
     src/test/app/SetTrust_test.cpp
@@ -839,6 +840,7 @@ if (tests)
     src/test/jtx/impl/acctdelete.cpp
     src/test/jtx/impl/account_txn_id.cpp
     src/test/jtx/impl/amount.cpp
+    src/test/jtx/impl/attester.cpp
     src/test/jtx/impl/balance.cpp
     src/test/jtx/impl/check.cpp
     src/test/jtx/impl/delivermin.cpp
@@ -860,6 +862,7 @@ if (tests)
     src/test/jtx/impl/regkey.cpp
     src/test/jtx/impl/sendmax.cpp
     src/test/jtx/impl/seq.cpp
+    src/test/jtx/impl/xchain_bridge.cpp
     src/test/jtx/impl/sig.cpp
     src/test/jtx/impl/tag.cpp
     src/test/jtx/impl/ticket.cpp
