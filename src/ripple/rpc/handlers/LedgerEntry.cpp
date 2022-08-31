@@ -360,10 +360,10 @@ doLedgerEntry(RPC::JsonContext& context)
             }
         }
         else if (
-            !bridge.isObject() || !bridge.isMember(jss::issuing_chain_door) ||
-            !bridge.isMember(jss::issuing_chain_issue) ||
-            !bridge.isMember(jss::locking_chain_door) ||
-            !bridge.isMember(jss::locking_chain_issue))
+            !bridge.isObject() || !bridge.isMember(jss::IssuingChainDoor) ||
+            !bridge.isMember(jss::IssuingChainIssue) ||
+            !bridge.isMember(jss::LockingChainDoor) ||
+            !bridge.isMember(jss::LockingChainIssue))
         {
             jvResult[jss::error] = "malformedRequest";
         }
@@ -373,17 +373,17 @@ doLedgerEntry(RPC::JsonContext& context)
             // four strings (locking_chain_door, locking_chain_issue,
             // issuing_chain_door, issuing_chain_issue)
             auto lcd = parseBase58<AccountID>(
-                bridge[jss::locking_chain_door].asString());
+                bridge[jss::LockingChainDoor].asString());
             auto icd = parseBase58<AccountID>(
-                bridge[jss::issuing_chain_door].asString());
+                bridge[jss::IssuingChainDoor].asString());
             Issue lci, ici;
             bool valid = lcd && icd;
             if (valid)
             {
                 try
                 {
-                    lci = issueFromJson(bridge[jss::locking_chain_issue]);
-                    ici = issueFromJson(bridge[jss::issuing_chain_issue]);
+                    lci = issueFromJson(bridge[jss::LockingChainIssue]);
+                    ici = issueFromJson(bridge[jss::IssuingChainIssue]);
                 }
                 catch (std::runtime_error const& ex)
                 {
@@ -409,11 +409,10 @@ doLedgerEntry(RPC::JsonContext& context)
             }
         }
         else if (
-            !claim_id.isObject() ||
-            !claim_id.isMember(jss::issuing_chain_door) ||
-            !claim_id.isMember(jss::issuing_chain_issue) ||
-            !claim_id.isMember(jss::locking_chain_door) ||
-            !claim_id.isMember(jss::locking_chain_issue) ||
+            !claim_id.isObject() || !claim_id.isMember(jss::IssuingChainDoor) ||
+            !claim_id.isMember(jss::IssuingChainIssue) ||
+            !claim_id.isMember(jss::LockingChainDoor) ||
+            !claim_id.isMember(jss::LockingChainIssue) ||
             !claim_id.isMember(jss::xchain_claim_id))
         {
             jvResult[jss::error] = "malformedRequest";
@@ -425,17 +424,17 @@ doLedgerEntry(RPC::JsonContext& context)
             // locking_chain_issue, issuing_chain_door, issuing_chain_issue) and
             // the claim id sequence number.
             auto lcd = parseBase58<AccountID>(
-                claim_id[jss::locking_chain_door].asString());
+                claim_id[jss::LockingChainDoor].asString());
             auto icd = parseBase58<AccountID>(
-                claim_id[jss::issuing_chain_door].asString());
+                claim_id[jss::IssuingChainDoor].asString());
             Issue lci, ici;
             bool valid = lcd && icd;
             if (valid)
             {
                 try
                 {
-                    lci = issueFromJson(claim_id[jss::locking_chain_issue]);
-                    ici = issueFromJson(claim_id[jss::issuing_chain_issue]);
+                    lci = issueFromJson(claim_id[jss::LockingChainIssue]);
+                    ici = issueFromJson(claim_id[jss::IssuingChainIssue]);
                 }
                 catch (std::runtime_error const& ex)
                 {
@@ -469,11 +468,10 @@ doLedgerEntry(RPC::JsonContext& context)
             }
         }
         else if (
-            !claim_id.isObject() ||
-            !claim_id.isMember(jss::issuing_chain_door) ||
-            !claim_id.isMember(jss::issuing_chain_issue) ||
-            !claim_id.isMember(jss::locking_chain_door) ||
-            !claim_id.isMember(jss::locking_chain_issue) ||
+            !claim_id.isObject() || !claim_id.isMember(jss::IssuingChainDoor) ||
+            !claim_id.isMember(jss::IssuingChainIssue) ||
+            !claim_id.isMember(jss::LockingChainDoor) ||
+            !claim_id.isMember(jss::LockingChainIssue) ||
             !claim_id.isMember(jss::xchain_create_account_claim_id))
         {
             jvResult[jss::error] = "malformedRequest";
@@ -486,17 +484,17 @@ doLedgerEntry(RPC::JsonContext& context)
             // issuing_chain_issue) and the create account claim id sequence
             // number.
             auto lcd = parseBase58<AccountID>(
-                claim_id[jss::locking_chain_door].asString());
+                claim_id[jss::LockingChainDoor].asString());
             auto icd = parseBase58<AccountID>(
-                claim_id[jss::issuing_chain_door].asString());
+                claim_id[jss::IssuingChainDoor].asString());
             Issue lci, ici;
             bool valid = lcd && icd;
             if (valid)
             {
                 try
                 {
-                    lci = issueFromJson(claim_id[jss::locking_chain_issue]);
-                    ici = issueFromJson(claim_id[jss::issuing_chain_issue]);
+                    lci = issueFromJson(claim_id[jss::LockingChainIssue]);
+                    ici = issueFromJson(claim_id[jss::IssuingChainIssue]);
                 }
                 catch (std::runtime_error const& ex)
                 {
