@@ -212,27 +212,24 @@ attestation_claim_batch(
     Json::Value const& jvBridge,
     jtx::Account const& sendingAccount,
     jtx::AnyAmount const& sendingAmount,
-    std::vector<jtx::Account> const& rewardAccounts,
+    jtx::Account const* rewardAccounts,
     bool wasLockingChainSend,
     std::uint64_t claimID,
     std::optional<jtx::Account> const& dst,
-    std::vector<jtx::signer> const& signers,
-    size_t num_signers /* = 0 */)
+    jtx::signer const* signers,
+    size_t num_signers,
+    attestation_cb cb)
 {
-    assert(rewardAccounts.size() == signers.size());
-    if (num_signers == 0)
-        num_signers = signers.size();
-
     STXChainBridge const stBridge(jvBridge);
     std::vector<AttestationBatch::AttestationClaim> claims;
-    claims.reserve(signers.size());
+    claims.reserve(num_signers);
 
-    for (int i = 0, e = num_signers; i != e; ++i)
+    for (size_t i = 0; i < num_signers; ++i)
     {
-        auto const& s = signers[i];
+        auto const s = signers[i];
         auto const& pk = s.account.pk();
         auto const& sk = s.account.sk();
-        auto const sig = jtx::sign_claim_attestation(
+        auto const sig = sign_claim_attestation(
             pk,
             sk,
             stBridge,
@@ -243,11 +240,13 @@ attestation_claim_batch(
             claimID,
             dst);
 
+        auto [new_sig, new_amt] = cb(i, sig, s, sendingAmount);
+
         claims.emplace_back(
             pk,
-            std::move(sig),
+            std::move(new_sig),
             sendingAccount.id(),
-            sendingAmount.value,
+            new_amt.value,
             rewardAccounts[i].id(),
             wasLockingChainSend,
             claimID,
@@ -257,6 +256,36 @@ attestation_claim_batch(
     STXChainAttestationBatch batch{stBridge, claims.begin(), claims.end()};
 
     return batch.getJson(JsonOptions::none);
+}
+
+attestation_cb default_attestation_cb =
+    [](size_t i, Buffer sig, jtx::signer s, jtx::AnyAmount amt) {
+        return std::make_tuple(std::move(sig), std::move(amt));
+    };
+
+Json::Value
+attestation_claim_batch(
+    Json::Value const& jvBridge,
+    jtx::Account const& sendingAccount,
+    jtx::AnyAmount const& sendingAmount,
+    std::vector<jtx::Account> const& rewardAccounts,
+    bool wasLockingChainSend,
+    std::uint64_t claimID,
+    std::optional<jtx::Account> const& dst,
+    std::vector<jtx::signer> const& signers)
+{
+    assert(rewardAccounts.size() == signers.size());
+
+    return attestation_claim_batch(
+        jvBridge,
+        sendingAccount,
+        sendingAmount,
+        &rewardAccounts[0],
+        wasLockingChainSend,
+        claimID,
+        dst,
+        &signers[0],
+        signers.size());
 }
 
 Json::Value
