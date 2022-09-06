@@ -92,6 +92,25 @@ sidechain_xchain_account_claim(
     Account const& dst,
     AnyAmount const& amt);
 
+using attestation_cb = std::function<std::tuple<
+    Buffer,
+    jtx::AnyAmount>(size_t, Buffer, jtx::signer, jtx::AnyAmount)>;
+
+extern attestation_cb default_attestation_cb;
+
+Json::Value
+attestation_claim_batch(
+    Json::Value const& jvBridge,
+    jtx::Account const& sendingAccount,
+    jtx::AnyAmount const& sendingAmount,
+    jtx::Account const* rewardAccounts,
+    bool wasLockingChainSend,
+    std::uint64_t claimID,
+    std::optional<jtx::Account> const& dst,
+    jtx::signer const* signers,
+    size_t num_signers,
+    attestation_cb cb = default_attestation_cb);
+
 Json::Value
 attestation_claim_batch(
     Json::Value const& jvBridge,
@@ -101,8 +120,7 @@ attestation_claim_batch(
     bool wasLockingChainSend,
     std::uint64_t claimID,
     std::optional<jtx::Account> const& dst,
-    std::vector<jtx::signer> const& signers,
-    size_t num_signers = 0);
+    std::vector<jtx::signer> const& signers);
 
 Json::Value
 attestation_create_account_batch(
