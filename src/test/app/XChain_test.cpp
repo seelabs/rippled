@@ -57,7 +57,7 @@ struct xEnv : public jtx::XChainBridgeObjects
 
         if (!side)
         {
-            env_.fund(xrp_funds, mcDoor, mcAlice, mcBob, mcGw);
+            env_.fund(xrp_funds, mcDoor, mcAlice, mcBob, mcCarol, mcGw);
 
             // Signer's list must match the attestation signers
             // env_(jtx::signers(mcDoor, quorum, signers));
@@ -65,7 +65,14 @@ struct xEnv : public jtx::XChainBridgeObjects
         else
         {
             env_.fund(
-                xrp_funds, scDoor, scAlice, scBob, scGw, scAttester, scReward);
+                xrp_funds,
+                scDoor,
+                scAlice,
+                scBob,
+                scCarol,
+                scGw,
+                scAttester,
+                scReward);
 
             for (auto& ra : payees)
                 env_.fund(xrp_funds, ra);
@@ -102,7 +109,7 @@ struct xEnv : public jtx::XChainBridgeObjects
     STAmount
     balance(jtx::Account const& account) const
     {
-        return env_.balance(account);
+        return env_.balance(account).value();
     }
 };
 
@@ -115,13 +122,13 @@ struct Balance
 
     Balance(T& env, jtx::Account const& account) : account_(account), env_(env)
     {
-        startAmount = env_.balance(account_).value();
+        startAmount = env_.balance(account_);
     }
 
     STAmount
     diff() const
     {
-        return env_.balance(account_).value() - startAmount;
+        return env_.balance(account_) - startAmount;
     }
 };
 
@@ -177,13 +184,19 @@ struct BalanceTransfer
     }
 
     bool
+    payees_received(STAmount const& reward) const
+    {
+        return std::all_of(
+            reward_accounts.begin(),
+            reward_accounts.end(),
+            [&](const balance& b) { return b.diff() == reward; });
+    }
+
+    bool
     check_most_balances(STAmount const& amt, STAmount const& reward)
     {
         return from_.diff() == -amt && to_.diff() == amt &&
-            std::all_of(
-                   reward_accounts.begin(),
-                   reward_accounts.end(),
-                   [&](const balance& b) { return b.diff() == reward; });
+            payees_received(reward);
     }
 
     bool
@@ -912,9 +925,8 @@ struct XChain_test : public beast::unit_test::suite,
         xEnv(*this)
             .tx(create_bridge(mcDoor, jvb))
             .fund(
-                res0 + one_xrp +
-                    xrp_dust,  // todo: "+ xrp_dust" should not be needed
-                mcuAlice)      // exactly enough => should succeed
+                res0 + one_xrp + xrp_dust,  // "xrp_dust" for tx fees
+                mcuAlice)                   // exactly enough => should succeed
             .close()
             .tx(xchain_commit(mcuAlice, jvb, 1, one_xrp, scBob));
 
@@ -979,6 +991,9 @@ struct XChain_test : public beast::unit_test::suite,
         using namespace jtx;
 
         testcase("Add Attestation");
+        XRPAmount res0 = reserve(0);
+        XRPAmount tx_fee = txFee();
+        STAmount tx_fee_2 = multiply(tx_fee, STAmount(2), xrpIssue());
 
         // Add an attestation to a claim id that has already reached quorum.
         // This should succeed and share in the reward.
@@ -1474,28 +1489,765 @@ struct XChain_test : public beast::unit_test::suite,
 
         // Add more than the maximum number of allowed attestations (8). This
         // should fail.
+        for (auto withClaim : {false})
+        {
+            xEnv mcEnv(*this);
+            xEnv scEnv(*this, true);
+
+            mcEnv.tx(create_bridge(mcDoor, jvb)).close();
+
+            scEnv.tx(create_bridge(Account::master, jvb))
+                .tx(jtx::signers(Account::master, quorum, signers))
+                .close()
+                .tx(xchain_create_claim_id(scAlice, jvb, reward, mcAlice))
+                .close();
+
+            auto dst(withClaim ? std::nullopt : std::optional<Account>{scBob});
+            auto const amt = XRP(1000);
+            std::uint32_t const claimID = 1;
+            mcEnv.tx(xchain_commit(mcAlice, jvb, claimID, amt, dst))
+                .tx(xchain_commit(mcAlice, jvb, claimID + 1, amt, dst))
+                .close();
+
+            BalanceTransfer transfer(
+                scEnv, Account::master, scBob, scAlice, payees, withClaim);
+
+            std::vector<AttestationBatch::AttestationClaim> claims;
+            claims.reserve(signers.size() * 2);
+            attestation_add_batch_to_vector(
+                claims,
+                jvb,
+                mcAlice,
+                amt,
+                &payees[0],
+                true,
+                claimID,
+                dst,
+                &signers[0],
+                signers.size());
+            attestation_add_batch_to_vector(
+                claims,
+                jvb,
+                mcAlice,
+                amt,
+                &payees[0],
+                true,
+                claimID + 1,
+                dst,
+                &signers[0],
+                signers.size());
+
+            STXChainBridge const stBridge(jvb);
+            // batch of 10 claims... should fail
+            STXChainAttestationBatch attn_batch{
+                stBridge, claims.begin(), claims.end()};
+
+            auto batch = attn_batch.getJson(JsonOptions::none);
+            scEnv
+                .tx(xchain_add_attestation_batch(scAttester, batch),
+                    ter(temXCHAIN_TOO_MANY_ATTESTATIONS))
+                .close();
+
+            BEAST_EXPECT(transfer.has_not_happened());
+        }
 
         // Add attestations for both account create and claims.
+        for (auto withClaim : {false})
+        {
+            xEnv mcEnv(*this);
+            xEnv scEnv(*this, true);
+            auto const amt = XRP(1000);
+
+            {
+                Balance door(mcEnv, mcDoor);
+                Balance carol(mcEnv, mcCarol);
+
+                mcEnv.tx(create_bridge(mcDoor, jvb))
+                    .close()
+                    .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scuAlice, amt, reward))
+                    .close();
+
+                BEAST_EXPECT(door.diff() == (amt + reward - tx_fee));
+                BEAST_EXPECT(carol.diff() == -(amt + reward + tx_fee));
+            }
+
+            scEnv.tx(create_bridge(Account::master, jvb))
+                .tx(jtx::signers(Account::master, quorum, signers))
+                .close()
+                .tx(xchain_create_claim_id(scAlice, jvb, reward, mcAlice))
+                .close();
+
+            auto dst(withClaim ? std::nullopt : std::optional<Account>{scBob});
+            std::uint32_t const claimID = 1;
+            mcEnv.tx(xchain_commit(mcAlice, jvb, claimID, amt, dst)).close();
+
+            BalanceTransfer transfer(
+                scEnv, Account::master, scBob, scAlice, payees, withClaim);
+
+            scEnv.tx(att_claim_batch1(claimID, amt, dst))
+                .tx(att_create_acct_batch2(1, amt, scuAlice))
+                .close();
+
+            BEAST_EXPECT(transfer.has_not_happened());
+
+            // now complete attestations for both account create and claim
+            Balance attester(scEnv, scAttester);
+
+            scEnv.tx(att_claim_batch2(claimID, amt, dst))
+                .tx(att_create_acct_batch1(1, amt, scuAlice))
+                .close();
+
+            if (withClaim)
+            {
+                BEAST_EXPECT(transfer.has_not_happened());
+
+                // need to submit a claim transactions
+                scEnv.tx(xchain_claim(scAlice, jvb, claimID, amt, scBob))
+                    .close();
+            }
+
+            // OK, both the CreateAccount and transfer should have happened now.
+
+            // all payees (signers) received 2 split_reward, as they attested
+            // for both the account_create and the transfer
+            BEAST_EXPECT(transfer.payees_received(
+                multiply(split_reward, STAmount(2), split_reward.issue())));
+
+            // Account::master paid amt twice, plus the signer fees for the
+            // account create
+            BEAST_EXPECT(transfer.from_.diff() == -(reward + XRP(2000)));
+
+            // the attester just paid for the two transactions
+            BEAST_EXPECT(
+                attester.diff() == -multiply(tx_fee, STAmount(2), xrpIssue()));
+        }
 
         // Confirm that account create transactions happen in the correct order.
-        // If they reach quorum out of order they should not execute until they
-        // reach quorum. Re-adding an attestation should move funds.
+        // If they reach quorum out of order they should not execute until until
+        // all the previous create transactions have occurred. Re-adding an
+        // attestation should move funds.
+        {
+            xEnv mcEnv(*this);
+            xEnv scEnv(*this, true);
+            auto const amt = XRP(1000);
+            auto const amt_plus_reward = amt + reward;
 
-        // Check that creating an account with less the minimum reserve fails.
+            {
+                Balance door(mcEnv, mcDoor);
+                Balance carol(mcEnv, mcCarol);
+
+                mcEnv.tx(create_bridge(mcDoor, jvb))
+                    .close()
+                    .tx(sidechain_xchain_account_create(
+                        mcAlice, jvb, scuAlice, amt, reward))
+                    .tx(sidechain_xchain_account_create(
+                        mcBob, jvb, scuBob, amt, reward))
+                    .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scuCarol, amt, reward))
+                    .close();
+
+                BEAST_EXPECT(
+                    door.diff() ==
+                    (multiply(amt_plus_reward, STAmount(3), xrpIssue()) -
+                     tx_fee));
+                BEAST_EXPECT(carol.diff() == -(amt + reward + tx_fee));
+            }
+
+            scEnv.tx(create_bridge(Account::master, jvb))
+                .tx(jtx::signers(Account::master, quorum, signers))
+                .close();
+
+            {
+                // send first batch of account create attest for all 3 account
+                // create
+                Balance attester(scEnv, scAttester);
+                Balance door(scEnv, Account::master);
+
+                scEnv.tx(att_create_acct_batch1(1, amt, scuAlice))
+                    .tx(att_create_acct_batch1(3, amt, scuCarol))
+                    .tx(att_create_acct_batch1(2, amt, scuBob))
+                    .close();
+
+                BEAST_EXPECT(door.diff() == STAmount(0));
+                BEAST_EXPECT(
+                    attester.diff() ==
+                    -multiply(tx_fee, STAmount(3), xrpIssue()));
+            }
+
+            {
+                // complete attestations for 2nd account create => should not
+                // complete
+                Balance attester(scEnv, scAttester);
+                Balance door(scEnv, Account::master);
+
+                scEnv.tx(att_create_acct_batch2(2, amt, scuBob)).close();
+
+                BEAST_EXPECT(door.diff() == STAmount(0));
+                BEAST_EXPECT(attester.diff() == -tx_fee);
+            }
+
+            {
+                // complete attestations for 3rd account create => should not
+                // complete
+                Balance attester(scEnv, scAttester);
+                Balance door(scEnv, Account::master);
+
+                scEnv.tx(att_create_acct_batch2(3, amt, scuCarol)).close();
+
+                BEAST_EXPECT(door.diff() == STAmount(0));
+                BEAST_EXPECT(attester.diff() == -tx_fee);
+            }
+
+            {
+                // complete attestations for 1st account create => account
+                // should be created
+                Balance attester(scEnv, scAttester);
+                Balance door(scEnv, Account::master);
+
+                scEnv.tx(att_create_acct_batch2(1, amt, scuAlice)).close();
+
+                BEAST_EXPECT(door.diff() == -amt_plus_reward);
+                BEAST_EXPECT(attester.diff() == -tx_fee);
+                BEAST_EXPECT(scEnv.balance(scuAlice) == amt);
+            }
+
+            {
+                // resend attestations for 3rd account create => still should
+                // not complete
+                Balance attester(scEnv, scAttester);
+                Balance door(scEnv, Account::master);
+
+                scEnv.tx(att_create_acct_batch2(3, amt, scuCarol)).close();
+
+                BEAST_EXPECT(door.diff() == STAmount(0));
+                BEAST_EXPECT(attester.diff() == -tx_fee);
+            }
+
+            {
+                // resend attestations for 2nd account create => account
+                // should be created
+                Balance attester(scEnv, scAttester);
+                Balance door(scEnv, Account::master);
+
+                scEnv.tx(att_create_acct_batch1(2, amt, scuBob)).close();
+
+                BEAST_EXPECT(door.diff() == -amt_plus_reward);
+                BEAST_EXPECT(attester.diff() == -tx_fee);
+                BEAST_EXPECT(scEnv.balance(scuBob) == amt);
+            }
+
+            {
+                // resend attestations for 3rc account create => account
+                // should be created
+                Balance attester(scEnv, scAttester);
+                Balance door(scEnv, Account::master);
+
+                scEnv.tx(att_create_acct_batch2(3, amt, scuCarol)).close();
+
+                BEAST_EXPECT(door.diff() == -amt_plus_reward);
+                BEAST_EXPECT(attester.diff() == -tx_fee);
+                BEAST_EXPECT(scEnv.balance(scuCarol) == amt);
+            }
+        }
+
+        // Check that creating an account with less than the minimum create
+        // amount fails.
+        {
+            xEnv mcEnv(*this);
+            auto const amt = XRP(19);
+
+            mcEnv.tx(create_bridge(mcDoor, jvb, XRP(1), XRP(20))).close();
+
+            Balance door(mcEnv, mcDoor);
+            Balance carol(mcEnv, mcCarol);
+
+            mcEnv
+                .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scuAlice, XRP(19), reward),
+                    ter(tecXCHAIN_INSUFF_CREATE_AMOUNT))
+                .close();
+
+            BEAST_EXPECT(door.diff() == STAmount(0));
+            BEAST_EXPECT(carol.diff() == -tx_fee);
+        }
+
+        // Check that creating an account with less than the minimum reserve
+        // fails.
+        {
+            xEnv mcEnv(*this);
+            xEnv scEnv(*this, true);
+
+            auto const amt = res0 - XRP(1);
+            auto const amt_plus_reward = amt + reward;
+
+            mcEnv.tx(create_bridge(mcDoor, jvb)).close();
+
+            {
+                Balance door(mcEnv, mcDoor);
+                Balance carol(mcEnv, mcCarol);
+
+                mcEnv
+                    .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scuAlice, amt, reward))
+                    .close();
+
+                BEAST_EXPECT(door.diff() == amt_plus_reward);
+                BEAST_EXPECT(carol.diff() == -(amt_plus_reward + tx_fee));
+            }
+
+            scEnv.tx(create_bridge(Account::master, jvb))
+                .tx(jtx::signers(Account::master, quorum, signers));
+
+            Balance attester(scEnv, scAttester);
+            Balance door(scEnv, Account::master);
+
+            scEnv.close()
+                .tx(att_create_acct_batch1(1, amt, scuAlice))
+                .tx(att_create_acct_batch2(1, amt, scuAlice))
+                .close();
+
+            BEAST_EXPECT(attester.diff() == -tx_fee_2);
+            BEAST_EXPECT(door.diff() == -reward);
+            BEAST_EXPECT(!scEnv.env_.le(scuAlice));
+        }
 
         // Check that sending funds with an account create txn to an existing
         // account works.
+        {
+            xEnv mcEnv(*this);
+            xEnv scEnv(*this, true);
+
+            auto const amt = XRP(111);
+            auto const amt_plus_reward = amt + reward;
+
+            mcEnv.tx(create_bridge(mcDoor, jvb)).close();
+
+            {
+                Balance door(mcEnv, mcDoor);
+                Balance carol(mcEnv, mcCarol);
+
+                mcEnv
+                    .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scAlice, amt, reward))
+                    .close();
+
+                BEAST_EXPECT(door.diff() == amt_plus_reward);
+                BEAST_EXPECT(carol.diff() == -(amt_plus_reward + tx_fee));
+            }
+
+            scEnv.tx(create_bridge(Account::master, jvb))
+                .tx(jtx::signers(Account::master, quorum, signers))
+                .close();
+
+            Balance attester(scEnv, scAttester);
+            Balance door(scEnv, Account::master);
+            Balance alice(scEnv, scAlice);
+
+            scEnv.tx(att_create_acct_batch1(1, amt, scAlice))
+                .tx(att_create_acct_batch2(1, amt, scAlice))
+                .close();
+
+            BEAST_EXPECT(door.diff() == -amt_plus_reward);
+            BEAST_EXPECT(attester.diff() == -tx_fee_2);
+            BEAST_EXPECT(alice.diff() == amt);
+        }
 
         // Check that sending funds to an existing account with deposit auth set
-        // fails - for both claim and account create transactions.
+        // fails for account create transactions.
+        {
+            xEnv mcEnv(*this);
+            xEnv scEnv(*this, true);
 
-        // If an account is unable to pay the reserver, check that it fails.
+            auto const amt = XRP(1000);
+            auto const amt_plus_reward = amt + reward;
 
-        // Create several account with a single batch attestation. This should
+            mcEnv.tx(create_bridge(mcDoor, jvb)).close();
+
+            {
+                Balance door(mcEnv, mcDoor);
+                Balance carol(mcEnv, mcCarol);
+
+                mcEnv
+                    .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scAlice, amt, reward))
+                    .close();
+
+                BEAST_EXPECT(door.diff() == amt_plus_reward);
+                BEAST_EXPECT(carol.diff() == -(amt_plus_reward + tx_fee));
+            }
+
+            scEnv.tx(create_bridge(Account::master, jvb))
+                .tx(jtx::signers(Account::master, quorum, signers))
+                .tx(fset("scAlice", asfDepositAuth))  // set deposit auth
+                .close();
+
+            Balance attester(scEnv, scAttester);
+            Balance door(scEnv, Account::master);
+            Balance alice(scEnv, scAlice);
+
+            scEnv.tx(att_create_acct_batch1(1, amt, scAlice))
+                .tx(att_create_acct_batch2(1, amt, scAlice))
+                .close();
+
+            BEAST_EXPECT(door.diff() == -reward);
+            BEAST_EXPECT(attester.diff() == -tx_fee_2);
+            BEAST_EXPECT(alice.diff() == STAmount(0));
+        }
+
+        // If an account is unable to pay the reserve, check that it fails.
+        // [greg todo] I don't know what this should test??
+
+        // Create several accounts with a single batch attestation. This should
         // succeed.
+        {
+            xEnv mcEnv(*this);
+            xEnv scEnv(*this, true);
+            auto const amt = XRP(1000);
+            auto const amt_plus_reward = amt + reward;
+
+            {
+                Balance door(mcEnv, mcDoor);
+                Balance carol(mcEnv, mcCarol);
+
+                mcEnv.tx(create_bridge(mcDoor, jvb))
+                    .close()
+                    .tx(sidechain_xchain_account_create(
+                        mcAlice, jvb, scuAlice, amt, reward))
+                    .tx(sidechain_xchain_account_create(
+                        mcBob, jvb, scuBob, amt, reward))
+                    .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scuCarol, amt, reward))
+                    .close();
+
+                BEAST_EXPECT(
+                    door.diff() ==
+                    (multiply(amt_plus_reward, STAmount(3), xrpIssue()) -
+                     tx_fee));
+                BEAST_EXPECT(carol.diff() == -(amt + reward + tx_fee));
+            }
+
+            std::uint32_t const red_quorum = 2;
+            scEnv.tx(create_bridge(Account::master, jvb))
+                .tx(jtx::signers(Account::master, red_quorum, signers))
+                .close();
+
+            {
+                Balance attester(scEnv, scAttester);
+                Balance door(scEnv, Account::master);
+
+                std::vector<AttestationBatch::AttestationCreateAccount> atts;
+                atts.reserve(8);
+                att_create_acct_add_n(atts, 1, amt, scuAlice, 0, red_quorum);
+                att_create_acct_add_n(atts, 2, amt, scuBob, 2, red_quorum);
+                att_create_acct_add_n(atts, 3, amt, scuCarol, 1, red_quorum);
+                scEnv.tx(att_create_acct_json(jvb, atts)).close();
+
+                BEAST_EXPECT(
+                    door.diff() ==
+                    -multiply(amt_plus_reward, STAmount(3), xrpIssue()));
+                BEAST_EXPECT(attester.diff() == -tx_fee);
+                BEAST_EXPECT(scEnv.balance(scuAlice) == amt);
+                BEAST_EXPECT(scEnv.balance(scuBob) == amt);
+                BEAST_EXPECT(scEnv.balance(scuCarol) == amt);
+            }
+        }
+
+        // Create several accounts with a single batch attestation, with
+        // attestations not in order. This should succeed.
+        {
+            xEnv mcEnv(*this);
+            xEnv scEnv(*this, true);
+            auto const amt = XRP(1000);
+            auto const amt_plus_reward = amt + reward;
+
+            {
+                Balance door(mcEnv, mcDoor);
+                Balance carol(mcEnv, mcCarol);
+
+                mcEnv.tx(create_bridge(mcDoor, jvb))
+                    .close()
+                    .tx(sidechain_xchain_account_create(
+                        mcAlice, jvb, scuAlice, amt, reward))
+                    .tx(sidechain_xchain_account_create(
+                        mcBob, jvb, scuBob, amt, reward))
+                    .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scuCarol, amt, reward))
+                    .close();
+
+                BEAST_EXPECT(
+                    door.diff() ==
+                    (multiply(amt_plus_reward, STAmount(3), xrpIssue()) -
+                     tx_fee));
+                BEAST_EXPECT(carol.diff() == -(amt + reward + tx_fee));
+            }
+
+            std::uint32_t const red_quorum = 2;
+            scEnv.tx(create_bridge(Account::master, jvb))
+                .tx(jtx::signers(Account::master, red_quorum, signers))
+                .close();
+
+            {
+                Balance attester(scEnv, scAttester);
+                Balance door(scEnv, Account::master);
+
+                std::vector<AttestationBatch::AttestationCreateAccount> atts;
+                atts.reserve(8);
+                att_create_acct_add_n(atts, 2, amt, scuBob, 2, red_quorum);
+                att_create_acct_add_n(atts, 1, amt, scuAlice, 0, red_quorum);
+                att_create_acct_add_n(atts, 3, amt, scuCarol, 1, red_quorum);
+                scEnv.tx(att_create_acct_json(jvb, atts)).close();
+
+                BEAST_EXPECT(
+                    door.diff() ==
+                    -multiply(amt_plus_reward, STAmount(3), xrpIssue()));
+                BEAST_EXPECT(attester.diff() == -tx_fee);
+                BEAST_EXPECT(scEnv.balance(scuAlice) == amt);
+                BEAST_EXPECT(scEnv.balance(scuBob) == amt);
+                BEAST_EXPECT(scEnv.balance(scuCarol) == amt);
+            }
+        }
+
+        // try even more mixed up attestations
+        {
+            xEnv mcEnv(*this);
+            xEnv scEnv(*this, true);
+            auto const amt = XRP(1000);
+            auto const amt_plus_reward = amt + reward;
+
+            {
+                Balance door(mcEnv, mcDoor);
+                Balance carol(mcEnv, mcCarol);
+
+                mcEnv.tx(create_bridge(mcDoor, jvb))
+                    .close()
+                    .tx(sidechain_xchain_account_create(
+                        mcAlice, jvb, scuAlice, amt, reward))
+                    .tx(sidechain_xchain_account_create(
+                        mcBob, jvb, scuBob, amt, reward))
+                    .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scuCarol, amt, reward))
+                    .close();
+
+                BEAST_EXPECT(
+                    door.diff() ==
+                    (multiply(amt_plus_reward, STAmount(3), xrpIssue()) -
+                     tx_fee));
+                BEAST_EXPECT(carol.diff() == -(amt + reward + tx_fee));
+            }
+
+            std::uint32_t const red_quorum = 2;
+            scEnv.tx(create_bridge(Account::master, jvb))
+                .tx(jtx::signers(Account::master, red_quorum, signers))
+                .close();
+
+            {
+                Balance attester(scEnv, scAttester);
+                Balance door(scEnv, Account::master);
+
+                std::vector<AttestationBatch::AttestationCreateAccount> atts;
+                atts.reserve(8);
+                att_create_acct_add_n(atts, 2, amt, scuBob, 2, 1);
+                att_create_acct_add_n(atts, 3, amt, scuCarol, 1, 1);
+                att_create_acct_add_n(atts, 1, amt, scuAlice, 0, 1);
+                att_create_acct_add_n(atts, 3, amt, scuCarol, 4, 1);
+                att_create_acct_add_n(atts, 3, amt, scuCarol, 0, 1);
+                att_create_acct_add_n(atts, 1, amt, scuAlice, 2, 1);
+                att_create_acct_add_n(atts, 2, amt, scuBob, 3, 1);
+                att_create_acct_add_n(atts, 1, amt, scuAlice, 3, 1);
+                scEnv.tx(att_create_acct_json(jvb, atts)).close();
+
+                // because of the division of the rewards among attesters,
+                // sometimes a couple drops are left over unspent in the door
+                // account (here 2 drops)
+                BEAST_EXPECT(
+                    multiply(amt_plus_reward, STAmount(3), xrpIssue()) +
+                        door.diff() <
+                    drops(3));
+                BEAST_EXPECT(attester.diff() == -tx_fee);
+                BEAST_EXPECT(scEnv.balance(scuAlice) == amt);
+                BEAST_EXPECT(scEnv.balance(scuBob) == amt);
+                BEAST_EXPECT(scEnv.balance(scuCarol) == amt);
+            }
+        }
+
+        // try multiple batches of attestations, with the quorum reached for
+        // multiple account create in the second and third batch
+        {
+            xEnv mcEnv(*this);
+            xEnv scEnv(*this, true);
+            auto const amt = XRP(1000);
+            auto const amt_plus_reward = amt + reward;
+
+            {
+                Balance door(mcEnv, mcDoor);
+                Balance carol(mcEnv, mcCarol);
+
+                mcEnv.tx(create_bridge(mcDoor, jvb))
+                    .close()
+                    .tx(sidechain_xchain_account_create(
+                        mcAlice, jvb, scuAlice, amt, reward))
+                    .close()  // make sure Alice gets claim #1
+                    .tx(sidechain_xchain_account_create(
+                        mcBob, jvb, scuBob, amt, reward))
+                    .close()  // make sure Bob gets claim #2
+                    .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scuCarol, amt, reward))
+                    .close();
+
+                BEAST_EXPECT(
+                    door.diff() ==
+                    (multiply(amt_plus_reward, STAmount(3), xrpIssue()) -
+                     tx_fee));
+                BEAST_EXPECT(carol.diff() == -(amt + reward + tx_fee));
+            }
+
+            std::uint32_t const red_quorum = 2;
+            scEnv.tx(create_bridge(Account::master, jvb))
+                .tx(jtx::signers(Account::master, red_quorum, signers))
+                .close();
+
+            {
+                Balance attester(scEnv, scAttester);
+                Balance door(scEnv, Account::master);
+
+                std::vector<AttestationBatch::AttestationCreateAccount> atts;
+                atts.reserve(8);
+                att_create_acct_add_n(atts, 2, amt, scuBob, 2, 1);
+                att_create_acct_add_n(atts, 3, amt, scuCarol, 1, 1);
+                att_create_acct_add_n(atts, 1, amt, scuAlice, 0, 1);
+                scEnv.tx(att_create_acct_json(jvb, atts)).close();
+
+                atts.clear();
+                att_create_acct_add_n(atts, 3, amt, scuCarol, 4, 1);
+                scEnv.tx(att_create_acct_json(jvb, atts)).close();
+
+                atts.clear();
+                att_create_acct_add_n(atts, 3, amt, scuCarol, 0, 1);
+                scEnv.tx(att_create_acct_json(jvb, atts)).close();
+
+                atts.clear();
+                att_create_acct_add_n(atts, 1, amt, scuAlice, 2, 1);
+                scEnv.tx(att_create_acct_json(jvb, atts)).close();
+
+                atts.clear();
+                att_create_acct_add_n(atts, 2, amt, scuBob, 3, 1);
+                att_create_acct_add_n(atts, 1, amt, scuAlice, 3, 1);
+                scEnv.tx(att_create_acct_json(jvb, atts)).close();
+
+                atts.clear();
+                att_create_acct_add_n(atts, 3, amt, scuCarol, 0, 1);
+                scEnv.tx(att_create_acct_json(jvb, atts)).close();
+
+                // because of the division of the rewards among attesters,
+                // sometimes a couple drops are left over unspent in the door
+                // account (here 2 drops)
+                BEAST_EXPECT(
+                    multiply(amt_plus_reward, STAmount(3), xrpIssue()) +
+                        door.diff() <
+                    drops(3));
+                BEAST_EXPECT(
+                    attester.diff() ==
+                    -multiply(tx_fee, STAmount(6), xrpIssue()));
+                BEAST_EXPECT(scEnv.balance(scuAlice) == amt);
+                BEAST_EXPECT(scEnv.balance(scuBob) == amt);
+                BEAST_EXPECT(scEnv.balance(scuCarol) == amt);
+            }
+        }
 
         // If an attestation already exists for that server and claim id, the
-        // new attestation should replace the old attestation.
+        // new attestation should replace the old
+        {
+            xEnv mcEnv(*this);
+            xEnv scEnv(*this, true);
+            auto const amt = XRP(1000);
+            auto const amt_plus_reward = amt + reward;
+
+            {
+                Balance door(mcEnv, mcDoor);
+                Balance carol(mcEnv, mcCarol);
+
+                mcEnv.tx(create_bridge(mcDoor, jvb))
+                    .close()
+                    .tx(sidechain_xchain_account_create(
+                        mcAlice, jvb, scuAlice, amt, reward))
+                    .close()  // make sure Alice gets claim #1
+                    .tx(sidechain_xchain_account_create(
+                        mcBob, jvb, scuBob, amt, reward))
+                    .close()  // make sure Bob gets claim #2
+                    .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scuCarol, amt, reward))
+                    .close();
+
+                BEAST_EXPECT(
+                    door.diff() ==
+                    (multiply(amt_plus_reward, STAmount(3), xrpIssue()) -
+                     tx_fee));
+                BEAST_EXPECT(carol.diff() == -(amt + reward + tx_fee));
+            }
+
+            std::uint32_t const red_quorum = 2;
+            scEnv.tx(create_bridge(Account::master, jvb))
+                .tx(jtx::signers(Account::master, red_quorum, signers))
+                .close();
+
+            {
+                Balance attester(scEnv, scAttester);
+                Balance door(scEnv, Account::master);
+                auto const bad_amt = XRP(10);
+
+                std::vector<AttestationBatch::AttestationCreateAccount> atts;
+                atts.reserve(8);
+
+                // send attestations with incorrect amounts to for all 3
+                // AccountCreate. They will be replaced later
+                att_create_acct_add_n(atts, 1, bad_amt, scuAlice, 0, 1);
+                att_create_acct_add_n(atts, 2, bad_amt, scuBob, 2, 1);
+                att_create_acct_add_n(atts, 3, bad_amt, scuCarol, 1, 1);
+                scEnv.tx(att_create_acct_json(jvb, atts)).close();
+
+                // note: if we send inconsistent attestations in the same batch,
+                // the transaction errors.
+
+                // from now on we send correct attestations
+                atts.clear();
+                att_create_acct_add_n(atts, 1, amt, scuAlice, 0, 1);
+                att_create_acct_add_n(atts, 2, amt, scuBob, 2, 1);
+                att_create_acct_add_n(atts, 3, amt, scuCarol, 4, 1);
+                scEnv.tx(att_create_acct_json(jvb, atts)).close();
+
+                atts.clear();
+                att_create_acct_add_n(atts, 3, amt, scuCarol, 1, 1);
+                scEnv.tx(att_create_acct_json(jvb, atts)).close();
+
+                atts.clear();
+                att_create_acct_add_n(atts, 1, amt, scuAlice, 2, 1);
+                scEnv.tx(att_create_acct_json(jvb, atts)).close();
+
+                atts.clear();
+                att_create_acct_add_n(atts, 2, amt, scuBob, 3, 1);
+                att_create_acct_add_n(atts, 1, amt, scuAlice, 3, 1);
+                scEnv.tx(att_create_acct_json(jvb, atts)).close();
+
+                atts.clear();
+                att_create_acct_add_n(atts, 3, amt, scuCarol, 0, 1);
+                scEnv.tx(att_create_acct_json(jvb, atts)).close();
+
+                // because of the division of the rewards among attesters,
+                // sometimes a couple drops are left over unspent in the door
+                // account (here 2 drops)
+                BEAST_EXPECT(
+                    multiply(amt_plus_reward, STAmount(3), xrpIssue()) +
+                        door.diff() <
+                    drops(3));
+                BEAST_EXPECT(
+                    attester.diff() ==
+                    -multiply(tx_fee, STAmount(6), xrpIssue()));
+                BEAST_EXPECT(scEnv.balance(scuAlice) == amt);
+                BEAST_EXPECT(scEnv.balance(scuBob) == amt);
+                BEAST_EXPECT(scEnv.balance(scuCarol) == amt);
+            }
+        }
     }
 
     void
@@ -1928,7 +2680,7 @@ struct XChain_test : public beast::unit_test::suite,
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
             STAmount huge_reward{XRP(20000)};
-            BEAST_EXPECT(huge_reward > scEnv.balance(scAlice).value());
+            BEAST_EXPECT(huge_reward > scEnv.balance(scAlice));
 
             scEnv.tx(create_bridge(Account::master, jvb, huge_reward))
                 .tx(jtx::signers(Account::master, quorum, signers))

@@ -133,7 +133,7 @@ Json::Value
 xchain_commit(
     Account const& acc,
     Json::Value const& bridge,
-    std::uint32_t xchainSeq,
+    std::uint32_t claimID,
     AnyAmount const& amt,
     std::optional<Account> const& dst)
 {
@@ -141,7 +141,7 @@ xchain_commit(
 
     jv[jss::Account] = acc.human();
     jv[sfXChainBridge.getJsonName()] = bridge;
-    jv[sfXChainClaimID.getJsonName()] = xchainSeq;
+    jv[sfXChainClaimID.getJsonName()] = claimID;
     jv[jss::Amount] = amt.value.getJson(JsonOptions::none);
     if (dst)
         jv[sfOtherChainDestination.getJsonName()] = dst->human();
@@ -207,8 +207,9 @@ xchain_add_attestation_batch(Account const& acc, Json::Value const& batch)
     return jv;
 }
 
-Json::Value
-attestation_claim_batch(
+void
+attestation_add_batch_to_vector(
+    std::vector<AttestationBatch::AttestationClaim>& claims,
     Json::Value const& jvBridge,
     jtx::Account const& sendingAccount,
     jtx::AnyAmount const& sendingAmount,
@@ -221,8 +222,6 @@ attestation_claim_batch(
     attestation_cb cb)
 {
     STXChainBridge const stBridge(jvBridge);
-    std::vector<AttestationBatch::AttestationClaim> claims;
-    claims.reserve(num_signers);
 
     for (size_t i = 0; i < num_signers; ++i)
     {
@@ -252,7 +251,37 @@ attestation_claim_batch(
             claimID,
             dst ? std::optional{dst->id()} : std::nullopt);
     }
+}
 
+Json::Value
+attestation_claim_batch(
+    Json::Value const& jvBridge,
+    jtx::Account const& sendingAccount,
+    jtx::AnyAmount const& sendingAmount,
+    jtx::Account const* rewardAccounts,
+    bool wasLockingChainSend,
+    std::uint64_t claimID,
+    std::optional<jtx::Account> const& dst,
+    jtx::signer const* signers,
+    size_t num_signers,
+    attestation_cb cb)
+{
+    std::vector<AttestationBatch::AttestationClaim> claims;
+    claims.reserve(num_signers);
+    attestation_add_batch_to_vector(
+        claims,
+        jvBridge,
+        sendingAccount,
+        sendingAmount,
+        rewardAccounts,
+        wasLockingChainSend,
+        claimID,
+        dst,
+        signers,
+        num_signers,
+        cb);
+
+    STXChainBridge const stBridge(jvBridge);
     STXChainAttestationBatch batch{stBridge, claims.begin(), claims.end()};
 
     return batch.getJson(JsonOptions::none);
@@ -288,26 +317,21 @@ attestation_claim_batch(
         signers.size());
 }
 
-Json::Value
-attestation_create_account_batch(
+void
+create_account_batch_add_to_vector(
+    std::vector<AttestationBatch::AttestationCreateAccount>& atts,
     Json::Value const& jvBridge,
     jtx::Account const& sendingAccount,
     jtx::AnyAmount const& sendingAmount,
     jtx::AnyAmount const& rewardAmount,
-    std::vector<jtx::Account> const& rewardAccounts,
+    jtx::Account const* rewardAccounts,
     bool wasLockingChainSend,
     std::uint64_t createCount,
     jtx::Account const& dst,
-    std::vector<jtx::signer> const& signers,
-    size_t num_signers /* = 0 */)
+    jtx::signer const* signers,
+    size_t num_signers)
 {
-    assert(rewardAccounts.size() == signers.size());
-    if (num_signers == 0)
-        num_signers = signers.size();
-
     STXChainBridge const stBridge(jvBridge);
-    std::vector<AttestationBatch::AttestationCreateAccount> atts;
-    atts.reserve(num_signers);
 
     for (int i = 0; i != num_signers; ++i)
     {
@@ -337,6 +361,37 @@ attestation_create_account_batch(
             createCount,
             dst);
     }
+}
+
+Json::Value
+attestation_create_account_batch(
+    Json::Value const& jvBridge,
+    jtx::Account const& sendingAccount,
+    jtx::AnyAmount const& sendingAmount,
+    jtx::AnyAmount const& rewardAmount,
+    jtx::Account const* rewardAccounts,
+    bool wasLockingChainSend,
+    std::uint64_t createCount,
+    jtx::Account const& dst,
+    jtx::signer const* signers,
+    size_t num_signers)
+{
+    STXChainBridge const stBridge(jvBridge);
+    std::vector<AttestationBatch::AttestationCreateAccount> atts;
+    atts.reserve(num_signers);
+
+    create_account_batch_add_to_vector(
+        atts,
+        jvBridge,
+        sendingAccount,
+        sendingAmount,
+        rewardAmount,
+        rewardAccounts,
+        wasLockingChainSend,
+        createCount,
+        dst,
+        signers,
+        num_signers);
 
     AttestationBatch::AttestationClaim* nullClaimRange = nullptr;
     STXChainAttestationBatch batch{
@@ -349,20 +404,24 @@ XChainBridgeObjects::XChainBridgeObjects()
     : mcDoor("mcDoor")
     , mcAlice("mcAlice")
     , mcBob("mcBob")
+    , mcCarol("mcCarol")
     , mcGw("mcGw")
     , scDoor("scDoor")
     , scAlice("scAlice")
     , scBob("scBob")
+    , scCarol("scCarol")
     , scGw("scGw")
     , scAttester("scAttester")
     , scReward("scReward")
     , mcuDoor("mcuDoor")
     , mcuAlice("mcuAlice")
     , mcuBob("mcuBob")
+    , mcuCarol("mcuCarol")
     , mcuGw("mcuGw")
     , scuDoor("scuDoor")
     , scuAlice("scuAlice")
     , scuBob("scuBob")
+    , scuCarol("scuCarol")
     , scuGw("scuGw")
     , mcUSD(mcGw["USD"])
     , scUSD(scGw["USD"])
@@ -436,8 +495,9 @@ void
 XChainBridgeObjects::createBridgeObjects(Env& mcEnv, Env& scEnv)
 {
     STAmount xrp_funds{XRP(10000)};
-    mcEnv.fund(xrp_funds, mcDoor, mcAlice, mcBob, mcGw);
-    scEnv.fund(xrp_funds, scDoor, scAlice, scBob, scGw, scAttester, scReward);
+    mcEnv.fund(xrp_funds, mcDoor, mcAlice, mcBob, mcCarol, mcGw);
+    scEnv.fund(
+        xrp_funds, scDoor, scAlice, scBob, scCarol, scGw, scAttester, scReward);
 
     // Signer's list must match the attestation signers
     mcEnv(jtx::signers(mcDoor, signers.size(), signers));
