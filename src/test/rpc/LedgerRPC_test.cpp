@@ -234,11 +234,11 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
             mcAlice,
             amt,
             reward,
-            payee,
+            &payee[0],
             /*wasLockingChainSend*/ true,
             1,
             scCarol,
-            signers,
+            &signers[0],
             num_attest);
         scEnv(xchain_add_attestation_batch(scAttester, batch));
         scEnv.close();
@@ -314,11 +314,12 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
             mcAlice,
             amt,
             reward,
-            payee,
+            &payee[0],
             /*wasLockingChainSend*/ true,
             1,
             scCarol,
-            signers);
+            &signers[0],
+            signers.size());
 
         scEnv(xchain_add_attestation_batch(scAttester, batch2));
         scEnv.close();
