@@ -231,6 +231,7 @@ struct XChainBridgeObjects
 
     Json::Value
     att_claim_batch1(
+        jtx::Account const& src,
         std::uint64_t claimID,
         jtx::AnyAmount const& amt,
         std::optional<jtx::Account> const& dst)
@@ -238,19 +239,12 @@ struct XChainBridgeObjects
         return xchain_add_attestation_batch(
             scAttester,
             attestation_claim_batch(
-                jvb,
-                mcAlice,
-                amt,
-                &payees[0],
-                true,
-                claimID,
-                dst,
-                &signers[0],
-                3));
+                jvb, src, amt, &payees[0], true, claimID, dst, &signers[0], 3));
     }
 
     Json::Value
     att_claim_batch2(
+        jtx::Account const& src,
         std::uint64_t claimID,
         jtx::AnyAmount const& amt,
         std::optional<jtx::Account> const& dst)
@@ -258,15 +252,30 @@ struct XChainBridgeObjects
         return xchain_add_attestation_batch(
             scAttester,
             attestation_claim_batch(
-                jvb,
-                mcAlice,
-                amt,
-                &payees[3],
-                true,
-                claimID,
-                dst,
-                &signers[3],
-                2));
+                jvb, src, amt, &payees[3], true, claimID, dst, &signers[3], 2));
+    }
+
+    void
+    att_claim_add_n(
+        std::vector<AttestationBatch::AttestationClaim>& claims,
+        jtx::Account const& src,
+        std::uint64_t claimID,
+        jtx::AnyAmount const& amt,
+        std::optional<jtx::Account> const& dst,
+        size_t first_attest,
+        size_t num_attest)
+    {
+        attestation_add_batch_to_vector(
+            claims,
+            jvb,
+            src,
+            amt,
+            &payees[first_attest],
+            true,
+            claimID,
+            dst,
+            &signers[first_attest],
+            num_attest);
     }
 
     Json::Value
@@ -335,14 +344,14 @@ struct XChainBridgeObjects
     }
 
     Json::Value
-    att_create_acct_json(
+    att_claim_json(
         Json::Value const& jvBridge,
-        std::vector<AttestationBatch::AttestationCreateAccount>& atts)
+        const std::vector<AttestationBatch::AttestationClaim>& claims,
+        const std::vector<AttestationBatch::AttestationCreateAccount>& atts)
     {
         STXChainBridge const stBridge(jvBridge);
-        AttestationBatch::AttestationClaim* nullClaimRange = nullptr;
         STXChainAttestationBatch batch{
-            stBridge, nullClaimRange, nullClaimRange, atts.begin(), atts.end()};
+            stBridge, claims.begin(), claims.end(), atts.begin(), atts.end()};
         return xchain_add_attestation_batch(
             scAttester, batch.getJson(JsonOptions::none));
     }
