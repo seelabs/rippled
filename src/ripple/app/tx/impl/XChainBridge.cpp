@@ -1088,7 +1088,7 @@ XChainAddAttestation::preflight(PreflightContext const& ctx)
 
     STXChainAttestationBatch const batch = ctx.tx[sfXChainAttestationBatch];
 
-    if (batch.numAttestations() > 8)
+    if (batch.numAttestations() > AttestationBatch::maxAttestations)
     {
         return temXCHAIN_TOO_MANY_ATTESTATIONS;
     }
