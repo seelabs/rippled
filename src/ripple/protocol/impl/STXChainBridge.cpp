@@ -33,6 +33,48 @@
 
 namespace ripple {
 
+STXChainBridge::XRPLData::XRPLData(
+    ChainType ct,
+    AccountID const& door_,
+    Issue const& issue_)
+    : door{ct == ChainType::locking ? sfLockingChainDoor : sfIssuingChainDoor, door_}
+    , issue{
+          ct == ChainType::locking ? sfIssuingChainIssue : sfIssuingChainIssue,
+          issue_}
+{
+}
+
+STXChainBridge::XRPLData::XRPLData(ChainType ct, SerialIter& sit)
+    : door{sit, ct == ChainType::locking ? sfLockingChainDoor : sfIssuingChainDoor}
+    , issue{
+          sit,
+          ct == ChainType::locking ? sfIssuingChainIssue : sfIssuingChainIssue}
+{
+}
+
+STXChainBridge::ChainSide::ChainSide(
+    ChainType ct,
+    AccountID const& door,
+    Issue const& issue)
+    : ChainSide{XRPLData{ct, door, issue}}
+{
+}
+
+STXChainBridge::ChainSide::ChainSide(ChainType ct, SerialIter& sit)
+{
+    std::uint16_t const cid = sit.get16();
+    switch (cid)
+    {
+        case cid_unchecked:
+            break;
+        case cid_xrpl:
+            *this = XRPLData{ct, sit};
+            break;
+        default:
+            break;
+    }
+}
+
 STXChainBridge::STXChainBridge() : STBase{sfXChainBridge}
 {
 }
@@ -42,24 +84,23 @@ STXChainBridge::STXChainBridge(SField const& name) : STBase{name}
 }
 
 STXChainBridge::STXChainBridge(
-    AccountID const& srcChainDoor,
-    Issue const& srcChainIssue,
-    AccountID const& dstChainDoor,
-    Issue const& dstChainIssue)
+    AccountID const& lockingChainDoor,
+    Issue const& lockingChainIssue,
+    AccountID const& issuingChainDoor,
+    Issue const& issuingChainIssue)
     : STBase{sfXChainBridge}
-    , lockingChainDoor_{sfLockingChainDoor, srcChainDoor}
-    , lockingChainIssue_{sfLockingChainIssue, srcChainIssue}
-    , issuingChainDoor_{sfIssuingChainDoor, dstChainDoor}
-    , issuingChainIssue_{sfIssuingChainIssue, dstChainIssue}
+    , lockingChain_{ChainType::locking, lockingChainDoor, lockingChainIssue}
+    , issuingChain_{ChainType::issuing, issuingChainDoor, issuingChainIssue}
 {
 }
 
 STXChainBridge::STXChainBridge(STObject const& o)
     : STBase{sfXChainBridge}
-    , lockingChainDoor_{sfLockingChainDoor, o[sfLockingChainDoor]}
-    , lockingChainIssue_{sfLockingChainIssue, o[sfLockingChainIssue]}
-    , issuingChainDoor_{sfIssuingChainDoor, o[sfIssuingChainDoor]}
-    , issuingChainIssue_{sfIssuingChainIssue, o[sfIssuingChainIssue]}
+    , lockingChain_{ChainType::locking, o[sfLockingChainDoor], o[sfLockingChainIssue]}
+    , issuingChain_{
+          ChainType::issuing,
+          o[sfIssuingChainDoor],
+          o[sfIssuingChainIssue]}
 {
 }
 
@@ -75,7 +116,8 @@ STXChainBridge::STXChainBridge(SField const& name, Json::Value const& v)
     if (!v.isObject())
     {
         Throw<std::runtime_error>(
-            "STXChainBridge can only be specified with a 'object' Json value");
+            "STXChainBridge can only be specified with a 'object' "
+            "Json value");
     }
 
     Json::Value const lockingChainDoorStr = v[jss::LockingChainDoor];
@@ -86,12 +128,14 @@ STXChainBridge::STXChainBridge(SField const& name, Json::Value const& v)
     if (!lockingChainDoorStr.isString())
     {
         Throw<std::runtime_error>(
-            "STXChainBridge LockingChainDoor must be a string Json value");
+            "STXChainBridge LockingChainDoor must be a string Json "
+            "value");
     }
     if (!issuingChainDoorStr.isString())
     {
         Throw<std::runtime_error>(
-            "STXChainBridge IssuingChainDoor must be a string Json value");
+            "STXChainBridge IssuingChainDoor must be a string Json "
+            "value");
     }
 
     auto const lockingChainDoor =
@@ -101,20 +145,22 @@ STXChainBridge::STXChainBridge(SField const& name, Json::Value const& v)
     if (!lockingChainDoor)
     {
         Throw<std::runtime_error>(
-            "STXChainBridge LockingChainDoor must be a valid account");
+            "STXChainBridge LockingChainDoor must be a valid "
+            "account");
     }
     if (!issuingChainDoor)
     {
         Throw<std::runtime_error>(
-            "STXChainBridge IssuingChainDoor must be a valid account");
+            "STXChainBridge IssuingChainDoor must be a valid "
+            "account");
     }
 
-    lockingChainDoor_ = STAccount{sfLockingChainDoor, *lockingChainDoor};
-    lockingChainIssue_ =
-        STIssue{sfLockingChainIssue, issueFromJson(lockingChainIssue)};
-    issuingChainDoor_ = STAccount{sfIssuingChainDoor, *issuingChainDoor};
-    issuingChainIssue_ =
-        STIssue{sfIssuingChainIssue, issueFromJson(issuingChainIssue)};
+    lockingChain_ = XRPLData{
+        STAccount{sfLockingChainDoor, *lockingChainDoor},
+        STIssue{sfLockingChainIssue, issueFromJson(lockingChainIssue)}};
+    issuingChain_ = XRPLData{
+        STAccount{sfIssuingChainDoor, *issuingChainDoor},
+        STIssue{sfIssuingChainIssue, issueFromJson(issuingChainIssue)}};
 }
 
 STXChainBridge::STXChainBridge(SerialIter& sit, SField const& name)

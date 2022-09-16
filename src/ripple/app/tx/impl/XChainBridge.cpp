@@ -418,18 +418,26 @@ BridgeCreate::preflight(PreflightContext const& ctx)
     auto const reward = ctx.tx[sfSignatureReward];
     auto const minAccountCreate = ctx.tx[~sfMinAccountCreateAmount];
     auto const bridge = ctx.tx[sfXChainBridge];
-    if (bridge.lockingChainDoor() == bridge.issuingChainDoor())
+    auto const lcDoor = bridge.lockingChainDoor();
+    auto const lcIssue = bridge.lockingChainIssue();
+    auto const icDoor = bridge.issuingChainDoor();
+    auto const icIssue = bridge.issuingChainIssue();
+
+    if ((!lcDoor && !icDoor) || (bool(lcDoor) != bool(lcIssue)) ||
+        (bool(icDoor) != bool(icIssue)))
+        return temMALFORMED;
+
+    if (lcDoor && icDoor && *lcDoor == *icDoor)
     {
         return temEQUAL_DOOR_ACCOUNTS;
     }
 
-    if (bridge.lockingChainDoor() != account &&
-        bridge.issuingChainDoor() != account)
+    if ((!lcDoor || *lcDoor != account) && (!icDoor || *icDoor != account))
     {
         return temSIDECHAIN_NONDOOR_OWNER;
     }
 
-    if (isXRP(bridge.lockingChainIssue()) != isXRP(bridge.issuingChainIssue()))
+    if (lcIssue && icIssue && isXRP(*lcIssue) != isXRP(*icIssue))
     {
         // Because ious and xrp have different numeric ranges, both the src and
         // dst issues must be both XRP or both IOU.
@@ -447,27 +455,31 @@ BridgeCreate::preflight(PreflightContext const& ctx)
         return temXCHAIN_BRIDGE_BAD_MIN_ACCOUNT_CREATE_AMOUNT;
     }
 
-    if (isXRP(bridge.issuingChainIssue()))
+    if (icIssue)
     {
-        // Issuing account must be the root account for XRP (which presumably
-        // owns all the XRP). This is done so the issuing account can't "run
-        // out" of wrapped tokens.
-        static auto const rootAccount = calcAccountID(
-            generateKeyPair(
-                KeyType::secp256k1, generateSeed("masterpassphrase"))
-                .first);
-        if (bridge.issuingChainDoor() != rootAccount)
+        assert(icDoor);
+        if (isXRP(*icIssue))
         {
-            return temSIDECHAIN_BAD_ISSUES;
+            // Issuing account must be the root account for XRP (which
+            // presumably owns all the XRP). This is done so the issuing account
+            // can't "run out" of wrapped tokens.
+            static auto const rootAccount = calcAccountID(
+                generateKeyPair(
+                    KeyType::secp256k1, generateSeed("masterpassphrase"))
+                    .first);
+            if (*icDoor != rootAccount)
+            {
+                return temSIDECHAIN_BAD_ISSUES;
+            }
         }
-    }
-    else
-    {
-        // Issuing account must be the issuer for non-XRP. This is done so the
-        // issuing account can't "run out" of wrapped tokens.
-        if (bridge.issuingChainDoor() != bridge.issuingChainIssue().account)
+        else
         {
-            return temSIDECHAIN_BAD_ISSUES;
+            // Issuing account must be the issuer for non-XRP. This is done so
+            // the issuing account can't "run out" of wrapped tokens.
+            if (*icDoor != icIssue->account)
+            {
+                return temSIDECHAIN_BAD_ISSUES;
+            }
         }
     }
 
@@ -479,27 +491,24 @@ BridgeCreate::preclaim(PreclaimContext const& ctx)
 {
     auto const account = ctx.tx[sfAccount];
     auto const bridge = ctx.tx[sfXChainBridge];
+    auto const lcDoor = bridge.lockingChainDoor();
+    auto const lcIssue = bridge.lockingChainIssue();
+    auto const icIssue = bridge.issuingChainIssue();
 
     if (ctx.view.read(keylet::bridge(bridge)))
     {
         return tecDUPLICATE;
     }
 
-    bool const isLockingChain = (account == bridge.lockingChainDoor());
+    {
+        bool const isLockingChain = (lcDoor && account == *lcDoor);
+        auto const thisChainIssuePtr = isLockingChain ? lcIssue : icIssue;
+        if (!thisChainIssuePtr)
+            return tecINTERNAL;
+        auto const& thisChainIssue = *thisChainIssuePtr;
 
-    if (isLockingChain)
-    {
-        if (!isXRP(bridge.lockingChainIssue()) &&
-            !ctx.view.read(keylet::account(bridge.lockingChainIssue().account)))
-        {
-            return tecNO_ISSUER;
-        }
-    }
-    else
-    {
-        // issuing chain
-        if (!isXRP(bridge.issuingChainIssue()) &&
-            !ctx.view.read(keylet::account(bridge.issuingChainIssue().account)))
+        if (!isXRP(thisChainIssue) &&
+            !ctx.view.read(keylet::account(thisChainIssue.account)))
         {
             return tecNO_ISSUER;
         }

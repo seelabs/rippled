@@ -24,6 +24,10 @@
 #include <ripple/protocol/STBase.h>
 #include <ripple/protocol/STIssue.h>
 
+#include <string>
+#include <variant>
+#include <vector>
+
 namespace ripple {
 
 class Serializer;
@@ -31,15 +35,35 @@ class STObject;
 
 class STXChainBridge final : public STBase
 {
-    STAccount lockingChainDoor_{sfLockingChainDoor};
-    STIssue lockingChainIssue_{sfLockingChainIssue};
-    STAccount issuingChainDoor_{sfIssuingChainDoor};
-    STIssue issuingChainIssue_{sfIssuingChainIssue};
+public:
+    // Changing the chain type ids is transaction breaking
+    enum ChainDataID : std::uint16_t { cid_unchecked, cid_xrpl };
+    enum class ChainType { locking, issuing };
+
+private:
+    struct XRPLData
+    {
+        STAccount door;
+        STIssue issue;
+
+        XRPLData(ChainType ct, AccountID const& door, Issue const& issue);
+        XRPLData(ChainType ct, SerialIter& sit);
+    };
+
+    using ChainSideBase = std::variant<std::vector<std::uint8_t>, XRPLData>;
+
+    struct ChainSide : ChainSideBase
+    {
+        using ChainSideBase::ChainSideBase;
+        ChainSide(ChainType ct, AccountID const& door, Issue const& issue);
+        ChainSide(ChainType ct, SerialIter& sit);
+    };
+
+    ChainSide lockingChain_;
+    ChainSide issuingChain_;
 
 public:
     using value_type = STXChainBridge;
-
-    enum class ChainType { locking, issuing };
 
     static ChainType
     otherChain(ChainType ct);
@@ -59,10 +83,10 @@ public:
     STXChainBridge(STObject const& o);
 
     STXChainBridge(
-        AccountID const& srcChainDoor,
-        Issue const& srcChainIssue,
-        AccountID const& dstChainDoor,
-        Issue const& dstChainIssue);
+        AccountID const& lockingChainDoor,
+        Issue const& lockingChainIssue,
+        AccountID const& issuingChainDoor,
+        Issue const& issuingChainIssue);
 
     explicit STXChainBridge(Json::Value const& v);
 
@@ -76,22 +100,28 @@ public:
     STObject
     toSTObject() const;
 
-    AccountID const&
+    // result may be null
+    AccountID const*
     lockingChainDoor() const;
 
-    Issue const&
+    // result may be null
+    Issue const*
     lockingChainIssue() const;
 
-    AccountID const&
+    // result may be null
+    AccountID const*
     issuingChainDoor() const;
 
-    Issue const&
+    // result may be null
+    Issue const*
     issuingChainIssue() const;
 
-    AccountID const&
+    // result may be null
+    AccountID const*
     door(ChainType ct) const;
 
-    Issue const&
+    // result may be null
+    Issue const*
     issue(ChainType ct) const;
 
     SerializedTypeID
@@ -120,71 +150,75 @@ private:
     STBase*
     move(std::size_t n, void* buf) override;
 
-    friend bool
-    operator==(STXChainBridge const& lhs, STXChainBridge const& rhs);
+    friend auto
+    operator==(
+        STXChainBridge::XRPLData const& lhs,
+        STXChainBridge::XRPLData const& rhs)
+    {
+        return std::tie(lhs.door, lhs.issue) == std::tie(rhs.door, rhs.issue);
+    }
 
-    friend bool
-    operator<(STXChainBridge const& lhs, STXChainBridge const& rhs);
+    friend auto
+    operator<(
+        STXChainBridge::XRPLData const& lhs,
+        STXChainBridge::XRPLData const& rhs)
+    {
+        return std::tie(lhs.door, lhs.issue) == std::tie(rhs.door, rhs.issue);
+    }
+
+    friend auto
+    operator==(STXChainBridge const& lhs, STXChainBridge const& rhs)
+    {
+        return std::tie(lhs.lockingChain_, lhs.issuingChain_) ==
+            std::tie(rhs.lockingChain_, rhs.issuingChain_);
+    }
+
+    friend auto
+    operator<(STXChainBridge const& lhs, STXChainBridge const& rhs)
+    {
+        return std::tie(lhs.lockingChain_, lhs.issuingChain_) <
+            std::tie(rhs.lockingChain_, rhs.issuingChain_);
+    }
 };
 
-inline bool
-operator==(STXChainBridge const& lhs, STXChainBridge const& rhs)
-{
-    return std::tie(
-               lhs.lockingChainDoor_,
-               lhs.lockingChainIssue_,
-               lhs.issuingChainDoor_,
-               lhs.issuingChainIssue_) ==
-        std::tie(
-               rhs.lockingChainDoor_,
-               rhs.lockingChainIssue_,
-               rhs.issuingChainDoor_,
-               rhs.issuingChainIssue_);
-}
-
-inline bool
-operator!=(STXChainBridge const& lhs, STXChainBridge const& rhs)
-{
-    return !(lhs == rhs);
-}
-
-inline bool
-operator<(STXChainBridge const& lhs, STXChainBridge const& rhs)
-{
-    return std::tie(
-               lhs.lockingChainDoor_,
-               lhs.lockingChainIssue_,
-               lhs.issuingChainDoor_,
-               lhs.issuingChainIssue_) ==
-        std::tie(
-               rhs.lockingChainDoor_,
-               rhs.lockingChainIssue_,
-               rhs.issuingChainDoor_,
-               rhs.issuingChainIssue_);
-}
-
-inline AccountID const&
+inline AccountID const*
 STXChainBridge::lockingChainDoor() const
 {
-    return lockingChainDoor_.value();
+    if (auto p = std::get_if<STXChainBridge::XRPLData>(&lockingChain_))
+    {
+        return &p->door.value();
+    }
+    return nullptr;
 };
 
-inline Issue const&
+inline Issue const*
 STXChainBridge::lockingChainIssue() const
 {
-    return lockingChainIssue_.value();
+    if (auto p = std::get_if<STXChainBridge::XRPLData>(&lockingChain_))
+    {
+        return &p->issue.value();
+    }
+    return nullptr;
 };
 
-inline AccountID const&
+inline AccountID const*
 STXChainBridge::issuingChainDoor() const
 {
-    return issuingChainDoor_.value();
+    if (auto p = std::get_if<STXChainBridge::XRPLData>(&issuingChain_))
+    {
+        return &p->door.value();
+    }
+    return nullptr;
 };
 
-inline Issue const&
+inline Issue const*
 STXChainBridge::issuingChainIssue() const
 {
-    return issuingChainIssue_.value();
+    if (auto p = std::get_if<STXChainBridge::XRPLData>(&issuingChain_))
+    {
+        return &p->issue.value();
+    }
+    return nullptr;
 };
 
 inline STXChainBridge::value_type const&
@@ -193,7 +227,7 @@ STXChainBridge::value() const noexcept
     return *this;
 }
 
-inline AccountID const&
+inline AccountID const*
 STXChainBridge::door(ChainType ct) const
 {
     if (ct == ChainType::locking)
@@ -201,7 +235,7 @@ STXChainBridge::door(ChainType ct) const
     return issuingChainDoor();
 }
 
-inline Issue const&
+inline Issue const*
 STXChainBridge::issue(ChainType ct) const
 {
     if (ct == ChainType::locking)
