@@ -221,6 +221,12 @@ struct XChainBridgeObjects
     XChainBridgeObjects();
 
     void
+    createMcBridgeObjects(Env& mcEnv);
+
+    void
+    createScBridgeObjects(Env& scEnv);
+
+    void
     createBridgeObjects(Env& mcEnv, Env& scEnv);
 
     Json::Value

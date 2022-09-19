@@ -492,25 +492,45 @@ XChainBridgeObjects::XChainBridgeObjects()
 }
 
 void
-XChainBridgeObjects::createBridgeObjects(Env& mcEnv, Env& scEnv)
+XChainBridgeObjects::createMcBridgeObjects(Env& mcEnv)
 {
     STAmount xrp_funds{XRP(10000)};
     mcEnv.fund(xrp_funds, mcDoor, mcAlice, mcBob, mcCarol, mcGw);
-    scEnv.fund(
-        xrp_funds, scDoor, scAlice, scBob, scCarol, scGw, scAttester, scReward);
 
     // Signer's list must match the attestation signers
     mcEnv(jtx::signers(mcDoor, signers.size(), signers));
-    scEnv(jtx::signers(Account::master, signers.size(), signers));
 
     // create XRP bridges in both direction
     auto const reward = XRP(1);
     STAmount const minCreate = XRP(20);
 
     mcEnv(bridge_create(mcDoor, jvb, reward, minCreate));
-    scEnv(bridge_create(Account::master, jvb, reward, minCreate));
     mcEnv.close();
+}
+
+void
+XChainBridgeObjects::createScBridgeObjects(Env& scEnv)
+{
+    STAmount xrp_funds{XRP(10000)};
+    scEnv.fund(
+        xrp_funds, scDoor, scAlice, scBob, scCarol, scGw, scAttester, scReward);
+
+    // Signer's list must match the attestation signers
+    scEnv(jtx::signers(Account::master, signers.size(), signers));
+
+    // create XRP bridges in both direction
+    auto const reward = XRP(1);
+    STAmount const minCreate = XRP(20);
+
+    scEnv(bridge_create(Account::master, jvb, reward, minCreate));
     scEnv.close();
+}
+
+void
+XChainBridgeObjects::createBridgeObjects(Env& mcEnv, Env& scEnv)
+{
+    createMcBridgeObjects(mcEnv);
+    createScBridgeObjects(scEnv);
 }
 }  // namespace jtx
 }  // namespace test

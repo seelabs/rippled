@@ -453,7 +453,7 @@ public:
             // for in the ledger.
             test::jtx::XChainBridgeObjects x;
             Env scEnv(*this, envconfig(port_increment, 3), features);
-            x.createBridgeObjects(env, scEnv);
+            x.createScBridgeObjects(scEnv);
 
             scEnv(
                 xchain_create_claim_id(x.scAlice, x.jvb, x.reward, x.mcAlice));
@@ -495,6 +495,45 @@ public:
                     xchain_seq[sfXChainClaimID.getJsonName()].asUInt() == 2);
             }
         }
+        {
+            test::jtx::XChainBridgeObjects x;
+            Env scEnv(*this, envconfig(port_increment, 3), features);
+            x.createScBridgeObjects(scEnv);
+            auto const amt = XRP(1000);
+
+            // send first batch of account create attestations, so the
+            // xchain_create_account_claim_id should be present on the door
+            // account (Account::master) to collect the signatures until a
+            // quorum is reached
+            scEnv(x.att_create_acct_batch1(1, amt, x.scuAlice));
+            scEnv.close();
+
+            auto scenv_acct_objs = [&](Account const& acct, char const* type) {
+                Json::Value params;
+                params[jss::account] = acct.human();
+                params[jss::type] = type;
+                params[jss::ledger_index] = "validated";
+                return scEnv.rpc("json", "account_objects", to_string(params));
+            };
+
+            {
+                // Find the xchain_create_account_claim_id
+                Json::Value const resp = scenv_acct_objs(
+                    Account::master, jss::xchain_create_account_claim_id);
+                BEAST_EXPECT(acct_objs_is_size(resp, 1));
+
+                auto const& xchain_create_account_claim_id =
+                    resp[jss::result][jss::account_objects][0u];
+                BEAST_EXPECT(
+                    xchain_create_account_claim_id[sfAccount.jsonName] ==
+                    Account::master.human());
+                BEAST_EXPECT(
+                    xchain_create_account_claim_id[sfXChainAccountCreateCount
+                                                       .getJsonName()]
+                        .asUInt() == 1);
+            }
+        }
+
         // gw creates an offer that we can look for in the ledger.
         env(offer(gw, USD(7), XRP(14)));
         env.close();
