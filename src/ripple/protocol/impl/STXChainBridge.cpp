@@ -19,6 +19,7 @@
 
 #include <ripple/protocol/STXChainBridge.h>
 
+#include <ripple/basics/StringUtilities.h>
 #include <ripple/protocol/Indexes.h>
 #include <ripple/protocol/Issue.h>
 #include <ripple/protocol/PublicKey.h>
@@ -52,6 +53,54 @@ STXChainBridge::XRPLData::XRPLData(ChainType ct, SerialIter& sit)
 {
 }
 
+STXChainBridge::XRPLData::XRPLData(ChainType ct, Json::Value const& v)
+{
+    if (!v.isObject())
+    {
+        Throw<std::runtime_error>(
+            "STXChainBridge::XRPLData can only be specified with a 'object' "
+            "Json value");
+    }
+
+    Json::Value const doorStr = v[jss::Door];
+    Json::Value const issueJson = v[jss::Issue];
+
+    if (!doorStr.isString())
+    {
+        Throw<std::runtime_error>(
+            "STXChainBridge door must be a string Json value");
+    }
+    auto const doorOpt = parseBase58<AccountID>(doorStr.asString());
+    if (!doorOpt)
+    {
+        Throw<std::runtime_error>(
+            "STXChainBridge door must be a valid account");
+    }
+
+    door = STAccount{
+        ct == ChainType::locking ? sfLockingChainDoor : sfIssuingChainDoor,
+        *doorOpt};
+    issue = STIssue{
+        ct == ChainType::locking ? sfIssuingChainIssue : sfIssuingChainIssue,
+        issueFromJson(issueJson)};
+}
+
+void
+STXChainBridge::XRPLData::add(Serializer& s) const
+{
+    door.add(s);
+    issue.add(s);
+}
+
+Json::Value
+STXChainBridge::XRPLData::getJson(JsonOptions jo) const
+{
+    Json::Value v;
+    v[jss::Door] = door.getJson(jo);
+    v[jss::Issue] = issue.getJson(jo);
+    return v;
+}
+
 STXChainBridge::ChainSide::ChainSide(
     ChainType ct,
     AccountID const& door,
@@ -66,6 +115,7 @@ STXChainBridge::ChainSide::ChainSide(ChainType ct, SerialIter& sit)
     switch (cid)
     {
         case cid_unchecked:
+            *this = sit.getVL();
             break;
         case cid_xrpl:
             *this = XRPLData{ct, sit};
@@ -73,6 +123,152 @@ STXChainBridge::ChainSide::ChainSide(ChainType ct, SerialIter& sit)
         default:
             break;
     }
+}
+
+STXChainBridge::ChainSide::ChainSide(ChainType ct, Json::Value const& v)
+{
+    if (!v.isObject())
+    {
+        Throw<std::runtime_error>(
+            "STXChainBridge::ChainSide can only be specified with a 'object' "
+            "Json value");
+    }
+
+    if (!v.isMember(jss::ChainKind))
+    {
+        Throw<std::runtime_error>(
+            "STXChainBridge::ChainSide must specify a ChainKind");
+    }
+    auto const ckv = v[jss::ChainKind];
+    if (!ckv.isIntegral())
+    {
+        Throw<std::runtime_error>(
+            "STXChainBridge::ChainSide must be an integer");
+    }
+
+    switch (ckv.asUInt())
+    {
+        case cid_unchecked: {
+            // decode the hex into data
+            if (!v.isMember(jss::Data))
+            {
+                Throw<std::runtime_error>(
+                    "STXChainBridge::ChainSide must specify a Data field for "
+                    "unchecked chain kinds");
+            }
+            auto const& dataV = v[jss::Data];
+            if (!dataV.isString())
+            {
+                Throw<std::runtime_error>(
+                    "STXChainBridge::ChainSide must specify a Data as a hex "
+                    "string");
+            }
+            auto const dataOpt = strUnHex(dataV.asString());
+            if (!dataOpt)
+            {
+                Throw<std::runtime_error>(
+                    "STXChainBridge::ChainSide must specify a Data as a hex "
+                    "string");
+            }
+            *this = *dataOpt;
+            return;
+        }
+        break;
+        case cid_xrpl: {
+            *this = STXChainBridge::XRPLData{ct, v};
+            return;
+        }
+        break;
+        default: {
+            Throw<std::runtime_error>(
+                "STXChainBridge::ChainSide unknown chain kind");
+        }
+        break;
+    }
+}
+
+void
+STXChainBridge::ChainSide::add(Serializer& s) const
+{
+    std::visit(
+        [&s](const auto& v) {
+            using T = std::decay_t<decltype(v)>;
+
+            if constexpr (std::is_same_v<T, STXChainBridge::XRPLData>)
+            {
+                s.add16(cid_xrpl);
+                v.add(s);
+            }
+            else if constexpr (std::is_same_v<T, std::vector<std::uint8_t>>)
+            {
+                s.add16(cid_unchecked);
+                s.addVL(v);
+            }
+            else
+            {
+                static_assert(sizeof(T) == -1, "non-exhaustive visitor");
+            }
+        },
+        *this);
+};
+
+Json::Value
+STXChainBridge::ChainSide::getJson(JsonOptions jo) const
+{
+    return std::visit(
+        [&](const auto& v) -> Json::Value {
+            using T = std::decay_t<decltype(v)>;
+
+            if constexpr (std::is_same_v<T, STXChainBridge::XRPLData>)
+            {
+                auto r = v.getJson(jo);
+                r[jss::ChainKind] = cid_xrpl;
+                return r;
+            }
+            else if constexpr (std::is_same_v<T, std::vector<std::uint8_t>>)
+            {
+                Json::Value r;
+                r[jss::ChainKind] = cid_unchecked;
+                r[jss::Data] = strHex(v);
+                return r;
+            }
+            else
+            {
+                static_assert(sizeof(T) == -1, "non-exhaustive visitor");
+            }
+        },
+        *this);
+}
+
+bool
+STXChainBridge::ChainSide::isDefault() const
+{
+    return std::visit(
+        [&](const auto& v) -> bool {
+            using T = std::decay_t<decltype(v)>;
+
+            if constexpr (std::is_same_v<T, STXChainBridge::XRPLData>)
+            {
+                return v.door.isDefault() && v.issue.isDefault();
+            }
+            else if constexpr (std::is_same_v<T, std::vector<std::uint8_t>>)
+            {
+                return v.empty();
+            }
+            else
+            {
+                static_assert(sizeof(T) == -1, "non-exhaustive visitor");
+            }
+        },
+        *this);
+}
+
+STObject
+STXChainBridge::ChainSide::toSTObject() const
+{
+    // TBD
+    STObject o{sfXChainBridge};
+    return o;
 }
 
 STXChainBridge::STXChainBridge() : STBase{sfXChainBridge}
@@ -120,86 +316,40 @@ STXChainBridge::STXChainBridge(SField const& name, Json::Value const& v)
             "Json value");
     }
 
-    Json::Value const lockingChainDoorStr = v[jss::LockingChainDoor];
-    Json::Value const lockingChainIssue = v[jss::LockingChainIssue];
-    Json::Value const issuingChainDoorStr = v[jss::IssuingChainDoor];
-    Json::Value const issuingChainIssue = v[jss::IssuingChainIssue];
-
-    if (!lockingChainDoorStr.isString())
-    {
-        Throw<std::runtime_error>(
-            "STXChainBridge LockingChainDoor must be a string Json "
-            "value");
-    }
-    if (!issuingChainDoorStr.isString())
-    {
-        Throw<std::runtime_error>(
-            "STXChainBridge IssuingChainDoor must be a string Json "
-            "value");
-    }
-
-    auto const lockingChainDoor =
-        parseBase58<AccountID>(lockingChainDoorStr.asString());
-    auto const issuingChainDoor =
-        parseBase58<AccountID>(issuingChainDoorStr.asString());
-    if (!lockingChainDoor)
-    {
-        Throw<std::runtime_error>(
-            "STXChainBridge LockingChainDoor must be a valid "
-            "account");
-    }
-    if (!issuingChainDoor)
-    {
-        Throw<std::runtime_error>(
-            "STXChainBridge IssuingChainDoor must be a valid "
-            "account");
-    }
-
-    lockingChain_ = XRPLData{
-        STAccount{sfLockingChainDoor, *lockingChainDoor},
-        STIssue{sfLockingChainIssue, issueFromJson(lockingChainIssue)}};
-    issuingChain_ = XRPLData{
-        STAccount{sfIssuingChainDoor, *issuingChainDoor},
-        STIssue{sfIssuingChainIssue, issueFromJson(issuingChainIssue)}};
+    lockingChain_ =
+        STXChainBridge::ChainSide{ChainType::locking, v[jss::LockingChain]};
+    lockingChain_ =
+        STXChainBridge::ChainSide{ChainType::issuing, v[jss::IssuingChain]};
 }
 
 STXChainBridge::STXChainBridge(SerialIter& sit, SField const& name)
     : STBase{name}
-    , lockingChainDoor_{sit, sfLockingChainDoor}
-    , lockingChainIssue_{sit, sfLockingChainIssue}
-    , issuingChainDoor_{sit, sfIssuingChainDoor}
-    , issuingChainIssue_{sit, sfIssuingChainIssue}
+    , lockingChain_{ChainType::locking, sit}
+    , issuingChain_{ChainType::issuing, sit}
 {
 }
 
 void
 STXChainBridge::add(Serializer& s) const
 {
-    lockingChainDoor_.add(s);
-    lockingChainIssue_.add(s);
-    issuingChainDoor_.add(s);
-    issuingChainIssue_.add(s);
+    lockingChain_.add(s);
+    issuingChain_.add(s);
 }
 
 Json::Value
 STXChainBridge::getJson(JsonOptions jo) const
 {
     Json::Value v;
-    v[jss::LockingChainDoor] = lockingChainDoor_.getJson(jo);
-    v[jss::LockingChainIssue] = lockingChainIssue_.getJson(jo);
-    v[jss::IssuingChainDoor] = issuingChainDoor_.getJson(jo);
-    v[jss::IssuingChainIssue] = issuingChainIssue_.getJson(jo);
+    v[jss::LockingChain] = lockingChain_.getJson(jo);
+    v[jss::IssuingChain] = issuingChain_.getJson(jo);
     return v;
 }
 
 STObject
 STXChainBridge::toSTObject() const
 {
+    // TBD
     STObject o{sfXChainBridge};
-    o[sfLockingChainDoor] = lockingChainDoor_;
-    o[sfLockingChainIssue] = lockingChainIssue_;
-    o[sfIssuingChainDoor] = issuingChainDoor_;
-    o[sfIssuingChainIssue] = issuingChainIssue_;
     return o;
 }
 
@@ -219,8 +369,7 @@ STXChainBridge::isEquivalent(const STBase& t) const
 bool
 STXChainBridge::isDefault() const
 {
-    return lockingChainDoor_.isDefault() && lockingChainIssue_.isDefault() &&
-        issuingChainDoor_.isDefault() && issuingChainIssue_.isDefault();
+    return lockingChain_.isDefault() && issuingChain_.isDefault();
 }
 
 std::unique_ptr<STXChainBridge>

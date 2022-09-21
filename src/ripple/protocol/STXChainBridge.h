@@ -48,6 +48,13 @@ private:
 
         XRPLData(ChainType ct, AccountID const& door, Issue const& issue);
         XRPLData(ChainType ct, SerialIter& sit);
+        XRPLData(ChainType ct, Json::Value const& v);
+
+        void
+        add(Serializer& s) const;
+
+        Json::Value
+        getJson(JsonOptions jo) const;
     };
 
     using ChainSideBase = std::variant<std::vector<std::uint8_t>, XRPLData>;
@@ -57,6 +64,19 @@ private:
         using ChainSideBase::ChainSideBase;
         ChainSide(ChainType ct, AccountID const& door, Issue const& issue);
         ChainSide(ChainType ct, SerialIter& sit);
+        ChainSide(ChainType ct, Json::Value const& v);
+
+        void
+        add(Serializer& s) const;
+
+        Json::Value
+        getJson(JsonOptions jo) const;
+
+        STObject
+        toSTObject() const;
+
+        bool
+        isDefault() const;
     };
 
     ChainSide lockingChain_;

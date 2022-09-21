@@ -56,10 +56,13 @@ JSS(CheckCreate);                 // transaction type.
 JSS(ClearFlag);                   // field.
 JSS(XChainClaimID);               // ledger type.
 JSS(XChainCreateAccountClaimID);  // ledger type.
+JSS(ChainKind);                   // field.
+JSS(Data);                        // field.
 JSS(DeliverMin);                  // in: TransactionSign
 JSS(DepositPreauth);              // transaction and ledger type.
 JSS(Destination);                 // in: TransactionSign; field.
 JSS(DirectoryNode);               // ledger type.
+JSS(Door);                        // field.
 JSS(EnableAmendment);             // transaction type.
 JSS(Escrow);                      // ledger type.
 JSS(EscrowCancel);                // transaction type.
@@ -70,13 +73,12 @@ JSS(FeeSettings);                 // ledger type.
 JSS(Flags);                       // in/out: TransactionSign; field.
 JSS(incomplete_shards);           // out: OverlayImpl, PeerImp
 JSS(Invalid);                     //
-JSS(IssuingChainDoor);            // field.
-JSS(IssuingChainIssue);           // field.
+JSS(IssuingChain);                // field.
+JSS(Issue);                       // field.
 JSS(LastLedgerSequence);          // in: TransactionSign; field
 JSS(LedgerHashes);                // ledger type.
 JSS(LimitAmount);                 // field.
-JSS(LockingChainDoor);            // field.
-JSS(LockingChainIssue);           // field.
+JSS(LockingChain);                // field.
 JSS(NFTokenBurn);                 // transaction type.
 JSS(NFTokenMint);                 // transaction type.
 JSS(NFTokenOffer);                // ledger type.
