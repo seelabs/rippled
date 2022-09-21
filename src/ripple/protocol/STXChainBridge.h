@@ -155,7 +155,7 @@ operator<(STXChainBridge const& lhs, STXChainBridge const& rhs)
                lhs.lockingChainDoor_,
                lhs.lockingChainIssue_,
                lhs.issuingChainDoor_,
-               lhs.issuingChainIssue_) ==
+               lhs.issuingChainIssue_) <
         std::tie(
                rhs.lockingChainDoor_,
                rhs.lockingChainIssue_,

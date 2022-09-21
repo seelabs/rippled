@@ -85,12 +85,6 @@ private:
 STIssue
 issueFromJson(SField const& name, Json::Value const& v);
 
-inline bool
-operator==(STIssue const& lhs, Issue const& rhs)
-{
-    return lhs.issue() == rhs;
-}
-
 inline Issue const&
 STIssue::issue() const
 {
@@ -119,6 +113,24 @@ inline bool
 operator!=(STIssue const& lhs, STIssue const& rhs)
 {
     return !operator==(lhs, rhs);
+}
+
+inline bool
+operator<(STIssue const& lhs, STIssue const& rhs)
+{
+    return lhs.issue() < rhs.issue();
+}
+
+inline bool
+operator==(STIssue const& lhs, Issue const& rhs)
+{
+    return lhs.issue() == rhs;
+}
+
+inline bool
+operator<(STIssue const& lhs, Issue const& rhs)
+{
+    return lhs.issue() < rhs;
 }
 
 }  // namespace ripple

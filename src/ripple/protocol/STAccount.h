@@ -100,9 +100,27 @@ STAccount::setValue(AccountID const& v)
 }
 
 inline bool
+operator==(STAccount const& lhs, STAccount const& rhs)
+{
+    return lhs.value() == rhs.value();
+}
+
+inline auto
+operator<(STAccount const& lhs, STAccount const& rhs)
+{
+    return lhs.value() < rhs.value();
+}
+
+inline bool
 operator==(STAccount const& lhs, AccountID const& rhs)
 {
     return lhs.value() == rhs;
+}
+
+inline auto
+operator<(STAccount const& lhs, AccountID const& rhs)
+{
+    return lhs.value() < rhs;
 }
 
 }  // namespace ripple
