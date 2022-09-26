@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <ripple/basics/UnorderedContainers.h>
 #include <ripple/basics/safe_cast.h>
 #include <ripple/beast/unit_test.h>
 #include <ripple/protocol/InnerObjectFormats.h>

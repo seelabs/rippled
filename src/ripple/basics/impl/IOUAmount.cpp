@@ -110,6 +110,7 @@ IOUAmount::operator+=(IOUAmount const& other)
     if (*stNumberSwitchover)
     {
         *this = IOUAmount{Number{*this} + Number{other}};
+        // return *this; and remove the `else`
     }
     else
     {

@@ -41,15 +41,18 @@ class Number
 public:
     struct unchecked
     {
+        // do we still need these?
         explicit unchecked() = default;
     };
 
     explicit constexpr Number() = default;
 
+    // explicit?
     Number(rep mantissa);
     explicit Number(rep mantissa, int exponent);
     explicit constexpr Number(rep mantissa, int exponent, unchecked) noexcept;
 
+    // explicit?
     Number(XRPAmount const& x);
 
     constexpr rep
@@ -158,6 +161,8 @@ public:
     setround(rounding_mode mode);
 
 private:
+    // What about co-routines, if they resume on a different thread they'd have
+    // a different rounding mode.
     static thread_local rounding_mode mode_;
 
     void
@@ -292,6 +297,7 @@ operator/(Number const& x, Number const& y)
 inline constexpr bool
 Number::isnormal() const noexcept
 {
+    // Check that taking a negative of the larges neg value works OK
     auto const abs_m = mantissa_ < 0 ? -mantissa_ : mantissa_;
     return minMantissa <= abs_m && abs_m <= maxMantissa &&
         minExponent <= exponent_ && exponent_ <= maxExponent;
@@ -300,6 +306,8 @@ Number::isnormal() const noexcept
 inline constexpr Number
 abs(Number x) noexcept
 {
+    // Does this work for largest negative value? Do we have to handle that
+    // case?
     if (x < Number{})
         x = -x;
     return x;

@@ -37,6 +37,7 @@ using namespace std::chrono_literals;
 boost::filesystem::path
 ShardArchiveHandler::getDownloadDirectory(Config const& config)
 {
+    // Why did this change?
     return boost::filesystem::path{
                get(config.section(ConfigSection::shardDatabase()),
                    "download_path",

@@ -129,6 +129,7 @@ Number::Guard::pop() noexcept
 int
 Number::Guard::round() noexcept
 {
+    // Get warning about return
     auto mode = Number::getround();
     switch (mode)
     {
@@ -171,9 +172,11 @@ Number::normalize()
         return;
     }
     bool const negative = (mantissa_ < 0);
+    // Check that this works for max negative
     if (negative)
         mantissa_ = -mantissa_;
     auto m = static_cast<std::make_unsigned_t<rep>>(mantissa_);
+    // Check for overflow, underflow, and DOS issues
     while ((m < minMantissa) && (exponent_ > minExponent))
     {
         m *= 10;
@@ -227,6 +230,8 @@ Number::operator+=(Number const& y)
         *this = Number{};
         return *this;
     }
+    // Check that we always do computations on normalized numbers.
+    // Why do we support unnormalized numbers ever? Can we remove that?
     assert(isnormal() && y.isnormal());
     auto xm = mantissa();
     auto xe = exponent();
@@ -425,6 +430,7 @@ Number::operator/=(Number const& y)
     static_assert(a2.isnormal());
     Number rm2{};
     Number rm1{};
+    // Division is now an iterative process? Yikes.
     Number r = (a2 * d + a1) * d + a0;
     //  Newton–Raphson iteration of 1/x - d with initial guess r
     //  halt when r stops changing, checking for bouncing on the last iteration
@@ -573,6 +579,7 @@ to_string(Number const& amount)
 Number
 power(Number const& f, unsigned n)
 {
+    // Can this overflow? Do we need to check for that?
     if (n == 0)
         return one;
     if (n == 1)
