@@ -437,7 +437,9 @@ XChainBridgeObjects::XChainBridgeObjects()
         for (int i = 0; i < numSigners; ++i)
         {
             using namespace std::literals;
-            auto const a = Account("signer_"s + std::to_string(i));
+            auto const a = Account(
+                "signer_"s + std::to_string(i),
+                (i % 2) ? KeyType::ed25519 : KeyType::secp256k1);
             result.emplace_back(a);
         }
         return result;
@@ -449,7 +451,9 @@ XChainBridgeObjects::XChainBridgeObjects()
         for (int i = 0; i < numSigners; ++i)
         {
             using namespace std::literals;
-            auto const a = Account("alt_signer_"s + std::to_string(i));
+            auto const a = Account(
+                "alt_signer_"s + std::to_string(i),
+                (i % 2) ? KeyType::ed25519 : KeyType::secp256k1);
             result.emplace_back(a);
         }
         return result;

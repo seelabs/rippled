@@ -33,10 +33,13 @@
 #include <test/jtx/multisign.h>
 #include <test/jtx/xchain_bridge.h>
 
+#include <functional>
 #include <limits>
 #include <optional>
+#include <random>
 #include <string>
 #include <tuple>
+#include <variant>
 #include <vector>
 
 #include <fstream>
@@ -61,6 +64,8 @@ struct xEnv : public jtx::XChainBridgeObjects
 
             // Signer's list must match the attestation signers
             // env_(jtx::signers(mcDoor, quorum, signers));
+            for (auto& s : signers)
+                env_.fund(xrp_funds, s.account);
         }
         else
         {
@@ -77,6 +82,9 @@ struct xEnv : public jtx::XChainBridgeObjects
             for (auto& ra : payees)
                 env_.fund(xrp_funds, ra);
 
+            for (auto& s : signers)
+                env_.fund(xrp_funds, s.account);
+
             // Signer's list must match the attestation signers
             // env_(jtx::signers(Account::master, quorum, signers));
         }
@@ -87,6 +95,7 @@ struct xEnv : public jtx::XChainBridgeObjects
     close()
     {
         env_.close();
+
         return *this;
     }
 
@@ -110,6 +119,18 @@ struct xEnv : public jtx::XChainBridgeObjects
     balance(jtx::Account const& account) const
     {
         return env_.balance(account).value();
+    }
+
+    XRPAmount
+    reserve(std::uint32_t count)
+    {
+        return env_.current()->fees().accountReserve(count);
+    }
+
+    XRPAmount
+    txFee()
+    {
+        return env_.current()->fees().base;
     }
 };
 
@@ -835,6 +856,7 @@ struct XChain_test : public beast::unit_test::suite,
     {
         using namespace jtx;
         XRPAmount res1 = reserve(1);
+        XRPAmount tx_fee = txFee();
 
         testcase("Create ClaimID");
 
@@ -846,6 +868,19 @@ struct XChain_test : public beast::unit_test::suite,
             .close()
             .tx(xchain_create_claim_id(scuAlice, jvb, reward, mcAlice))
             .close();
+
+        // check reward not deducted when claim id is created
+        {
+            xEnv xenv(*this, true);
+
+            Balance scAlice_bal(xenv, scAlice);
+
+            xenv.tx(create_bridge(Account::master, jvb))
+                .tx(xchain_create_claim_id(scAlice, jvb, reward, mcAlice))
+                .close();
+
+            BEAST_EXPECT(scAlice_bal.diff() == -tx_fee);
+        }
 
         // Non-existent bridge
         xEnv(*this, true)
@@ -890,12 +925,29 @@ struct XChain_test : public beast::unit_test::suite,
     {
         using namespace jtx;
         XRPAmount res0 = reserve(0);
+        XRPAmount tx_fee = txFee();
 
         testcase("Commit");
 
         // Commit to a non-existent bridge
         xEnv(*this).tx(
             xchain_commit(mcAlice, jvb, 1, one_xrp, scBob), ter(tecNO_ENTRY));
+
+        // check that reward not deducted when doing the commit
+        {
+            xEnv xenv(*this);
+
+            Balance alice_bal(xenv, mcAlice);
+            auto const amt = XRP(1000);
+
+            xenv.tx(create_bridge(mcDoor, jvb))
+                .close()
+                .tx(xchain_commit(mcAlice, jvb, 1, amt, scBob))
+                .close();
+
+            STAmount claim_cost = amt;
+            BEAST_EXPECT(alice_bal.diff() == -(claim_cost + tx_fee));
+        }
 
         // Commit a negative amount
         xEnv(*this)
@@ -1339,8 +1391,6 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(bob.diff() == added_amt);
             BEAST_EXPECT(carol.diff() == added_amt);
         }
-
-        // ++++++++++++todo
 
         // Add a batch of attestations for different claim ids. All the claim id
         // exist. Test for both reaching quorum
@@ -3221,6 +3271,14 @@ struct XChain_test : public beast::unit_test::suite,
                     .tx(xchain_claim(scAlice, jvb, claimID, amt, scBob),
                         ter(tecNO_PERMISSION))
                     .close();
+
+                // the transfer failed, but check that we can still use the
+                // claimID with a different account
+                Balance scCarol_bal(scEnv, scCarol);
+
+                scEnv.tx(xchain_claim(scAlice, jvb, claimID, amt, scCarol))
+                    .close();
+                BEAST_EXPECT(scCarol_bal.diff() == amt);
             }
             else
             {
@@ -3228,10 +3286,135 @@ struct XChain_test : public beast::unit_test::suite,
                     .tx(xchain_add_attestation_batch(scAttester, batch),
                         ter(tecNO_PERMISSION))
                     .close();
-            }
 
-            BEAST_EXPECT(transfer.has_not_happened());
+                // A way would be to remove deposit auth and resubmit the
+                // attestations (even though the witness servers won't do it)
+                scEnv
+                    .tx(fset("scBob", 0, asfDepositAuth))  // clear deposit auth
+                    .close();
+
+                Balance scBob_bal(scEnv, scBob);
+
+                scEnv.tx(xchain_add_attestation_batch(scAttester, batch))
+                    .close();
+                BEAST_EXPECT(scBob_bal.diff() == amt);
+            }
         }
+
+        // Pay to an account with Destination Tag set
+        // ------------------------------------------
+        for (auto withClaim : {false, true})
+        {
+            xEnv mcEnv(*this);
+            xEnv scEnv(*this, true);
+
+            mcEnv.tx(create_bridge(mcDoor, jvb)).close();
+
+            scEnv.tx(create_bridge(Account::master, jvb))
+                .tx(jtx::signers(Account::master, quorum, signers))
+                .tx(fset("scBob", asfRequireDest))  // set dest tag
+                .close()
+                .tx(xchain_create_claim_id(scAlice, jvb, reward, mcAlice))
+                .close();
+
+            auto dst(withClaim ? std::nullopt : std::optional<Account>{scBob});
+            auto const amt = XRP(1000);
+            std::uint32_t const claimID = 1;
+            mcEnv.tx(xchain_commit(mcAlice, jvb, claimID, amt, dst)).close();
+
+            BalanceTransfer transfer(
+                scEnv, Account::master, scBob, scAlice, payees, withClaim);
+
+            auto batch = attestation_claim_batch(
+                jvb, mcAlice, amt, payees, true, claimID, dst, signers);
+            if (withClaim)
+            {
+                scEnv.tx(xchain_add_attestation_batch(scAttester, batch))
+                    .close();
+
+                BEAST_EXPECT(transfer.has_not_happened());
+
+                // need to submit a claim transactions
+                scEnv
+                    .tx(xchain_claim(scAlice, jvb, claimID, amt, scBob),
+                        ter(tecDST_TAG_NEEDED))
+                    .close();
+
+                // the transfer failed, but check that we can still use the
+                // claimID with a different account
+                Balance scCarol_bal(scEnv, scCarol);
+
+                scEnv.tx(xchain_claim(scAlice, jvb, claimID, amt, scCarol))
+                    .close();
+                BEAST_EXPECT(scCarol_bal.diff() == amt);
+            }
+            else
+            {
+                scEnv
+                    .tx(xchain_add_attestation_batch(scAttester, batch),
+                        ter(tecDST_TAG_NEEDED))
+                    .close();
+
+                // A way would be to remove the destination tag requirement and
+                // resubmit the attestations (even though the witness servers
+                // won't do it)
+                scEnv
+                    .tx(fset("scBob", 0, asfRequireDest))  // clear dest tag
+                    .close();
+
+                Balance scBob_bal(scEnv, scBob);
+
+                scEnv.tx(xchain_add_attestation_batch(scAttester, batch))
+                    .close();
+                BEAST_EXPECT(scBob_bal.diff() == amt);
+            }
+        }
+
+#if 0
+        // enable after Scott changes: "I'll have to change add_attestation to
+        // return success. The funds didn't transfer, but attestations were
+        // added.".
+
+        // Pay to an account with deposit auth set. Check that the attestations
+        // are still validated and that we can used the claimID to transfer the
+        // funds to a different account (which doesn't have deposit auth set)
+        // --------------------------------------------------------------------
+        {
+            xEnv mcEnv(*this);
+            xEnv scEnv(*this, true);
+
+            mcEnv.tx(create_bridge(mcDoor, jvb)).close();
+
+            scEnv.tx(create_bridge(Account::master, jvb))
+                .tx(jtx::signers(Account::master, quorum, signers))
+                .tx(fset("scBob", asfDepositAuth))  // set deposit auth
+                .close()
+                .tx(xchain_create_claim_id(scAlice, jvb, reward, mcAlice))
+                .close();
+
+            auto dst(std::optional<Account>{scBob});
+            auto const amt = XRP(1000);
+            std::uint32_t const claimID = 1;
+            mcEnv.tx(xchain_commit(mcAlice, jvb, claimID, amt, dst)).close();
+
+            auto batch = attestation_claim_batch(
+                jvb, mcAlice, amt, payees, true, claimID, dst, signers);
+
+            // we should be able to submit the attestations, but the transfer
+            // should not occur because dest account has deposit auth set
+            Balance scBob_bal(scEnv, scBob);
+
+            scEnv.tx(xchain_add_attestation_batch(scAttester, batch)).close();
+            BEAST_EXPECT(scBob_bal.diff() == STAmount(0));
+
+            // Check that check that we still can use the claimID to transfer
+            // the amount to a different account
+            Balance scCarol_bal(scEnv, scCarol);
+
+            scEnv.tx(xchain_claim(scAlice, jvb, claimID, amt, scCarol)).close();
+            BEAST_EXPECT(scCarol_bal.diff() == amt);
+        }
+#endif
 
         // Claim where the amount different from what is attested to
         // ---------------------------------------------------------
@@ -3615,6 +3798,967 @@ struct XChain_test : public beast::unit_test::suite,
     }
 };
 
+// -----------------------------------------------------------
+// -----------------------------------------------------------
+struct XChainSim_test : public beast::unit_test::suite,
+                        public jtx::XChainBridgeObjects
+{
+private:
+    static constexpr size_t num_signers = 5;
+
+    // --------------------------------------------------
+    struct BridgeDef
+    {
+        jtx::Account doorA;
+        Issue issueA;
+        jtx::Account doorB;
+        Issue issueB;
+        STAmount reward;
+        STAmount minAccountCreate;
+        uint32_t quorum;
+        std::vector<jtx::signer> const& signers;
+        Json::Value jvb;
+    };
+
+    struct Transfer
+    {
+        jtx::Account from;
+        jtx::Account to;
+        jtx::Account finaldest;
+        STAmount amt;
+        bool a2b;  // direction of transfer
+        bool with_claim{false};
+        uint32_t claim_id{0};
+        std::array<bool, num_signers> attested{};
+    };
+
+    struct AccountCreate
+    {
+        jtx::Account from;
+        jtx::Account to;
+        STAmount amt;
+        STAmount reward;
+        bool a2b;
+        uint32_t claim_id{0};
+        std::array<bool, num_signers> attested{};
+    };
+
+    using ENV = xEnv<XChainSim_test>;
+    using BridgeID = BridgeDef const*;
+
+    using ClaimAttn = AttestationBatch::AttestationClaim;
+    using CreateClaimAttn = AttestationBatch::AttestationCreateAccount;
+
+    using ClaimVec = std::vector<ClaimAttn>;
+    using CreateClaimVec = std::vector<CreateClaimAttn>;
+
+    struct Claims
+    {
+        ClaimVec xfer_claims;
+        CreateClaimVec create_claims;
+    };
+
+    using SignerAttns = std::unordered_map<BridgeID, Claims>;
+    using SignersAttns = std::array<SignerAttns, num_signers>;
+
+    // tracking chain state
+    // --------------------
+    struct AccountStateTrack
+    {
+        STAmount startAmount{0};
+        STAmount expectedDiff{0};
+
+        void
+        init(ENV& env, jtx::Account const& acct)
+        {
+            startAmount = env.balance(acct);
+            expectedDiff = STAmount(0);
+        }
+
+        bool
+        verify(ENV& env, jtx::Account const& acct) const
+        {
+            STAmount diff{env.balance(acct) - startAmount};
+            bool check = diff == expectedDiff;
+            return check;
+        }
+    };
+
+    struct ChainStateTrack
+    {
+        ChainStateTrack(ENV& env)
+            : env(env), tx_fee(env.env_.current()->fees().base)
+        {
+        }
+
+        void
+        sendAttestations(size_t signer_idx, BridgeID bridge, ClaimVec& claims)
+        {
+            size_t cnt = (claims.size() > 8) ? 8 : claims.size();
+            STXChainBridge const stBridge(bridge->jvb);
+            while (!claims.empty())
+            {
+                STXChainAttestationBatch attn_batch{
+                    stBridge, claims.begin(), claims.begin() + cnt};
+                auto batch = attn_batch.getJson(JsonOptions::none);
+                auto signer = bridge->signers[signer_idx].account;
+                auto attn_json = xchain_add_attestation_batch(signer, batch);
+                // std::cout << to_string(attn_json) << '\n';
+                env.tx(attn_json);
+                spendFee(signer);
+                claims.erase(claims.begin(), claims.begin() + cnt);
+            }
+        }
+
+        void
+        sendCreateAttestations(
+            size_t signer_idx,
+            BridgeID bridge,
+            CreateClaimVec& claims)
+        {
+            size_t cnt = (claims.size() > 8) ? 8 : claims.size();
+            STXChainBridge const stBridge(bridge->jvb);
+            AttestationBatch::AttestationClaim* nullc = nullptr;
+            while (!claims.empty())
+            {
+                STXChainAttestationBatch attn_batch{
+                    stBridge,
+                    nullc,
+                    nullc,
+                    claims.begin(),
+                    claims.begin() + cnt};
+                auto batch = attn_batch.getJson(JsonOptions::none);
+                auto signer = bridge->signers[signer_idx].account;
+                auto attn_json = xchain_add_attestation_batch(signer, batch);
+                // std::cout << to_string(attn_json) << '\n';
+                env.tx(attn_json);
+                spendFee(signer);
+                claims.erase(claims.begin(), claims.begin() + cnt);
+            }
+        }
+
+        void
+        sendAttestations()
+        {
+            for (size_t i = 0; i < signers_attns.size(); ++i)
+            {
+                for (auto& [bridge, claims] : signers_attns[i])
+                {
+                    sendAttestations(i, bridge, claims.xfer_claims);
+                    sendCreateAttestations(i, bridge, claims.create_claims);
+                }
+            }
+        }
+
+        void
+        init(jtx::Account const& acct)
+        {
+            accounts[acct].init(env, acct);
+        }
+
+        void
+        receive(jtx::Account const& acct, STAmount amt, size_t divisor = 1)
+        {
+            if (amt.issue() != xrpIssue())
+                return;
+            auto it = accounts.find(acct);
+            if (it == accounts.end())
+            {
+                accounts[acct].init(env, acct);
+                it = accounts.find(acct);
+            }
+            it->second.expectedDiff +=
+                (divisor == 1
+                     ? amt
+                     : divide(
+                           amt, STAmount(amt.issue(), divisor), amt.issue()));
+        }
+
+        void
+        spend(jtx::Account const& acct, STAmount amt, size_t times = 1)
+        {
+            if (amt.issue() != xrpIssue())
+                return;
+            receive(
+                acct,
+                times == 1
+                    ? -amt
+                    : -multiply(
+                          amt, STAmount(amt.issue(), times), amt.issue()));
+        }
+
+        void
+        transfer(jtx::Account const& from, jtx::Account const& to, STAmount amt)
+        {
+            spend(from, amt);
+            receive(to, amt);
+        }
+
+        void
+        spendFee(jtx::Account const& acct, size_t times = 1)
+        {
+            spend(acct, tx_fee, times);
+        }
+
+        bool
+        verify() const
+        {
+            for (auto const& [acct, state] : accounts)
+                if (!state.verify(env, acct))
+                    return false;
+            return true;
+        }
+
+        struct BridgeCounters
+        {
+            uint32_t claim_id;
+            uint32_t create_count;  // for account create
+            uint32_t claim_count;   // for account create
+        };
+
+        ENV& env;
+        std::map<jtx::Account, AccountStateTrack> accounts;
+        SignersAttns signers_attns;
+        std::map<BridgeID, BridgeCounters> counters;
+        STAmount tx_fee;
+    };
+
+    struct ChainStateTracker
+    {
+        ChainStateTracker(ENV& a_env, ENV& b_env) : a_(a_env), b_(b_env)
+        {
+        }
+
+        bool
+        verify() const
+        {
+            return a_.verify() && b_.verify();
+        }
+
+        void
+        sendAttestations()
+        {
+            a_.sendAttestations();
+            b_.sendAttestations();
+        }
+
+        void
+        init(jtx::Account const& acct)
+        {
+            a_.init(acct);
+            b_.init(acct);
+        }
+
+        ChainStateTrack a_;
+        ChainStateTrack b_;
+    };
+
+    enum SmState {
+        st_initial,
+        st_claimid_created,
+        st_attesting,
+        st_attested,
+        st_completed,
+        st_closed,
+    };
+
+    enum Act_Flags { af_a2b = 1 << 0 };
+
+    // --------------------------------------------------
+    template <class T>
+    class SmBase
+    {
+    public:
+        SmBase(
+            const std::shared_ptr<ChainStateTracker>& chainstate,
+            const BridgeDef& bridge)
+            : st_(chainstate), bridge_(bridge)
+        {
+        }
+
+        ChainStateTrack&
+        srcState()
+        {
+            return static_cast<T&>(*this).a2b() ? st_->a_ : st_->b_;
+        }
+
+        ChainStateTrack&
+        destState()
+        {
+            return static_cast<T&>(*this).a2b() ? st_->b_ : st_->a_;
+        }
+
+        jtx::Account const&
+        srcDoor()
+        {
+            return static_cast<T&>(*this).a2b() ? bridge_.doorA : bridge_.doorB;
+        }
+
+        jtx::Account const&
+        dstDoor()
+        {
+            return static_cast<T&>(*this).a2b() ? bridge_.doorB : bridge_.doorA;
+        }
+
+    protected:
+        const BridgeDef& bridge_;
+        std::shared_ptr<ChainStateTracker> st_;
+    };
+
+    // --------------------------------------------------
+    class SmCreateAccount : public SmBase<SmCreateAccount>
+    {
+    public:
+        using Base = SmBase<SmCreateAccount>;
+
+        SmCreateAccount(
+            const std::shared_ptr<ChainStateTracker>& chainstate,
+            const BridgeDef& bridge,
+            AccountCreate create)
+            : Base(chainstate, bridge)
+            , sm_state(st_initial)
+            , cr(std::move(create))
+        {
+        }
+
+        bool
+        a2b() const
+        {
+            return cr.a2b;
+        }
+
+        uint32_t
+        issue_account_create()
+        {
+            ChainStateTrack& st = srcState();
+            jtx::Account const& srcdoor = srcDoor();
+
+            st.env
+                .tx(sidechain_xchain_account_create(
+                    cr.from, bridge_.jvb, cr.to, cr.amt, cr.reward))
+                .close();  // needed for claim_id sequence to be correct'
+            st.spendFee(cr.from);
+            st.transfer(cr.from, srcdoor, cr.amt);
+            st.transfer(cr.from, srcdoor, cr.reward);
+
+            return ++st.counters[&bridge_].create_count;
+        }
+
+        bool
+        attest(uint64_t time, uint32_t rnd)
+        {
+            ChainStateTrack& st = destState();
+
+            // check all signers, but start at a random one
+            for (size_t i = 0; i < num_signers; ++i)
+            {
+                size_t signer_idx = (rnd + i) % num_signers;
+                if (!(cr.attested[signer_idx]))
+                {
+                    // enqueue one attestation for this signer
+                    cr.attested[signer_idx] = true;
+                    create_account_batch_add_to_vector(
+                        st.signers_attns[signer_idx][&bridge_].create_claims,
+                        bridge_.jvb,
+                        cr.from,
+                        cr.amt,
+                        cr.reward,
+                        &bridge_.signers[signer_idx].account,
+                        cr.a2b,
+                        cr.claim_id,
+                        cr.to,
+                        &bridge_.signers[signer_idx],
+                        1);
+                    break;
+                }
+            }
+
+            // return true if quorum was reached, false otherwise
+            bool quorum =
+                std::count(cr.attested.begin(), cr.attested.end(), true) >=
+                bridge_.quorum;
+
+            if (quorum && cr.claim_id == st.counters[&bridge_].claim_count + 1)
+            {
+                ++st.counters[&bridge_].claim_count;
+                auto r = cr.reward;
+                auto reward = divide(r, STAmount(bridge_.quorum), r.issue());
+
+                for (size_t i = 0; i < num_signers; ++i)
+                {
+                    if (cr.attested[i])
+                        st.receive(bridge_.signers[i].account, reward);
+                }
+                st.spend(dstDoor(), reward, bridge_.quorum);
+                st.transfer(dstDoor(), cr.to, cr.amt);
+            }
+            return quorum;
+        }
+
+        SmState
+        advance(uint64_t time, uint32_t rnd)
+        {
+            switch (sm_state)
+            {
+                case st_initial:
+                    cr.claim_id = issue_account_create();
+                    sm_state = st_attesting;
+                    break;
+
+                case st_attesting:
+                    sm_state = attest(time, rnd) ? st_completed : st_attesting;
+                    break;
+
+                case st_completed:
+                    assert(0);  // should have been removed
+                    break;
+            }
+            return sm_state;
+        }
+
+    private:
+        SmState sm_state;
+        AccountCreate cr;
+    };
+
+    // --------------------------------------------------
+    class SmTransfer : public SmBase<SmTransfer>
+    {
+    public:
+        using Base = SmBase<SmTransfer>;
+
+        SmTransfer(
+            const std::shared_ptr<ChainStateTracker>& chainstate,
+            const BridgeDef& bridge,
+            Transfer xfer)
+            : Base(chainstate, bridge)
+            , sm_state(st_initial)
+            , xfer(std::move(xfer))
+        {
+        }
+
+        bool
+        a2b() const
+        {
+            return xfer.a2b;
+        }
+
+        uint32_t
+        create_claim_id()
+        {
+            ChainStateTrack& st = destState();
+
+            st.env
+                .tx(xchain_create_claim_id(
+                    xfer.to, bridge_.jvb, bridge_.reward, xfer.from))
+                .close();  // needed for claim_id sequence to be
+                           // correct'
+            st.spendFee(xfer.to);
+            return ++st.counters[&bridge_].claim_id;
+        }
+
+        void
+        commit()
+        {
+            ChainStateTrack& st = srcState();
+            jtx::Account const& srcdoor = srcDoor();
+
+            if (xfer.amt.issue() != xrpIssue())
+            {
+                st.env.tx(pay(srcdoor, xfer.from, xfer.amt));
+                st.spendFee(srcdoor);
+            }
+            st.env.tx(xchain_commit(
+                xfer.from,
+                bridge_.jvb,
+                xfer.claim_id,
+                xfer.amt,
+                xfer.with_claim ? std::nullopt
+                                : std::optional<jtx::Account>(xfer.finaldest)));
+            st.spendFee(xfer.from);
+            st.transfer(xfer.from, srcdoor, xfer.amt);
+        }
+
+        bool
+        attest(uint64_t time, uint32_t rnd)
+        {
+            ChainStateTrack& st = destState();
+
+            // check all signers, but start at a random one
+            for (size_t i = 0; i < num_signers; ++i)
+            {
+                size_t signer_idx = (rnd + i) % num_signers;
+                if (!(xfer.attested[signer_idx]))
+                {
+                    // enqueue one attestation for this signer
+                    xfer.attested[signer_idx] = true;
+                    attestation_add_batch_to_vector(
+                        st.signers_attns[signer_idx][&bridge_].xfer_claims,
+                        bridge_.jvb,
+                        xfer.from,
+                        xfer.amt,
+                        &bridge_.signers[signer_idx].account,
+                        xfer.a2b,
+                        xfer.claim_id,
+                        xfer.with_claim
+                            ? std::nullopt
+                            : std::optional<jtx::Account>(xfer.finaldest),
+                        &bridge_.signers[signer_idx],
+                        1);
+                    break;
+                }
+            }
+
+            // return true if quorum was reached, false otherwise
+            bool quorum =
+                std::count(xfer.attested.begin(), xfer.attested.end(), true) >=
+                bridge_.quorum;
+            if (quorum)
+            {
+                auto r = bridge_.reward;
+                auto reward = divide(r, STAmount(bridge_.quorum), r.issue());
+
+                for (size_t i = 0; i < num_signers; ++i)
+                {
+                    if (xfer.attested[i])
+                        st.receive(bridge_.signers[i].account, reward);
+                }
+                st.spend(xfer.to, reward, bridge_.quorum);
+                if (!xfer.with_claim)
+                    st.transfer(dstDoor(), xfer.finaldest, xfer.amt);
+            }
+            return quorum;
+        }
+
+        void
+        claim()
+        {
+            ChainStateTrack& st = destState();
+            st.env.tx(xchain_claim(
+                xfer.to, bridge_.jvb, xfer.claim_id, xfer.amt, xfer.finaldest));
+            st.transfer(dstDoor(), xfer.finaldest, xfer.amt);
+            st.spendFee(xfer.to);
+        }
+
+        SmState
+        advance(uint64_t time, uint32_t rnd)
+        {
+            switch (sm_state)
+            {
+                case st_initial:
+                    xfer.claim_id = create_claim_id();
+                    sm_state = st_claimid_created;
+                    break;
+
+                case st_claimid_created:
+                    commit();
+                    sm_state = st_attesting;
+                    break;
+
+                case st_attesting:
+                    sm_state = attest(time, rnd)
+                        ? (xfer.with_claim ? st_attested : st_completed)
+                        : st_attesting;
+                    break;
+
+                case st_attested:
+                    assert(xfer.with_claim);
+                    claim();
+                    sm_state = st_completed;
+                    break;
+
+                case st_completed:
+                    assert(0);  // should have been removed
+                    break;
+            }
+            return sm_state;
+        }
+
+    private:
+        Transfer xfer;
+        SmState sm_state;
+    };
+
+    // --------------------------------------------------
+    using Sm = std::variant<SmCreateAccount, SmTransfer>;
+    using SmCont = std::list<std::pair<uint64_t, Sm>>;
+
+    SmCont sm_;
+
+    void
+    xfer(
+        uint64_t time,
+        const std::shared_ptr<ChainStateTracker>& chainstate,
+        BridgeDef const& bridge,
+        Transfer transfer)
+    {
+        sm_.emplace_back(
+            time, SmTransfer(chainstate, bridge, std::move(transfer)));
+    }
+
+    void
+    ac(uint64_t time,
+       const std::shared_ptr<ChainStateTracker>& chainstate,
+       BridgeDef const& bridge,
+       AccountCreate ac)
+    {
+        sm_.emplace_back(
+            time, SmCreateAccount(chainstate, bridge, std::move(ac)));
+    }
+
+public:
+    XRPAmount
+    reserve(std::uint32_t count)
+    {
+        return xEnv(*this).env_.current()->fees().accountReserve(count);
+    }
+
+    XRPAmount
+    txFee()
+    {
+        return xEnv(*this).env_.current()->fees().base;
+    }
+
+    void
+    runSimulation(std::shared_ptr<ChainStateTracker> const& st)
+    {
+        using namespace jtx;
+
+        uint64_t time = 0;
+        std::mt19937 gen(27);  // Standard mersenne_twister_engine
+        std::uniform_int_distribution<uint32_t> distrib(0, 9);
+
+        while (!sm_.empty())
+        {
+            ++time;
+            for (auto it = sm_.begin(); it != sm_.end();)
+            {
+                auto vis = [&](auto& sm) {
+                    uint32_t rnd = distrib(gen);
+                    return sm.advance(time, rnd);
+                };
+                auto& [t, sm] = *it;
+                if (t <= time && std::visit(vis, sm) == st_completed)
+                    it = sm_.erase(it);
+                else
+                    ++it;
+            }
+
+            // send attestations
+            st->sendAttestations();
+
+            // make sure all transactions have been applied
+            st->a_.env.close();
+            st->b_.env.close();
+
+            BEAST_EXPECT(st->verify());
+        }
+
+        BEAST_EXPECT(true);
+    }
+
+    void
+    testXChainSimulation()
+    {
+        using namespace jtx;
+
+        testcase("Bridge usage simulation");
+
+        xEnv mcEnv(*this);
+        xEnv scEnv(*this, true);
+
+        auto st = std::make_shared<ChainStateTracker>(mcEnv, scEnv);
+
+        // create 10 accounts + door funded on both chains, and store
+        // in ChainStateTracker the initial amount of these accounts
+        Account doorA, doorB;
+
+        constexpr size_t num_acct = 5;
+        auto a = [&doorA, &doorB]() {
+            using namespace std::literals;
+            std::vector<Account> result;
+            result.reserve(num_acct);
+            for (int i = 0; i < num_acct; ++i)
+                result.emplace_back(
+                    "a"s + std::to_string(i),
+                    (i % 2) ? KeyType::ed25519 : KeyType::secp256k1);
+            result.emplace_back("doorA");
+            doorA = result.back();
+            result.emplace_back("doorB");
+            doorB = result.back();
+            return result;
+        }();
+
+        for (auto& acct : a)
+        {
+            STAmount amt{XRP(10000)};
+
+            mcEnv.fund(amt, acct);
+            scEnv.fund(amt, acct);
+        }
+
+        IOU usdA{doorA["USD"]};
+        IOU usdB{doorB["USD"]};
+
+        for (int i = 0; i < a.size(); ++i)
+        {
+            auto& acct{a[i]};
+            if (i < num_acct)
+            {
+                mcEnv.tx(trust(acct, usdA(10000)));
+                scEnv.tx(trust(acct, usdB(10000)));
+            }
+            st->init(acct);
+        }
+        for (auto& s : signers)
+            st->init(s.account);
+
+        st->b_.init(Account::master);
+
+        // also create some unfunded accounts
+        constexpr size_t num_ua = 10;
+        auto ua = []() {
+            using namespace std::literals;
+            std::vector<Account> result;
+            result.reserve(num_ua);
+            for (int i = 0; i < num_ua; ++i)
+                result.emplace_back(
+                    "ua"s + std::to_string(i),
+                    (i % 2) ? KeyType::ed25519 : KeyType::secp256k1);
+            return result;
+        }();
+
+        // initialize a bridge from a BridgeDef
+        auto initBridge = [&mcEnv, &scEnv, &st](BridgeDef& bd) {
+            bd.jvb = bridge(bd.doorA, bd.issueA, bd.doorB, bd.issueB);
+
+            mcEnv
+                .tx(bridge_create(
+                    bd.doorA, bd.jvb, bd.reward, bd.minAccountCreate))
+                .tx(jtx::signers(bd.doorA, bd.quorum, bd.signers))
+                .close();
+            st->a_.spendFee(bd.doorA, 2);
+
+            scEnv
+                .tx(bridge_create(
+                    bd.doorB, bd.jvb, bd.reward, bd.minAccountCreate))
+                .tx(jtx::signers(bd.doorB, bd.quorum, bd.signers))
+                .close();
+            st->b_.spendFee(bd.doorB, 2);
+        };
+
+        // create XRP -> XRP bridge
+        // ------------------------
+        BridgeDef xrp_b{
+            doorA,
+            xrpIssue(),
+            Account::master,
+            xrpIssue(),
+            XRP(1),
+            XRP(20),
+            quorum,
+            signers};
+
+        initBridge(xrp_b);
+
+        // create USD -> USD bridge
+        // ------------------------
+        BridgeDef usd_b{
+            doorA, usdA, doorB, usdB, XRP(1), XRP(20), quorum, signers};
+
+        initBridge(usd_b);
+
+        // try a single account create + transfer to validate the simulation
+        // engine. Do the transfer 6 time steps after the account create, to
+        // give  time enough for ua[0] to be funded now so it can reserve the
+        // claimID
+        // -----------------------------------------------------------------
+        ac(0, st, xrp_b, {a[0], ua[0], XRP(77), xrp_b.reward, true});
+        xfer(8, st, xrp_b, {a[0], a[0], a[2], XRP(3), true});
+        runSimulation(st);
+
+        // first try a single transfer to validate the simulation engine
+        // -------------------------------------------------------------
+        xfer(0, st, xrp_b, {a[0], a[1], a[2], XRP(3), true});
+        runSimulation(st);
+
+        // run 3 XRP transfers
+        // -------------------
+        xfer(0, st, xrp_b, {a[0], a[0], a[0], XRP(1), true});
+        xfer(1, st, xrp_b, {a[0], a[0], a[0], XRP(1), false});
+        xfer(1, st, xrp_b, {a[1], a[1], a[0], XRP(1), true});
+        runSimulation(st);
+
+        // run one USD transfer
+        // --------------------
+        xfer(0, st, usd_b, {a[0], a[1], a[2], usdA(3), true});
+        runSimulation(st);
+
+        // run mixed transfers
+        // -------------------
+        xfer(0, st, xrp_b, {a[0], a[0], a[0], XRP(1), true});
+        xfer(0, st, usd_b, {a[1], a[3], a[3], usdB(3), false});
+        xfer(0, st, usd_b, {a[3], a[2], a[1], usdB(5), false});
+
+        xfer(1, st, xrp_b, {a[0], a[0], a[0], XRP(4), false});
+        xfer(1, st, xrp_b, {a[1], a[1], a[0], XRP(8), true});
+        xfer(1, st, usd_b, {a[4], a[1], a[1], usdA(7), true});
+
+        xfer(3, st, xrp_b, {a[1], a[1], a[0], XRP(7), true});
+        xfer(3, st, xrp_b, {a[0], a[4], a[3], XRP(2), false});
+        xfer(3, st, xrp_b, {a[1], a[1], a[0], XRP(9), true});
+        xfer(3, st, usd_b, {a[3], a[1], a[1], usdB(11), false});
+
+        runSimulation(st);
+    }
+
+    void
+    run() override
+    {
+        testXChainSimulation();
+    }
+};
+
+struct XChainIssues_test : public beast::unit_test::suite,
+                           public jtx::XChainBridgeObjects
+{
+    struct BridgeDef
+    {
+        jtx::Account doorA;
+        Issue issueA;
+        jtx::Account doorB;
+        Issue issueB;
+        STAmount reward;
+        STAmount minAccountCreate;
+        uint32_t quorum;
+        std::vector<jtx::signer> const& signers;
+        Json::Value jvb;
+
+        template <class ENV>
+        void
+        initBridge(ENV& mcEnv, ENV& scEnv)
+        {
+            jvb = bridge(doorA, issueA, doorB, issueB);
+
+            mcEnv.tx(bridge_create(doorA, jvb, reward, minAccountCreate))
+                .tx(jtx::signers(doorA, quorum, signers))
+                .close();
+
+            scEnv.tx(bridge_create(doorB, jvb, reward, minAccountCreate))
+                .tx(jtx::signers(doorB, quorum, signers))
+                .close();
+        }
+    };
+
+    XRPAmount
+    reserve(std::uint32_t count)
+    {
+        return xEnv(*this).env_.current()->fees().accountReserve(count);
+    }
+
+    XRPAmount
+    txFee()
+    {
+        return xEnv(*this).env_.current()->fees().base;
+    }
+
+    void
+    CreateAccountIssue1()
+    {
+        using namespace jtx;
+
+        xEnv mcEnv(*this);
+        xEnv scEnv(*this, true);
+
+        XRPAmount res0 = mcEnv.reserve(0);
+        XRPAmount tx_fee = mcEnv.txFee();
+
+        Account a{"a"};
+        Account doorA{"doorA"};
+
+        STAmount funds{XRP(10000)};
+        mcEnv.fund(funds, a);
+        mcEnv.fund(funds, doorA);
+
+        Account ua{"ua"};  // unfunded account we want to create
+
+        BridgeDef xrp_b{
+            doorA,
+            xrpIssue(),
+            Account::master,
+            xrpIssue(),
+            XRP(1),   // reward
+            XRP(20),  // minAccountCreate
+            4,        // quorum
+            signers};
+
+        xrp_b.initBridge(mcEnv, scEnv);
+
+        auto const amt = XRP(77);
+        auto const amt_plus_reward = amt + xrp_b.reward;
+        {
+            Balance bal_doorA(mcEnv, doorA);
+            Balance bal_a(mcEnv, a);
+
+            mcEnv
+                .tx(sidechain_xchain_account_create(
+                    a, xrp_b.jvb, ua, amt, xrp_b.reward))
+                .close();
+
+            BEAST_EXPECT(bal_doorA.diff() == amt_plus_reward);
+            BEAST_EXPECT(bal_a.diff() == -(amt_plus_reward + tx_fee));
+        }
+
+        {
+            Balance bal_master(scEnv, Account::master);
+
+            // send 4 attestations from 4 signers... account creation should
+            // occur on the last attestation.
+            for (size_t i = 0; i < 4; ++i)
+            {
+                std::vector<AttestationBatch::AttestationCreateAccount> attns;
+                create_account_batch_add_to_vector(
+                    attns,
+                    xrp_b.jvb,
+                    a,
+                    amt,
+                    xrp_b.reward,
+                    &signers[i].account,
+                    true,
+                    1,
+                    ua,
+                    &signers[i],
+                    1);
+
+                AttestationBatch::AttestationClaim* nullc = nullptr;
+                STXChainBridge const stBridge(xrp_b.jvb);
+                STXChainAttestationBatch attn_batch{
+                    stBridge, nullc, nullc, attns.begin(), attns.end()};
+                auto batch = attn_batch.getJson(JsonOptions::none);
+                auto signer = signers[i].account;
+                auto attn_json = xchain_add_attestation_batch(signer, batch);
+                scEnv.tx(attn_json).close();
+            }
+
+            // on the 4th attestation, the quorum is reached and the account
+            // create is executed in XChainBridge.cpp. It executes
+            // XChainAddAttestation::applyCreateAccountAtt, however
+            // finalizeClaimHelper returns an error (when trying to delete the
+            // sleCID.
+
+            BEAST_EXPECT(bal_master.diff() == -amt_plus_reward);
+        }
+    }
+
+    void
+    run() override
+    {
+        CreateAccountIssue1();
+    }
+};
+
 BEAST_DEFINE_TESTSUITE(XChain, app, ripple);
+BEAST_DEFINE_TESTSUITE(XChainSim, app, ripple);
+BEAST_DEFINE_TESTSUITE(XChainIssues, app, ripple);
 
 }  // namespace ripple::test
