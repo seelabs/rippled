@@ -36,7 +36,7 @@ AMMDeposit::makeTxConsequences(PreflightContext const& ctx)
 NotTEC
 AMMDeposit::preflight(PreflightContext const& ctx)
 {
-    if (!ammRequiredAmendments(ctx.rules))
+    if (!ammEnabled(ctx.rules))
         return temDISABLED;
 
     auto const ret = preflight1(ctx);
@@ -101,13 +101,15 @@ TER
 AMMDeposit::preclaim(PreclaimContext const& ctx)
 {
     auto const accountID = ctx.tx[sfAccount];
-
+    // Can't happen
     if (!ctx.view.read(keylet::account(accountID)))
     {
         JLOG(ctx.j.debug()) << "AMM Deposit: Invalid account.";
         return terNO_ACCOUNT;
     }
 
+    // Ah, we feed the ammid in the transaction.
+    // Maybe we should feed the asset types instead?
     auto const ammSle = getAMMSle(ctx.view, ctx.tx[sfAMMID]);
     if (!ammSle)
     {
@@ -150,6 +152,8 @@ AMMDeposit::preclaim(PreclaimContext const& ctx)
 
     auto const [asset1, asset2, lptAMMBalance] =
         ammHolds(ctx.view, *ammSle, std::nullopt, std::nullopt, ctx.j);
+    // SHould we check that the assets on the transactions match the assets in
+    // the amm?
     if (asset1 <= beast::zero || asset2 <= beast::zero ||
         lptAMMBalance <= beast::zero)
     {
@@ -167,7 +171,7 @@ AMMDeposit::preclaim(PreclaimContext const& ctx)
 
     return tesSUCCESS;
 }
-
+// remove
 void
 AMMDeposit::preCompute()
 {
@@ -187,6 +191,9 @@ AMMDeposit::applyGuts(Sandbox& sb)
 
     auto const tfee = getTradingFee(*ammSle, account_);
 
+    // TODO: ammHolds throws if the asset is incorrect. Do we want to do this?
+    // Don't use exceptions for user errors like this
+    // Catch the exception and return the appropriate error code
     auto const [asset1, asset2, lptAMMBalance] = ammHolds(
         sb,
         *ammSle,
@@ -196,10 +203,9 @@ AMMDeposit::applyGuts(Sandbox& sb)
 
     auto const [result, depositedTokens] =
         [&,
-         asset1 = std::ref(asset1),
-         asset2 = std::ref(asset2),
-         lptAMMBalance =
-             std::ref(lptAMMBalance)]() -> std::pair<TER, STAmount> {
+         &asset1 = asset1,
+         &asset2 = asset2,
+         &lptAMMBalance = lptAMMBalance]() -> std::pair<TER, STAmount> {
         if (asset1In)
         {
             if (asset2In)
@@ -267,6 +273,7 @@ AMMDeposit::doApply()
     // if the order isn't going to be placed, to avoid wasting the work we did.
     Sandbox sbCancel(&ctx_.view());
 
+    // Don't do this - here and otehr places
     auto const result = applyGuts(sb);
     if (result.second)
         sb.apply(ctx_.rawView());
@@ -296,6 +303,8 @@ AMMDeposit::deposit(
     };
 
     // Deposit asset1Deposit
+    // I don't quite undertand this. Why don't we check if it's greater than the
+    // amount to deposit? Why just check for zero?
     if (!balance(asset1Deposit))
     {
         JLOG(ctx_.journal.debug())
@@ -314,6 +323,7 @@ AMMDeposit::deposit(
     // Deposit asset2Deposit
     if (asset2Deposit)
     {
+        // see comment above about balance check
         if (!balance(*asset2Deposit))
         {
             JLOG(ctx_.journal.debug())
@@ -356,6 +366,9 @@ AMMDeposit::equalDepositTokens(
 {
     auto const frac =
         divide(lpTokensDeposit, lptAMMBalance, lptAMMBalance.issue());
+    // multiply can throw
+    // Any code that throws needs to be wrapped in a try/catch and the
+    // appropriate error returned
     return deposit(
         view,
         ammAccount,
@@ -430,8 +443,8 @@ AMMDeposit::equalDepositLimit(
 }
 
 /** Single asset deposit of the amount of asset specified by Asset1In.
- *       t = T * (sqrt(1 + (b - 0.5 * tfee * b) / B) - 1) (3)
- * Use equation 3 to compute amount of LPTokens to be issued, given
+ *       t = T * (sqrt(1 + (b - 0.5 * tfee * b) / B) - 1)
+ * Use above equation to compute amount of LPTokens to be issued, given
  * the amount in Asset1In.
  */
 std::pair<TER, STAmount>

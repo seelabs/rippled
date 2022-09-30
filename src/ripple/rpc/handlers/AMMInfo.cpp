@@ -41,6 +41,9 @@ getAccount(Json::Value const& v, Json::Value& result)
 
         return std::nullopt;
     }
+    // This returns a seated accountID that's empty in some cases. That doesn't
+    // seem right. Also, just return `AccountID` why is this wrapped in an
+    // optional?
     return std::optional<AccountID>(accountID);
 }
 
@@ -51,7 +54,7 @@ doAMMInfo(RPC::JsonContext& context)
     Json::Value result;
     std::optional<AccountID> accountID;
 
-    uint256 ammID{};
+    uint256 ammID;
     STAmount asset1{noIssue()};
     STAmount asset2{noIssue()};
     if (!params.isMember(jss::amm_id))
@@ -97,7 +100,7 @@ doAMMInfo(RPC::JsonContext& context)
             return getTokensIssue(*amm);
         return std::make_pair(asset1.issue(), asset2.issue());
     }();
-
+    // Another instance of getAccountID
     auto const ammAccountID = amm->getAccountID(sfAMMAccount);
 
     auto const [asset1Balance, asset2Balance] =

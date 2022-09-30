@@ -63,28 +63,26 @@ class Sandbox;
 class AMMDeposit : public Transactor
 {
 public:
+    // Not custom
     static constexpr ConsequencesFactoryType ConsequencesFactory{Custom};
 
     explicit AMMDeposit(ApplyContext& ctx) : Transactor(ctx)
     {
     }
 
+    // remove
     static TxConsequences
     makeTxConsequences(PreflightContext const& ctx);
 
-    /** Enforce constraints beyond those of the Transactor base class. */
     static NotTEC
     preflight(PreflightContext const& ctx);
 
-    /** Enforce constraints beyond those of the Transactor base class. */
     static TER
     preclaim(PreclaimContext const& ctx);
 
-    /** Gather information beyond what the Transactor base class gathers. */
     void
     preCompute() override;
 
-    /** Attempt to create the AMM instance. */
     TER
     doApply() override;
 
@@ -100,6 +98,8 @@ private:
      * @param lpTokensDeposit amount of tokens to deposit
      * @return
      */
+    // This is borderline useless comments. It's just repeating the param names.
+    // Ditto for other functions here
     std::pair<TER, STAmount>
     deposit(
         Sandbox& view,

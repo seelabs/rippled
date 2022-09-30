@@ -130,7 +130,7 @@ toStep(
 
     return make_BookStepII(ctx, curIssue, {outCurrency, outIssuer});
 }
-
+// Why does toStrand take an offer counter?
 std::pair<TER, Strand>
 toStrand(
     ReadView const& view,

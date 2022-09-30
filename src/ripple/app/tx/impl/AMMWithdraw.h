@@ -63,28 +63,25 @@ class Sandbox;
 class AMMWithdraw : public Transactor
 {
 public:
+    // ditto
     static constexpr ConsequencesFactoryType ConsequencesFactory{Custom};
 
     explicit AMMWithdraw(ApplyContext& ctx) : Transactor(ctx)
     {
     }
-
+    // ditto
     static TxConsequences
     makeTxConsequences(PreflightContext const& ctx);
 
-    /** Enforce constraints beyond those of the Transactor base class. */
     static NotTEC
     preflight(PreflightContext const& ctx);
 
-    /** Enforce constraints beyond those of the Transactor base class. */
     static TER
     preclaim(PreclaimContext const& ctx);
 
-    /** Gather information beyond what the Transactor base class gathers. */
     void
     preCompute() override;
 
-    /** Attempt to create the AMM instance. */
     TER
     doApply() override;
 

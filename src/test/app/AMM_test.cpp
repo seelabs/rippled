@@ -36,6 +36,7 @@
 namespace ripple {
 namespace test {
 
+// Why is this ifdefed out. Remove it or fix it
 #if 0
 static Json::Value
 readOffers(jtx::Env& env, AccountID const& acct)

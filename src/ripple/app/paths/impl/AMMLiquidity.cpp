@@ -56,6 +56,7 @@ AMMLiquidity::ammAccountHolds(
              !isFrozen(view, ammAccountID, issue.currency, issue.account))
     {
         auto amount = sle->getFieldAmount(sfBalance);
+        // Check if this is the low or high account and do the right thing
         if (amount.negative())
             amount.negate();
         amount.setIssuer(issue.account);
@@ -64,9 +65,10 @@ AMMLiquidity::ammAccountHolds(
 
     return STAmount{issue};
 }
-
+// const in wrong place - here and others. `ReadView const&`
+// Why isn't this a `const` method?
 Amounts
-AMMLiquidity::fetchBalances(const ReadView& view)
+AMMLiquidity::fetchBalances(const ReadView& view) const
 {
     if (dirty_)
     {
@@ -76,10 +78,13 @@ AMMLiquidity::fetchBalances(const ReadView& view)
             ammAccountHolds(view, ammAccountID_, balances_.out.issue());
         // This should not happen.
         if (assetIn < beast::zero || assetOut < beast::zero)
+            // Lots of throws in this patch
             Throw<std::runtime_error>("AMMLiquidity: invalid balances");
 
         dirty_ = false;
 
+        // Shouldn't this set balances_ the next call with return an incorrect
+        // balance
         return Amounts(assetIn, assetOut);
     }
 
@@ -87,10 +92,11 @@ AMMLiquidity::fetchBalances(const ReadView& view)
 }
 
 Amounts
-AMMLiquidity::generateFibSeqOffer(const Amounts& balances)
+AMMLiquidity::generateFibSeqOffer(const Amounts& balances) const
 {
     // first sequence
-    if (!fibSeqHelper_.has_value())
+    // comments don't add anything. I can see that's it's the first sequence
+    if (!fibSeqHelper_)
     {
         fibSeqHelper_.emplace();
         return fibSeqHelper_->firstSeq(balances, tradingFee_);
@@ -103,7 +109,7 @@ AMMLiquidity::generateFibSeqOffer(const Amounts& balances)
 std::optional<Amounts>
 AMMLiquidity::getOffer(
     ReadView const& view,
-    std::optional<Quality> const& clobQuality)
+    std::optional<Quality> const& clobQuality) const
 {
     // Can't generate more offers. Only applies if generating
     // based on Fibonacci sequence.

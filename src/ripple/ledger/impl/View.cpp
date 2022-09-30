@@ -350,6 +350,9 @@ xrpLiquid(
 
     STAmount amount = [&]() {
         // AMM doesn't require the reserves
+        // I really dislike these exceptions
+        // Again, the features do not interact in a coherent mannor with old
+        // features. We're building C++. And C++ is a complete mess.
         if (sle->getFlags() & lsfAMM)
             return balance;
         STAmount amount = balance - reserve;

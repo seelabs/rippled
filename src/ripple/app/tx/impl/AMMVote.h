@@ -50,15 +50,17 @@ class Sandbox;
 class AMMVote : public Transactor
 {
 public:
+    // custom
     static constexpr ConsequencesFactoryType ConsequencesFactory{Custom};
 
     explicit AMMVote(ApplyContext& ctx) : Transactor(ctx)
     {
     }
-
+    // remove
     static TxConsequences
     makeTxConsequences(PreflightContext const& ctx);
 
+    // remove these - here and other places. Empty comments
     /** Enforce constraints beyond those of the Transactor base class. */
     static NotTEC
     preflight(PreflightContext const& ctx);
@@ -67,6 +69,7 @@ public:
     static TER
     preclaim(PreclaimContext const& ctx);
 
+    // remove - here and other places
     /** Gather information beyond what the Transactor base class gathers. */
     void
     preCompute() override;
@@ -76,6 +79,7 @@ public:
     doApply() override;
 
 private:
+    // remove - here and other
     std::pair<TER, bool>
     applyGuts(Sandbox& view);
 };

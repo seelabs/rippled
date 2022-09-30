@@ -37,7 +37,7 @@ AMMWithdraw::makeTxConsequences(PreflightContext const& ctx)
 NotTEC
 AMMWithdraw::preflight(PreflightContext const& ctx)
 {
-    if (!ammRequiredAmendments(ctx.rules))
+    if (!ammEnabled(ctx.rules))
         return temDISABLED;
 
     auto const ret = preflight1(ctx);
@@ -122,7 +122,7 @@ AMMWithdraw::preclaim(PreclaimContext const& ctx)
 
     auto const asset1Out = ctx.tx[~sfAsset1Out];
     auto const asset2Out = ctx.tx[~sfAsset2Out];
-    auto const ammAccountID = ammSle->getAccountID(sfAMMAccount);
+    auto const ammAccountID = (*ammSle)[sfAMMAccount];
 
     if (asset1Out)
     {
@@ -192,6 +192,7 @@ AMMWithdraw::applyGuts(Sandbox& sb)
     auto const asset2Out = ctx_.tx[~sfAsset2Out];
     auto const ePrice = ctx_.tx[~sfEPrice];
     auto ammSle = getAMMSle(sb, ctx_.tx[sfAMMID]);
+    // don't assert. Check and return tecinternal
     assert(ammSle);
     auto const ammAccountID = ammSle->getAccountID(sfAMMAccount);
     auto const lpTokensWithdraw =
@@ -199,6 +200,8 @@ AMMWithdraw::applyGuts(Sandbox& sb)
 
     auto const tfee = getTradingFee(*ammSle, account_);
 
+    // This can throw on user input
+    // Wrap in a try catch
     auto const [asset1, asset2, lptAMMBalance] = ammHolds(
         sb,
         *ammSle,
@@ -208,10 +211,9 @@ AMMWithdraw::applyGuts(Sandbox& sb)
 
     auto const [result, withdrawnTokens] =
         [&,
-         asset1 = std::ref(asset1),
-         asset2 = std::ref(asset2),
-         lptAMMBalance =
-             std::ref(lptAMMBalance)]() -> std::pair<TER, STAmount> {
+         &asset1 = asset1,
+         &asset2 = asset2,
+         lptAMMBalance = lptAMMBalance]() -> std::pair<TER, STAmount> {
         if (asset1Out)
         {
             if (asset2Out)
@@ -260,6 +262,7 @@ AMMWithdraw::applyGuts(Sandbox& sb)
 
     if (result == tesSUCCESS && withdrawnTokens != beast::zero)
     {
+        // check that doesn't underflow?
         ammSle->setFieldAmount(
             sfLPTokenBalance, lptAMMBalance - withdrawnTokens);
         sb.update(ammSle);
@@ -279,7 +282,7 @@ AMMWithdraw::doApply()
     // offers we encounter removed. It's used when handling Fill-or-Kill offers,
     // if the order isn't going to be placed, to avoid wasting the work we did.
     Sandbox sbCancel(&ctx_.view());
-
+    // ditto
     auto const result = applyGuts(sb);
     if (result.second)
         sb.apply(ctx_.rawView());
@@ -320,6 +323,7 @@ AMMWithdraw::withdraw(
 {
     auto const ammSle = getAMMSle(view, ctx_.tx[sfAMMID]);
     assert(ammSle);
+    // don't assert
     auto const lpTokens = lpHolds(view, ammAccount, account_, ctx_.journal);
     auto const [issue1, issue2] = getTokensIssue(*ammSle);
     auto const [asset1, asset2] =

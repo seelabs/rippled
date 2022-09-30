@@ -371,6 +371,8 @@ nft_sells(uint256 const& id) noexcept
     return {ltDIR_NODE, indexHash(LedgerNameSpace::NFTOKEN_SELL_OFFERS, id)};
 }
 
+// For an AMM I'd expect the two issues, not this id. Why the ID?
+// Do amm transactions take an ID instead of the issues?
 Keylet
 amm(uint256 const& amm) noexcept
 {

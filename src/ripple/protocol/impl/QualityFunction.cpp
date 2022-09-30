@@ -28,6 +28,10 @@ QualityFunction::QualityFunction() : m_(0), b_(0)
 
 QualityFunction::QualityFunction(Quality const& quality)
 {
+    // Check that this exception is caught
+    // If parametric form is used zero is valid?
+    // Negative should never happen, but zero may (?). Or at least I can't prove
+    // it doesn't
     if (quality.rate() <= beast::zero)
         Throw<std::runtime_error>("QualityFunction invalid initialization.");
     m_ = 0;
@@ -38,6 +42,9 @@ QualityFunction::QualityFunction(Amounts const& amounts)
 {
     if (amounts.in <= beast::zero || amounts.out <= beast::zero)
         Throw<std::runtime_error>("QualityFunction invalid initialization.");
+    // It's not obvious that this function is for amms and the constructor above
+    // is for offers. Offers have amounts too. Consider using a tag for both
+    // constructors
     m_ = -1 / amounts.in;
     b_ = amounts.out / amounts.in;
 }
@@ -60,6 +67,7 @@ QualityFunction::combineWithNext(QualityFunction const& qf)
 std::optional<Number>
 QualityFunction::outFromAvgQ(Quality const& quality)
 {
+    // Swap the if and exit early and reduct indent
     if (m_ != 0 && quality.rate() != beast::zero)
     {
         auto const out = (b_ - 1 / quality.rate()) / m_;

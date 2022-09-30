@@ -38,14 +38,19 @@ class NetClock;
 class STObject;
 class Rules;
 
+// Why are all the functions called "calc". Functions calculate, seems
+// redundant.
+
 /** Calculate AMM account ID.
  */
-template <typename... Args>
-AccountID
-calcAccountID(Args const&... args)
+// This is too generic. Don't overload; put AMM in the name
+// This is called exactly once, but the actual params
+// Move this to AMM.cpp
+inline AccountID
+calcAMMAccountID(uint256 const& parentHash, uint256 const& groupHash)
 {
     ripesha_hasher rsh;
-    auto hash = sha512Half(args...);
+    auto hash = sha512Half(parentHash, groupHash);
     rsh(hash.data(), hash.size());
     return AccountID{static_cast<ripesha_hasher::result_type>(rsh)};
 }
@@ -101,22 +106,33 @@ lpHolds(
  * If zero is false and amount is beast::zero then invalid amount.
  * Return error code if invalid amount.
  */
+// Why take an optional amount?
+// The zero parameter is really "must be positive"
+// Maybe rename to `checkAmount`
+// Instead of an optional, return tesSUCCESS?
 std::optional<TEMcodes>
 invalidAmount(std::optional<STAmount> const& a, bool zero = false);
 
 /** Check if the line is frozen from the issuer.
  */
+// Why does this take an optional?
 bool
 isFrozen(ReadView const& view, std::optional<STAmount> const& a);
 
 /** Get AMM SLE and verify that the AMM account exists.
  * Return null if SLE not found or AMM account doesn't exist.
  */
+// SLE is used in some places and `STLedgerEntry` in others. Just use SLE (here
+// and others)
+// Pass the paramter by const&
+// What's the point of this function? Why don't we read from the view like all
+// other ledger objects? (because there's an error check I don't understand)
 std::shared_ptr<STLedgerEntry const>
-getAMMSle(ReadView const& view, uint256 ammID);
+getAMMSle(ReadView const& view, uint256 const& ammID);
 
+// Why isn't this just "peek" like other ledger objects?
 std::shared_ptr<STLedgerEntry>
-getAMMSle(Sandbox& view, uint256 ammID);
+getAMMSle(Sandbox& view, uint256 const& ammID);
 
 /** Check if the account requires authorization.
  *  Return terNO_AUTH or terNO_LINE if it does
@@ -152,8 +168,9 @@ ammSend(
 std::uint16_t
 timeSlot(NetClock::time_point const& clock, STObject const& auctionSlot);
 
+// rename to "amm enabled" or somesuch
 bool
-ammRequiredAmendments(Rules const&);
+ammEnabled(Rules const&);
 
 }  // namespace ripple
 

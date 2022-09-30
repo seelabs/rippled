@@ -22,13 +22,14 @@
 #include <cmath>
 
 namespace ripple {
-
+// stop with prefixing everything with "calc"
 STAmount
 calcAMMLPT(
     STAmount const& asset1,
     STAmount const& asset2,
     Issue const& lptIssue)
 {
+    // root2?
     auto const tokens = root(asset1 * asset2, 2);
     return toSTAmount(lptIssue, tokens);
 }
@@ -43,6 +44,7 @@ calcLPTokensIn(
     return toSTAmount(
         lpTokensBalance.issue(),
         lpTokensBalance *
+            // root2?
             (root(1 + (asset1Deposit * feeMultHalf(tfee)) / asset1Balance, 2) -
              1));
 }
@@ -56,6 +58,7 @@ calcAssetIn(
 {
     return toSTAmount(
         asset1Balance.issue(),
+        // make a square function? "power" seems to general
         ((power(lpTokensBalance / lptAMMBalance + 1, 2) - 1) /
          feeMultHalf(tfee)) *
             asset1Balance);
@@ -113,6 +116,7 @@ calcWithdrawalByTokens(
 {
     return toSTAmount(
         assetBalance.issue(),
+        // replace "pow"
         assetBalance * (1 - power(1 - lpTokens / lptAMMBalance, 2)) *
             feeMultHalf(tfee));
 }
@@ -125,6 +129,7 @@ changeSpotPriceQuality(
 {
     auto const curQuality = Quality(pool);
     auto const takerPays =
+        // root2
         pool.in * (root(quality.rate() / curQuality.rate(), 2) - 1);
     if (takerPays > 0)
     {

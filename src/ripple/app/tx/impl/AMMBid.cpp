@@ -17,9 +17,10 @@
 */
 //==============================================================================
 
+#include <ripple/app/tx/impl/AMMBid.h>
+
 #include <ripple/app/misc/AMM.h>
 #include <ripple/app/misc/AMM_formulae.h>
-#include <ripple/app/tx/impl/AMMBid.h>
 #include <ripple/ledger/Sandbox.h>
 #include <ripple/ledger/View.h>
 #include <ripple/protocol/Feature.h>
@@ -29,6 +30,7 @@
 
 namespace ripple {
 
+// Is this needed? Can't we just define the correct enum
 TxConsequences
 AMMBid::makeTxConsequences(PreflightContext const& ctx)
 {
@@ -38,7 +40,7 @@ AMMBid::makeTxConsequences(PreflightContext const& ctx)
 NotTEC
 AMMBid::preflight(PreflightContext const& ctx)
 {
-    if (!ammRequiredAmendments(ctx.rules))
+    if (!ammEnabled(ctx.rules))
         return temDISABLED;
 
     auto const ret = preflight1(ctx);
@@ -70,6 +72,7 @@ AMMBid::preflight(PreflightContext const& ctx)
 TER
 AMMBid::preclaim(PreclaimContext const& ctx)
 {
+    // Account should aways exist - it's submitting the transaction
     if (!ctx.view.read(keylet::account(ctx.tx[sfAccount])))
     {
         JLOG(ctx.j.debug()) << "AMM Bid: Invalid account.";
@@ -86,8 +89,10 @@ AMMBid::preclaim(PreclaimContext const& ctx)
     if (ctx.tx.isFieldPresent(sfAuthAccounts))
     {
         auto const authAccounts = ctx.tx.getFieldArray(sfAuthAccounts);
+        // Don't use a magic number here
         if (authAccounts.size() > 4)
         {
+            // This should be checked in preflight, not preclaim
             JLOG(ctx.j.debug()) << "AMM Bid: Invalid number of AuthAccounts.";
             return temBAD_AMM_OPTIONS;
         }
@@ -140,6 +145,7 @@ AMMBid::preclaim(PreclaimContext const& ctx)
 void
 AMMBid::preCompute()
 {
+    // Remove this - it just calls the base class
     return Transactor::preCompute();
 }
 
@@ -149,6 +155,8 @@ AMMBid::applyGuts(Sandbox& sb)
     using namespace std::chrono;
     auto const amm = getAMMSle(sb, ctx_.tx[sfAMMID]);
     assert(amm);
+    // Check and return tecINTERNAL
+    // Use operator[] - here and other places as well.
     auto const ammAccount = amm->getAccountID(sfAMMAccount);
     auto const lptAMMBalance = amm->getFieldAmount(sfLPTokenBalance);
     auto const lpTokens = lpHolds(sb, ammAccount, account_, ctx_.journal);
@@ -172,8 +180,10 @@ AMMBid::applyGuts(Sandbox& sb)
             auto const stamp = auctionSlot.getFieldU32(sfTimeStamp);
             auto const diff = current - stamp;
             if (diff < totalSlotTimeSecs)
+                // don't use c-style case
                 return (std::int64_t)(diff / intervalDuration);
         }
+        // I prefer early return for this case and de-indent above case
         return std::nullopt;
     }();
 
@@ -181,6 +191,7 @@ AMMBid::applyGuts(Sandbox& sb)
     auto validOwner = [&](AccountID const& account) {
         return sb.read(keylet::account(account)) &&
             lpHolds(sb, ammAccount, account, ctx_.journal) != beast::zero &&
+            // Don't use magic number 19
             timeSlot && *timeSlot < 19;
     };
 
@@ -192,6 +203,7 @@ AMMBid::applyGuts(Sandbox& sb)
         auctionSlot.setFieldU32(sfDiscountedFee, fee);
         auctionSlot.setFieldAmount(
             sfPrice, toSTAmount(lpTokens.issue(), minPrice));
+        // We change fields of auctionSlot, but I don't see a call to `update`.
         if (ctx_.tx.isFieldPresent(sfAuthAccounts))
             auctionSlot.setFieldArray(
                 sfAuthAccounts, ctx_.tx.getFieldArray(sfAuthAccounts));
@@ -204,6 +216,7 @@ AMMBid::applyGuts(Sandbox& sb)
             JLOG(ctx_.journal.debug()) << "AMM Bid: failed to redeem.";
             return res;
         }
+        // Check that burn is less than balance?
         amm->setFieldAmount(sfLPTokenBalance, lptAMMBalance - saBurn);
         sb.update(amm);
         return tesSUCCESS;
@@ -214,9 +227,13 @@ AMMBid::applyGuts(Sandbox& sb)
     auto const minSlotPrice = ctx_.tx[~sfMinSlotPrice];
     auto const maxSlotPrice = ctx_.tx[~sfMaxSlotPrice];
 
+    // we have capitol MinSlotPrice and lower case minSlotPrice? This is a
+    // recipe for errors
     Number const MinSlotPrice = lptAMMBalance / 100000;  // 0.001% TBD
     // Arbitrager's bid price
     auto const bidPrice = [&]() -> Number {
+        // If there's not min price use the max price? If neither use 0? That
+        // seems like an odd rule
         if (minSlotPrice)
             return *minSlotPrice;
         else if (maxSlotPrice)
@@ -239,6 +256,8 @@ AMMBid::applyGuts(Sandbox& sb)
         auto const fractionUsed = (Number(*timeSlot) + 1) / nIntervals;
         auto const fractionRemaining = Number(1) - fractionUsed;
         auto computedPrice = [&]() -> Number {
+            // That's the best way to set 1.05?
+            // Change the interface to Number?
             Number const p1_05 = Number(105) / 100;
             // First interval slot price
             if (*timeSlot == 0)
@@ -301,6 +320,7 @@ AMMBid::doApply()
     // if the order isn't going to be placed, to avoid wasting the work we did.
     Sandbox sbCancel(&ctx_.view());
 
+    // Don't write `doApply` like this. Inline `applyGuts`
     auto const result = applyGuts(sb);
     if (result.second)
         sb.apply(ctx_.rawView());

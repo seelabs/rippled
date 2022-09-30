@@ -67,7 +67,7 @@ protected:
     // If set, AMM liquidity might be available
     // if AMM offer quality is better than CLOB offer
     // quality or there is no CLOB offer.
-    mutable std::optional<AMMLiquidity> ammLiquidity_;
+    std::optional<AMMLiquidity> ammLiquidity_;
     beast::Journal const j_;
 
     struct Cache
@@ -98,14 +98,13 @@ public:
         , strandDst_(ctx.strandDst)
         , prevStep_(ctx.prevStep)
         , ownerPaysTransferFee_(ctx.ownerPaysTransferFee)
-        , ammLiquidity_{std::nullopt}
         , j_(ctx.j)
     {
         if (auto const ammSle = getAMMSle(ctx.view, calcAMMGroupHash(in, out)))
             ammLiquidity_.emplace(
                 ctx.view,
-                ammSle->getAccountID(sfAMMAccount),
-                ammSle->getFieldU16(sfTradingFee),
+                (*ammSle)[sfAMMAccount],
+                (*ammSle)[sfTradingFee],
                 in,
                 out,
                 ctx.ammOfferCounter,
@@ -238,6 +237,8 @@ private:
     // If clobQuality is available and has a better quality then return nullopt,
     // otherwise if amm liquidity is available return AMM offer adjusted based
     // on clobQuality.
+    // In no way is this a const function. It checks out an amm offer.
+    // If I call this mulitple times I very much change the behavior
     std::optional<Amounts>
     getAMMOffer(ReadView const& view, std::optional<Quality> const& clobQuality)
         const;
@@ -245,6 +246,7 @@ private:
     // If seated then it is either AMM or CLOB quality (whichever is best),
     // QualityFunction of the step, and the flag, which is set to true
     // if AMM quality is best.
+    // rename this. just "tipOfferQuality" or somesuch
     std::optional<std::tuple<Quality, QualityFunction, bool>>
     getAMMOrCLOBQuality(ReadView const& view) const;
 };
@@ -257,14 +259,17 @@ class EitherOffer
 {
 private:
     // Amounts is fib seq offer if multi-path else pool's balance
+    // I'd prefer pointers to wrappers, but OK, I guess
     using AMMOffer = std::pair<Amounts, std::reference_wrapper<AMMLiquidity>>;
     using CLOBOffer = std::reference_wrapper<TOffer<TIn, TOut>>;
     std::variant<AMMOffer, CLOBOffer> offer_;
 
 public:
+    // Don't define functions inline
     EitherOffer(TOffer<TIn, TOut>& offer) : offer_(std::ref(offer))
     {
     }
+    // Wrapping a constant AMMLiquidity object is problematic
     EitherOffer(Amounts const& offer, AMMLiquidity& ammLiquidity)
         : offer_(std::make_pair(offer, std::ref(ammLiquidity)))
     {
@@ -273,6 +278,10 @@ public:
     EitherOffer(EitherOffer const&) = delete;
     EitherOffer&
     operator=(EitherOffer const&) = delete;
+    // The point of this class seems to be to make the AMMOffer interface match
+    // the CLOBOffer interface. Why not do that directly? (i.e. add `quality`
+    // function to AMMOffer, issueIn, ect) And then remove this class entirely
+    // It would also make it easier to deal with consts
     Quality const
     quality() const noexcept
     {
@@ -844,10 +853,17 @@ BookStep<TIn, TOut, TDerived>::forEachOffer(
         if (!triedAMM)
         {
             triedAMM = true;
+            // getAMMOffer is not const - this changes behavior
             if (auto const ammOffer = getAMMOffer(sb, quality))
             {
                 auto eoffer =
-                    EitherOffer<TIn, TOut>(*ammOffer, ammLiquidity_.value());
+                    // This uses two different syntaxes for getting an optional
+                    // in the same line? Prefer `*` syntax and get rid of the
+                    // `.value()` calls
+                    // ammLiquidity should be const here (put in const cast for
+                    // now)
+                    EitherOffer<TIn, TOut>(
+                        *ammOffer, const_cast<AMMLiquidity&>(*ammLiquidity_));
                 if (!execOffer(eoffer))
                     return false;
             }
@@ -906,6 +922,7 @@ BookStep<TIn, TOut, TDerived>::consumeOffer(
     offer.consume(sb, ofrAmt);
 }
 
+// Rename this
 template <class TIn, class TOut, class TDerived>
 std::optional<Amounts>
 BookStep<TIn, TOut, TDerived>::getAMMOffer(
@@ -932,7 +949,7 @@ BookStep<TIn, TOut, TDerived>::getAMMOrCLOBQuality(ReadView const& view) const
     {
         auto const ammQ{Quality{*ammOffer}};
         // AMM quality is better or no CLOB offer
-        if ((clobQuality && ammQ > *clobQuality) || !clobQuality)
+        if (ammQ > clobQuality)
             return std::make_tuple(ammQ, ammQ, true);
     }
     // CLOB quality is better or no AMM offer

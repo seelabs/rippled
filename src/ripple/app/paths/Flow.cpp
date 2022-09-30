@@ -85,6 +85,8 @@ flow(
     if (sendMax)
         sendMaxIssue = sendMax->issue();
 
+    // Shouldn't this just check if there is one strand or multiple strands?
+    // WHy is this passed into "toStrands" at all?
     AMMOfferCounter ammOfferCounter(
         (defaultPaths && paths.size() == 1) || paths.size() > 1);
 

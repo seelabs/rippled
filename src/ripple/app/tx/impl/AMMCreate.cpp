@@ -28,7 +28,7 @@
 #include <ripple/protocol/TxFlags.h>
 
 namespace ripple {
-
+// remove this
 TxConsequences
 AMMCreate::makeTxConsequences(PreflightContext const& ctx)
 {
@@ -38,7 +38,7 @@ AMMCreate::makeTxConsequences(PreflightContext const& ctx)
 NotTEC
 AMMCreate::preflight(PreflightContext const& ctx)
 {
-    if (!ammRequiredAmendments(ctx.rules))
+    if (!ammEnabled(ctx.rules))
         return temDISABLED;
 
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
@@ -85,9 +85,11 @@ TER
 AMMCreate::preclaim(PreclaimContext const& ctx)
 {
     auto const accountID = ctx.tx[sfAccount];
+    // Forget the `sa` prefix
     auto const saAsset1 = ctx.tx[sfAsset1];
     auto const saAsset2 = ctx.tx[sfAsset2];
 
+    // Can't happen
     if (!ctx.view.read(keylet::account(accountID)))
     {
         JLOG(ctx.j.debug()) << "AMM Instance: Invalid account.";
@@ -135,33 +137,38 @@ AMMCreate::preclaim(PreclaimContext const& ctx)
 
     return tesSUCCESS;
 }
-
+// why is this overloaded just to call the base class?
 void
 AMMCreate::preCompute()
 {
     return Transactor::preCompute();
 }
-
+// no need to make this a function
 std::pair<TER, bool>
 AMMCreate::applyGuts(Sandbox& sb)
 {
+    // Forget sa prefix - here and other places
     auto const saAsset1 = ctx_.tx[sfAsset1];
     auto const saAsset2 = ctx_.tx[sfAsset2];
 
+    // Why doesn't the keylet take the two issues?
     auto const ammID = calcAMMGroupHash(saAsset1.issue(), saAsset2.issue());
 
     // Check if AMM already exists for the token pair
+    // read, not peek
     if (sb.peek(keylet::amm(ammID)))
     {
         JLOG(j_.debug()) << "AMM Instance: ltAMM already exists.";
         return {tecAMM_EXISTS, false};
     }
 
-    auto const ammAccountID = calcAccountID(sb.info().parentHash, ammID);
+    auto const ammAccountID = calcAMMAccountID(sb.info().parentHash, ammID);
 
     // AMM account already exists (should not happen)
+    // read, not peek
     if (sb.peek(keylet::account(ammAccountID)))
     {
+        // log at a higher level?
         JLOG(j_.debug()) << "AMM Instance: AMM already exists.";
         return {tecAMM_EXISTS, false};
     }
@@ -170,12 +177,14 @@ AMMCreate::applyGuts(Sandbox& sb)
     auto const lptIssue = calcLPTIssue(ammAccountID);
     if (sb.read(keylet::line(ammAccountID, lptIssue)))
     {
+        // log at a higher level?
         JLOG(j_.debug()) << "AMM Instance: LP Token already exists.";
         return {tecAMM_EXISTS, false};
     }
 
     // Create AMM Root Account.
     auto sleAMMRoot = std::make_shared<SLE>(keylet::account(ammAccountID));
+    // use operator[]
     sleAMMRoot->setAccountID(sfAccount, ammAccountID);
     sleAMMRoot->setFieldAmount(sfBalance, STAmount{});
     std::uint32_t const seqno{
@@ -196,10 +205,8 @@ AMMCreate::applyGuts(Sandbox& sb)
     ammSle->setFieldU16(sfTradingFee, ctx_.tx[sfTradingFee]);
     ammSle->setAccountID(sfAMMAccount, ammAccountID);
     ammSle->setFieldAmount(sfLPTokenBalance, lpTokens);
-    auto const& issue1 = saAsset1.issue() < saAsset2.issue() ? saAsset1.issue()
-                                                             : saAsset2.issue();
-    auto const& issue2 =
-        issue1 == saAsset1.issue() ? saAsset2.issue() : saAsset1.issue();
+    auto const& [issue1, issue2] =
+        std::minmax(saAsset1.issue(), saAsset2.issue());
     ammSle->makeFieldPresent(sfAMMToken);
     auto& ammToken = ammSle->peekFieldObject(sfAMMToken);
     auto setToken = [&](SField const& field, Issue const& issue) {
@@ -267,6 +274,8 @@ AMMCreate::doApply()
     // if the order isn't going to be placed, to avoid wasting the work we did.
     Sandbox sbCancel(&ctx_.view());
 
+    // Just inline applyGuts here. Making it another function doesn't do
+    // anything
     auto const result = applyGuts(sb);
     if (result.second)
         sb.apply(ctx_.rawView());

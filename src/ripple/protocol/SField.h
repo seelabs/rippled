@@ -435,6 +435,7 @@ extern SF_UINT160 const sfTakerPaysCurrency;
 extern SF_UINT160 const sfTakerPaysIssuer;
 extern SF_UINT160 const sfTakerGetsCurrency;
 extern SF_UINT160 const sfTakerGetsIssuer;
+// Maybe define an issue type - like we do in sidechains
 extern SF_UINT160 const sfTokenCurrency;
 extern SF_UINT160 const sfTokenIssuer;
 
@@ -484,6 +485,7 @@ extern SF_AMOUNT const sfHighLimit;
 extern SF_AMOUNT const sfFee;
 extern SF_AMOUNT const sfSendMax;
 extern SF_AMOUNT const sfDeliverMin;
+// These aren't great names. But OK.
 extern SF_AMOUNT const sfAsset1;
 extern SF_AMOUNT const sfAsset2;
 extern SF_AMOUNT const sfAsset1In;

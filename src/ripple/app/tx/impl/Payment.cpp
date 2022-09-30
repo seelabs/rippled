@@ -272,6 +272,8 @@ Payment::preclaim(PreclaimContext const& ctx)
     else if (sleDst->getFlags() & lsfAMM)
     {
         // Paying directly into the AMM pool is invalid.
+        // We need to disable payment channels and escrows as well.
+        // What a mess. The features do not interact very well.
         JLOG(ctx.j.trace())
             << "Malformed transaction: Direct payment into AMM is invalid.";
 

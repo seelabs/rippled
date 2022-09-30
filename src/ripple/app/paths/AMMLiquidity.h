@@ -38,15 +38,19 @@ namespace detail {
  * liquidity. Iterations that don't consume AMM offers don't count.
  * We max out at four iterations with AMM offers.
  */
+// I don't understand this
+// Question: how are partially consumed offers handled?
+// Question: What's the worst case?
 class FibSeqHelper
 {
 private:
+    // Every member variable is mutable?
     // Current sequence amounts.
-    mutable Amounts curSeq_{};
+    Amounts curSeq_{};
     // Latest sequence number.
-    mutable std::uint16_t lastNSeq_{0};
-    mutable Number x_{0};
-    mutable Number y_{0};
+    std::uint16_t lastNSeq_{0};
+    Number x_{0};
+    Number y_{0};
 
 public:
     FibSeqHelper() = default;
@@ -59,11 +63,16 @@ public:
      * @param tfee trading fee in basis points.
      * @return
      */
+    // Don't define functions in the class
+    // This also shouldn't be const
+    // So the first offer is 5/20000? And we can only have 4 offers? The largest
+    // offer isn't that large.
     Amounts const&
-    firstSeq(Amounts const& balances, std::uint16_t tfee) const
+    firstSeq(Amounts const& balances, std::uint16_t tfee)
     {
         curSeq_.in = toSTAmount(
             balances.in.issue(),
+            // what's with the /2? Why not just /20000 to begin with?
             (Number(5) / 10000) * balances.in / 2,
             Number::rounding_mode::upward);
         curSeq_.out = swapAssetIn(balances, curSeq_.in, tfee);
@@ -76,22 +85,26 @@ public:
      * @param tfee trading fee in basis points.
      * @return
      */
+    // This shouldn't be const
+    // rename this nthOffer. Lose the "next". Next could be current+n
     Amounts const&
     nextNthSeq(std::uint16_t n, Amounts const& balances, std::uint16_t tfee)
-        const
     {
         // We are at the same payment engine iteration when executing
         // a limiting step. Have to generate the same sequence.
         if (n == lastNSeq_)
             return curSeq_;
+        if (n < lastNSeq_)
+            // Let's make sure we're handling this exception
+            Throw<std::runtime_error>(
+                std::string("nextNthSeq: invalid sequence ") +
+                std::to_string(n) + " " + std::to_string(lastNSeq_));
         auto const total = [&]() {
-            if (n < lastNSeq_)
-                Throw<std::runtime_error>(
-                    std::string("nextNthSeq: invalid sequence ") +
-                    std::to_string(n) + " " + std::to_string(lastNSeq_));
             Number total{};
             do
             {
+                // There's nothing special about fib. How about choosing a
+                // function that isn't computed iteratively?
                 total = x_ + y_;
                 x_ = y_;
                 y_ = total;
@@ -121,20 +134,29 @@ public:
  * that the new AMM's pool spot price quality is equal to the CLOB's
  * offer quality.
  */
+// So there are at most 4 interactions? After that is uses the offer book?
+// I don't love that there are two separate algorithms here: one for one path
+// and one for multi-path
+// Are the offer persistent? I.e. do the two different paths see the partially
+// consumed offer? What happens to overpaid fees? Does the AMM keep them?
 class AMMLiquidity
 {
 private:
+    // This isn't const
     AMMOfferCounter& offerCounter_;
     AccountID const ammAccountID_;
     std::uint32_t const tradingFee_;
+    // Lots of mutable here
     // Cached AMM pool balances as of last getOffer()
-    Amounts balances_;
+    // why not optional and clear when dirty? (and remove the dirty flag)
+    mutable Amounts balances_;
     // Is seated in case of multi-path. Generates Fibonacci
     // sequence offer.
-    std::optional<detail::FibSeqHelper> fibSeqHelper_;
+    // Rewrite this so it doesn't need to be mutable
+    mutable std::optional<detail::FibSeqHelper> fibSeqHelper_;
     // Indicates that the balances may have changed
     // since the last fetchBalances()
-    bool dirty_;
+    mutable bool dirty_;
     beast::Journal const j_;
 
 public:
@@ -157,7 +179,8 @@ public:
      * quality.
      */
     std::optional<Amounts>
-    getOffer(ReadView const& view, std::optional<Quality> const& clobQuality);
+    getOffer(ReadView const& view, std::optional<Quality> const& clobQuality)
+        const;
 
     /** Called when AMM offer is consumed. Sets dirty flag
      * to indicate that the balances may have changed and
@@ -201,7 +224,7 @@ private:
     /** Fetches AMM balances if dirty flag is set.
      */
     Amounts
-    fetchBalances(ReadView const& view);
+    fetchBalances(ReadView const& view) const;
 
     /** Returns total amount held by AMM for the given token.
      */
@@ -215,9 +238,8 @@ private:
      * @param balances current AMM balances
      */
     Amounts
-    generateFibSeqOffer(Amounts const& balances);
+    generateFibSeqOffer(Amounts const& balances) const;
 };
-
 }  // namespace ripple
 
 #endif  // RIPPLE_APP_TX_AMMOFFERMAKER_H_INCLUDED

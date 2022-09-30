@@ -36,13 +36,14 @@ class AMMOfferCounter
 private:
     // true if payment has multiple paths
     bool multiPath_{false};
+    // mutable is overused in this patch
     // Counter of consumed AMM at payment engine iteration
     std::uint16_t ammCounter_{0};
     // Counter of payment engine iterations with consumed AMM
     std::uint16_t ammIters_{0};
 
 public:
-    AMMOfferCounter(bool fibSeq) : multiPath_(fibSeq)
+    AMMOfferCounter(bool multiPath) : multiPath_(multiPath)
     {
     }
     ~AMMOfferCounter() = default;

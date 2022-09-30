@@ -19,18 +19,19 @@
 #include <ripple/app/misc/AMM.h>
 #include <ripple/app/paths/TrustLine.h>
 #include <ripple/ledger/Sandbox.h>
+#include <ripple/protocol/STAccount.h>
 #include <ripple/protocol/STArray.h>
+
+#include <algorithm>
 
 namespace ripple {
 
+// Why isn't this an index?
 uint256
 calcAMMGroupHash(Issue const& issue1, Issue const& issue2)
 {
-    if (issue1 < issue2)
-        return sha512Half(
-            issue1.account, issue1.currency, issue2.account, issue2.currency);
-    return sha512Half(
-        issue2.account, issue2.currency, issue1.account, issue1.currency);
+    auto const& [minI, maxI] = std::minmax(issue1, issue2);
+    return sha512Half(minI.account, minI.currency, maxI.account, maxI.currency);
 }
 
 Currency
@@ -53,20 +54,11 @@ ammPoolHolds(
     Issue const& issue2,
     beast::Journal const j)
 {
+    // let's overload accounts holds so it takes an issue
     auto const assetInBalance = accountHolds(
-        view,
-        ammAccountID,
-        issue1.currency,
-        issue1.account,
-        FreezeHandling::fhZERO_IF_FROZEN,
-        j);
+        view, ammAccountID, issue1, FreezeHandling::fhZERO_IF_FROZEN, j);
     auto const assetOutBalance = accountHolds(
-        view,
-        ammAccountID,
-        issue2.currency,
-        issue2.account,
-        FreezeHandling::fhZERO_IF_FROZEN,
-        j);
+        view, ammAccountID, issue2, FreezeHandling::fhZERO_IF_FROZEN, j);
     return std::make_pair(assetInBalance, assetOutBalance);
 }
 
@@ -88,6 +80,7 @@ ammHolds(
                 return {issue1, issue2};
             else if (*optIssue1 == issue2)
                 return {issue2, issue1};
+            // Can throw on user input
             Throw<std::runtime_error>("ammHolds: Invalid optIssue1.");
         }
         else if (optIssue2)
@@ -121,7 +114,7 @@ lpHolds(
         FreezeHandling::fhZERO_IF_FROZEN,
         j);
 }
-
+// This has too wide a scope. Rename to amm invalid amount.
 std::optional<TEMcodes>
 invalidAmount(std::optional<STAmount> const& a, bool zero)
 {
@@ -143,8 +136,9 @@ isFrozen(ReadView const& view, std::optional<STAmount> const& a)
 }
 
 std::shared_ptr<STLedgerEntry const>
-getAMMSle(ReadView const& view, uint256 ammID)
+getAMMSle(ReadView const& view, uint256 const& ammID)
 {
+    // I don't understand the second check. This looks like an expensive check.
     if (auto const sle = view.read(keylet::amm(ammID));
         (!sle || !view.read(keylet::account(sle->getAccountID(sfAMMAccount)))))
         return nullptr;
@@ -153,8 +147,9 @@ getAMMSle(ReadView const& view, uint256 ammID)
 }
 
 std::shared_ptr<STLedgerEntry>
-getAMMSle(Sandbox& view, uint256 ammID)
+getAMMSle(Sandbox& view, uint256 const& ammID)
 {
+    // I don't understand the second check
     if (auto const sle = view.peek(keylet::amm(ammID));
         (!sle || !view.read(keylet::account(sle->getAccountID(sfAMMAccount)))))
         return nullptr;
@@ -188,10 +183,9 @@ getTradingFee(SLE const& ammSle, AccountID const& account)
 {
     if (ammSle.isFieldPresent(sfAuctionSlot))
     {
-        auto const& auctionSlot =
+        STObject const& auctionSlot =
             static_cast<STObject const&>(ammSle.peekAtField(sfAuctionSlot));
-        if (auctionSlot.isFieldPresent(sfAccount) &&
-            auctionSlot.getAccountID(sfAccount) == account)
+        if (auctionSlot[~sfAccount] == account)
             return auctionSlot.getFieldU32(sfDiscountedFee);
         if (auctionSlot.isFieldPresent(sfAuthAccounts))
         {
@@ -227,6 +221,7 @@ ammSend(
     STAmount const& amount,
     beast::Journal j)
 {
+    // This doesn't check deposit auth. Does it need to?
     if (isXRP(amount))
         return accountSend(view, from, to, amount, j);
 
@@ -235,6 +230,8 @@ ammSend(
     if (from == issuer || to == issuer || issuer == noAccount())
     {
         auto const ter = rippleCredit(view, from, to, amount, false, j);
+        // What does deletable accounts have to do with this? I don't
+        // understand.
         if (view.rules().enabled(featureDeletableAccounts) && ter != tesSUCCESS)
             return ter;
         return tesSUCCESS;
@@ -267,10 +264,10 @@ timeSlot(NetClock::time_point const& clock, STObject const& auctionSlot)
 }
 
 bool
-ammRequiredAmendments(Rules const& rules)
+ammEnabled(Rules const& rules)
 {
-    return rules.enabled(featureAMM) && rules.enabled(fixUniversalNumber) &&
-        rules.enabled(featureFlowCross);
+    // Assume all currently enabled features are still enabled.
+    return rules.enabled(featureAMM) && rules.enabled(fixUniversalNumber);
 }
 
 }  // namespace ripple

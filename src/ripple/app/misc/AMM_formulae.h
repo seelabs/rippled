@@ -99,6 +99,7 @@ feeMult(std::uint16_t tfee)
 inline Number
 feeMultHalf(std::uint16_t tfee)
 {
+    // from the name expected (1-getFee)/2; is this correct?
     return 1 - getFee(tfee) / 2;
 }
 

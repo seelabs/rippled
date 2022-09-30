@@ -36,7 +36,7 @@ AMMVote::makeTxConsequences(PreflightContext const& ctx)
 NotTEC
 AMMVote::preflight(PreflightContext const& ctx)
 {
-    if (!ammRequiredAmendments(ctx.rules))
+    if (!ammEnabled(ctx.rules))
         return temDISABLED;
 
     auto const ret = preflight1(ctx);
@@ -61,6 +61,7 @@ AMMVote::preflight(PreflightContext const& ctx)
 TER
 AMMVote::preclaim(PreclaimContext const& ctx)
 {
+    // here and others - don't check for this
     if (!ctx.view.read(keylet::account(ctx.tx[sfAccount])))
     {
         JLOG(ctx.j.debug()) << "AMM Vote: Invalid account.";
@@ -75,7 +76,7 @@ AMMVote::preclaim(PreclaimContext const& ctx)
 
     return tesSUCCESS;
 }
-
+// remove
 void
 AMMVote::preCompute()
 {
@@ -97,7 +98,7 @@ AMMVote::applyGuts(Sandbox& sb)
         return {tecAMM_INVALID_TOKENS, false};
     }
 
-    std::optional<STAmount> minTokens{};
+    std::optional<STAmount> minTokens;
     std::size_t minPos{0};
     AccountID minAccount{0};
     std::uint32_t minFee{0};

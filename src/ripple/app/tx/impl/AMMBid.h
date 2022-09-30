@@ -27,7 +27,7 @@ namespace ripple {
 class Sandbox;
 
 /** AMMBid implements AMM bid Transactor.
- * This is a novel mechanism for an AMM instance to auction-off
+ * This is a mechanism for an AMM instance to auction-off
  * the trading advantages to users (arbitrageurs) at a discounted
  * TradingFee for a 24 hour slot. Any account that owns corresponding
  * LPTokens can bid for the auction slot of that AMM instance.
@@ -64,6 +64,7 @@ class Sandbox;
 class AMMBid : public Transactor
 {
 public:
+    // Why is this custom?
     static constexpr ConsequencesFactoryType ConsequencesFactory{Custom};
 
     explicit AMMBid(ApplyContext& ctx) : Transactor(ctx)

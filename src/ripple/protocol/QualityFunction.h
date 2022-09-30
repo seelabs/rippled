@@ -34,6 +34,8 @@ class Quality;
 class QualityFunction
 {
 private:
+    // Slope intercept form may not be a numerically stable as other forms
+    // Maybe use the parametric form?
     Number m_;  // slope
     Number b_;  // intercept
 

@@ -142,6 +142,8 @@ XRPNotCreated::finalize(
     beast::Journal const& j)
 {
     // AMM is created with AMMInstanceCreate, not payment
+    // This doesn't seem right. This is a check for new XRP created, not account
+    // created
     if (tx.getTxnType() == ttAMM_INSTANCE_CREATE)
         return true;
 
