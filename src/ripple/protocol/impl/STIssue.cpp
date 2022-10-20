@@ -145,7 +145,7 @@ STIssue::move(std::size_t n, void* buf)
 STIssue
 issueFromJson(SField const& name, Json::Value const& v)
 {
-    if (!v.isObject() || v.isString())
+    if (!v.isObject() && !v.isString())
     {
         Throw<std::runtime_error>(
             "Issue must be specified with either an object or a string Json "
