@@ -48,65 +48,41 @@
 
 namespace ripple::test {
 
+// SEnv class - encapsulate jtx::Env to make it more user-friendly,
+// for example having APIs that return a *this reference so that calls can be
+// chained (fluent interface) allowing to create an environment and use it
+// without encapsulating it in a curly brace block.
+// ---------------------------------------------------------------------------
 template <class T>
-struct xEnv : public jtx::XChainBridgeObjects
+struct SEnv
 {
     jtx::Env env_;
 
-    xEnv(T& s, bool side = false)
-        : env_(s, jtx::envconfig(jtx::port_increment, side ? 3 : 0), features)
+    SEnv(
+        T& s,
+        std::unique_ptr<Config> config,
+        FeatureBitset features,
+        std::unique_ptr<Logs> logs = nullptr,
+        beast::severities::Severity thresh = beast::severities::kError)
+        : env_(s, std::move(config), features, std::move(logs), thresh)
     {
-        using namespace jtx;
-        STAmount xrp_funds{XRP(10000)};
-
-        if (!side)
-        {
-            env_.fund(xrp_funds, mcDoor, mcAlice, mcBob, mcCarol, mcGw);
-
-            // Signer's list must match the attestation signers
-            // env_(jtx::signers(mcDoor, quorum, signers));
-            for (auto& s : signers)
-                env_.fund(xrp_funds, s.account);
-        }
-        else
-        {
-            env_.fund(
-                xrp_funds,
-                scDoor,
-                scAlice,
-                scBob,
-                scCarol,
-                scGw,
-                scAttester,
-                scReward);
-
-            for (auto& ra : payees)
-                env_.fund(xrp_funds, ra);
-
-            for (auto& s : signers)
-                env_.fund(xrp_funds, s.account);
-
-            // Signer's list must match the attestation signers
-            // env_(jtx::signers(Account::master, quorum, signers));
-        }
-        env_.close();
     }
 
-    xEnv&
+    SEnv&
     close()
     {
         env_.close();
         return *this;
     }
 
-    xEnv&
+    SEnv&
     enableFeature(uint256 const feature)
     {
         env_.enableFeature(feature);
         return *this;
     }
 
-    xEnv&
+    SEnv&
     disableFeature(uint256 const feature)
     {
         env_.app().config().features.erase(feature);
@@ -114,7 +90,7 @@ struct xEnv : public jtx::XChainBridgeObjects
     }
 
     template <class Arg, class... Args>
-    xEnv&
+    SEnv&
     fund(STAmount const& amount, Arg const& arg, Args const&... args)
     {
         env_.fund(amount, arg, args...);
@@ -122,7 +98,7 @@ struct xEnv : public jtx::XChainBridgeObjects
     }
 
     template <class JsonValue, class... FN>
-    xEnv&
+    SEnv&
     tx(JsonValue&& jv, FN const&... fN)
     {
         env_(std::forward<JsonValue>(jv), fN...);
@@ -182,6 +158,52 @@ struct xEnv : public jtx::XChainBridgeObjects
     {
         return env_.le(
             keylet::xChainCreateAccountClaimID(STXChainBridge(jvb), seq));
+    }
+};
+
+template <class T>
+struct XEnv : public jtx::XChainBridgeObjects, public SEnv<T>
+{
+    XEnv(T& s, bool side = false)
+        : SEnv<T>(
+              s,
+              jtx::envconfig(jtx::port_increment, side ? 3 : 0),
+              features)
+    {
+        using namespace jtx;
+        STAmount xrp_funds{XRP(10000)};
+
+        if (!side)
+        {
+            this->fund(xrp_funds, mcDoor, mcAlice, mcBob, mcCarol, mcGw);
+
+            // Signer's list must match the attestation signers
+            // env_(jtx::signers(mcDoor, quorum, signers));
+            for (auto& s : signers)
+                this->fund(xrp_funds, s.account);
+        }
+        else
+        {
+            this->fund(
+                xrp_funds,
+                scDoor,
+                scAlice,
+                scBob,
+                scCarol,
+                scGw,
+                scAttester,
+                scReward);
+
+            for (auto& ra : payees)
+                this->fund(xrp_funds, ra);
+
+            for (auto& s : signers)
+                this->fund(xrp_funds, s.account);
+
+            // Signer's list must match the attestation signers
+            // env_(jtx::signers(Account::master, quorum, signers));
+        }
+        this->close();
     }
 };
 
@@ -325,13 +347,13 @@ struct XChain_test : public beast::unit_test::suite,
     XRPAmount
     reserve(std::uint32_t count)
     {
-        return xEnv(*this).env_.current()->fees().accountReserve(count);
+        return XEnv(*this).env_.current()->fees().accountReserve(count);
     }
 
     XRPAmount
     txFee()
     {
-        return xEnv(*this).env_.current()->fees().base;
+        return XEnv(*this).env_.current()->fees().base;
     }
 
     void
@@ -343,26 +365,26 @@ struct XChain_test : public beast::unit_test::suite,
         testcase("Create Bridge");
 
         // Normal create_bridge => should succeed
-        xEnv(*this).tx(create_bridge(mcDoor)).close();
+        XEnv(*this).tx(create_bridge(mcDoor)).close();
 
         // Bridge not owned by one of the door account.
-        xEnv(*this).tx(create_bridge(mcBob), ter(temSIDECHAIN_NONDOOR_OWNER));
+        XEnv(*this).tx(create_bridge(mcBob), ter(temSIDECHAIN_NONDOOR_OWNER));
 
         // Create twice on the same account
-        xEnv(*this)
+        XEnv(*this)
             .tx(create_bridge(mcDoor))
             .close()
             .tx(create_bridge(mcDoor), ter(tecDUPLICATE));
 
         // Create USD bridge Alice -> Bob ... should succeed
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             create_bridge(
                 mcAlice, bridge(mcAlice, mcAlice["USD"], mcBob, mcBob["USD"])),
             ter(tesSUCCESS));
 
         // Create where both door accounts are on the same chain. The second
         // bridge create should fail.
-        xEnv(*this)
+        XEnv(*this)
             .tx(create_bridge(
                 mcAlice, bridge(mcAlice, mcAlice["USD"], mcBob, mcBob["USD"])))
             .close()
@@ -372,59 +394,59 @@ struct XChain_test : public beast::unit_test::suite,
                 ter(tecDUPLICATE));
 
         // Bridge where the two door accounts are equal.
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             create_bridge(
                 mcBob, bridge(mcBob, mcBob["USD"], mcBob, mcBob["USD"])),
             ter(temEQUAL_DOOR_ACCOUNTS));
 
         // Create an bridge on an account with exactly enough balance to
         // meet the new reserve should succeed
-        xEnv(*this)
+        XEnv(*this)
             .fund(res1, mcuDoor)  // exact reserve for account + 1 object
             .close()
             .tx(create_bridge(mcuDoor, jvub), ter(tesSUCCESS));
 
         // Create an bridge on an account with no enough balance to meet the
         // new reserve
-        xEnv(*this)
+        XEnv(*this)
             .fund(res1 - 1, mcuDoor)  // just short of required reserve
             .close()
             .tx(create_bridge(mcuDoor, jvub), ter(tecINSUFFICIENT_RESERVE));
 
         // Reward amount is non-xrp
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             create_bridge(mcDoor, jvb, mcUSD(1)),
             ter(temXCHAIN_BRIDGE_BAD_REWARD_AMOUNT));
 
         // Reward amount is XRP and negative
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             create_bridge(mcDoor, jvb, XRP(-1)),
             ter(temXCHAIN_BRIDGE_BAD_REWARD_AMOUNT));
 
         // Reward amount is zero
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             create_bridge(mcDoor, jvb, XRP(0)),
             ter(temXCHAIN_BRIDGE_BAD_REWARD_AMOUNT));
 
         // Reward amount is 1 xrp => should succeed
-        xEnv(*this).tx(create_bridge(mcDoor, jvb, XRP(1)), ter(tesSUCCESS));
+        XEnv(*this).tx(create_bridge(mcDoor, jvb, XRP(1)), ter(tesSUCCESS));
 
         // Min create amount is 1 xrp, mincreate is 1 xrp => should succeed
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             create_bridge(mcDoor, jvb, XRP(1), XRP(1)), ter(tesSUCCESS));
 
         // Min create amount is non-xrp
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             create_bridge(mcDoor, jvb, XRP(1), mcUSD(100)),
             ter(temXCHAIN_BRIDGE_BAD_MIN_ACCOUNT_CREATE_AMOUNT));
 
         // Min create amount is zero (should fail, currently succeeds)
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             create_bridge(mcDoor, jvb, XRP(1), XRP(0)),
             ter(temXCHAIN_BRIDGE_BAD_MIN_ACCOUNT_CREATE_AMOUNT));
 
         // Min create amount is negative
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             create_bridge(mcDoor, jvb, XRP(1), XRP(-1)),
             ter(temXCHAIN_BRIDGE_BAD_MIN_ACCOUNT_CREATE_AMOUNT));
 
@@ -436,19 +458,19 @@ struct XChain_test : public beast::unit_test::suite,
         }
 
         // coverage test: BridgeCreate::preclaim() returns tecNO_ISSUER.
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             create_bridge(
                 mcAlice, bridge(mcAlice, mcuAlice["USD"], mcBob, mcBob["USD"])),
             ter(tecNO_ISSUER));
 
         // coverage test: create_bridge transaction with incorrect flag
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             create_bridge(mcAlice, jvb),
             txflags(tfFillOrKill),
             ter(temINVALID_FLAG));
 
         // coverage test: create_bridge transaction with xchain feature disabled
-        xEnv(*this)
+        XEnv(*this)
             .disableFeature(featureXChainBridge)
             .tx(create_bridge(mcAlice, jvb), ter(temDISABLED));
     }
@@ -634,8 +656,8 @@ struct XChain_test : public beast::unit_test::suite,
         std::vector<std::tuple<TER, TER, bool>> test_result;
 
         auto testcase = [&](auto const& lc, auto const& ic) {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             lc.second(mcEnv, true);
             lc.second(scEnv, false);
@@ -751,7 +773,7 @@ struct XChain_test : public beast::unit_test::suite,
         testcase("Modify Bridge");
 
         // Changing a non-existent bridge should fail
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             bridge_modify(
                 mcAlice,
                 bridge(mcAlice, mcAlice["USD"], mcBob, mcBob["USD"]),
@@ -760,52 +782,52 @@ struct XChain_test : public beast::unit_test::suite,
             ter(tecNO_ENTRY));
 
         // must change something
-        // xEnv(*this)
+        // XEnv(*this)
         //    .tx(create_bridge(mcDoor, jvb, XRP(1), XRP(1)))
         //    .tx(bridge_modify(mcDoor, jvb, XRP(1), XRP(1)),
         //    ter(temMALFORMED));
 
         // must change something
-        xEnv(*this)
+        XEnv(*this)
             .tx(create_bridge(mcDoor, jvb, XRP(1), XRP(1)))
             .close()
             .tx(bridge_modify(mcDoor, jvb, {}, {}), ter(temMALFORMED));
 
         // Reward amount is non-xrp
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             bridge_modify(mcDoor, jvb, mcUSD(2), XRP(10)),
             ter(temXCHAIN_BRIDGE_BAD_REWARD_AMOUNT));
 
         // Reward amount is XRP and negative
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             bridge_modify(mcDoor, jvb, XRP(-2), XRP(10)),
             ter(temXCHAIN_BRIDGE_BAD_REWARD_AMOUNT));
 
         // Reward amount is zero
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             bridge_modify(mcDoor, jvb, XRP(0), XRP(10)),
             ter(temXCHAIN_BRIDGE_BAD_REWARD_AMOUNT));
 
         // Min create amount is non-xrp
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             bridge_modify(mcDoor, jvb, XRP(2), mcUSD(10)),
             ter(temXCHAIN_BRIDGE_BAD_MIN_ACCOUNT_CREATE_AMOUNT));
 
         // Min create amount is zero
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             bridge_modify(mcDoor, jvb, XRP(2), XRP(0)),
             ter(temXCHAIN_BRIDGE_BAD_MIN_ACCOUNT_CREATE_AMOUNT));
 
         // Min create amount is negative
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             bridge_modify(mcDoor, jvb, XRP(2), XRP(-10)),
             ter(temXCHAIN_BRIDGE_BAD_MIN_ACCOUNT_CREATE_AMOUNT));
 
         // First check the regular claim process (without bridge_modify)
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -844,8 +866,8 @@ struct XChain_test : public beast::unit_test::suite,
         // modified.
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -892,8 +914,8 @@ struct XChain_test : public beast::unit_test::suite,
         // id was created.
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -957,7 +979,7 @@ struct XChain_test : public beast::unit_test::suite,
         }
 
         // coverage test: bridge_modify transaction with incorrect flag
-        xEnv(*this)
+        XEnv(*this)
             .tx(create_bridge(mcDoor, jvb))
             .close()
             .tx(bridge_modify(mcDoor, jvb, XRP(1), XRP(2)),
@@ -965,7 +987,7 @@ struct XChain_test : public beast::unit_test::suite,
                 ter(temINVALID_FLAG));
 
         // coverage test: bridge_modify transaction with xchain feature disabled
-        xEnv(*this)
+        XEnv(*this)
             .tx(create_bridge(mcDoor, jvb))
             .disableFeature(featureXChainBridge)
             .close()
@@ -983,7 +1005,7 @@ struct XChain_test : public beast::unit_test::suite,
 
         // normal bridge create for sanity check with the exact necessary
         // account balance
-        xEnv(*this, true)
+        XEnv(*this, true)
             .tx(create_bridge(Account::master, jvb))
             .fund(res1, scuAlice)  // acct reserve + 1 object
             .close()
@@ -992,7 +1014,7 @@ struct XChain_test : public beast::unit_test::suite,
 
         // check reward not deducted when claim id is created
         {
-            xEnv xenv(*this, true);
+            XEnv xenv(*this, true);
 
             Balance scAlice_bal(xenv, scAlice);
 
@@ -1004,7 +1026,7 @@ struct XChain_test : public beast::unit_test::suite,
         }
 
         // Non-existent bridge
-        xEnv(*this, true)
+        XEnv(*this, true)
             .tx(xchain_create_claim_id(
                     scAlice,
                     bridge(mcAlice, mcAlice["USD"], scBob, scBob["USD"]),
@@ -1014,7 +1036,7 @@ struct XChain_test : public beast::unit_test::suite,
             .close();
 
         // Creating the new object would put the account below the reserve
-        xEnv(*this, true)
+        XEnv(*this, true)
             .tx(create_bridge(Account::master, jvb))
             .fund(res1 - xrp_dust, scuAlice)  // barely not enough
             .close()
@@ -1025,7 +1047,7 @@ struct XChain_test : public beast::unit_test::suite,
         // The specified reward doesn't match the reward on the bridge (test by
         // giving the reward amount for the other side, as well as a completely
         // non-matching reward)
-        xEnv(*this, true)
+        XEnv(*this, true)
             .tx(create_bridge(Account::master, jvb))
             .close()
             .tx(xchain_create_claim_id(scAlice, jvb, split_reward, mcAlice),
@@ -1033,7 +1055,7 @@ struct XChain_test : public beast::unit_test::suite,
             .close();
 
         // A reward amount that isn't XRP
-        xEnv(*this, true)
+        XEnv(*this, true)
             .tx(create_bridge(Account::master, jvb))
             .close()
             .tx(xchain_create_claim_id(scAlice, jvb, mcUSD(1), mcAlice),
@@ -1041,7 +1063,7 @@ struct XChain_test : public beast::unit_test::suite,
             .close();
 
         // coverage test: xchain_create_claim_id transaction with incorrect flag
-        xEnv(*this, true)
+        XEnv(*this, true)
             .tx(create_bridge(Account::master, jvb))
             .close()
             .tx(xchain_create_claim_id(scAlice, jvb, reward, mcAlice),
@@ -1051,7 +1073,7 @@ struct XChain_test : public beast::unit_test::suite,
 
         // coverage test: xchain_create_claim_id transaction with xchain feature
         // disabled
-        xEnv(*this, true)
+        XEnv(*this, true)
             .tx(create_bridge(Account::master, jvb))
             .disableFeature(featureXChainBridge)
             .close()
@@ -1070,12 +1092,12 @@ struct XChain_test : public beast::unit_test::suite,
         testcase("Commit");
 
         // Commit to a non-existent bridge
-        xEnv(*this).tx(
+        XEnv(*this).tx(
             xchain_commit(mcAlice, jvb, 1, one_xrp, scBob), ter(tecNO_ENTRY));
 
         // check that reward not deducted when doing the commit
         {
-            xEnv xenv(*this);
+            XEnv xenv(*this);
 
             Balance alice_bal(xenv, mcAlice);
             auto const amt = XRP(1000);
@@ -1090,7 +1112,7 @@ struct XChain_test : public beast::unit_test::suite,
         }
 
         // Commit a negative amount
-        xEnv(*this)
+        XEnv(*this)
             .tx(create_bridge(mcDoor, jvb))
             .close()
             .tx(xchain_commit(mcAlice, jvb, 1, XRP(-1), scBob),
@@ -1099,7 +1121,7 @@ struct XChain_test : public beast::unit_test::suite,
         // Commit an amount whose issue that does not match the expected issue
         // on the bridge (either LockingChainIssue or IssuingChainIssue,
         // depending on the chain).
-        xEnv(*this)
+        XEnv(*this)
             .tx(create_bridge(mcDoor, jvb))
             .close()
             .tx(xchain_commit(mcAlice, jvb, 1, mcUSD(100), scBob),
@@ -1107,14 +1129,14 @@ struct XChain_test : public beast::unit_test::suite,
 
         // Commit an amount that would put the sender below the required reserve
         // (if XRP)
-        xEnv(*this)
+        XEnv(*this)
             .tx(create_bridge(mcDoor, jvb))
             .fund(res0 + one_xrp - xrp_dust, mcuAlice)  // barely not enough
             .close()
             .tx(xchain_commit(mcuAlice, jvb, 1, one_xrp, scBob),
                 ter(tecINSUFFICIENT_FUNDS));
 
-        xEnv(*this)
+        XEnv(*this)
             .tx(create_bridge(mcDoor, jvb))
             .fund(
                 res0 + one_xrp + xrp_dust,  // "xrp_dust" for tx fees
@@ -1123,7 +1145,7 @@ struct XChain_test : public beast::unit_test::suite,
             .tx(xchain_commit(mcuAlice, jvb, 1, one_xrp, scBob));
 
         // Commit an amount above the account's balance (for both XRP and IOUs)
-        xEnv(*this)
+        XEnv(*this)
             .tx(create_bridge(mcDoor, jvb))
             .fund(res0, mcuAlice)  // barely not enough
             .close()
@@ -1133,14 +1155,14 @@ struct XChain_test : public beast::unit_test::suite,
         auto jvb_USD = bridge(mcDoor, mcUSD, scGw, scUSD);
 
         // commit sent from iou issuer (mcGw) succeeds - should it?
-        xEnv(*this)
+        XEnv(*this)
             .tx(trust(mcDoor, mcUSD(10000)))  // door needs to have a trustline
             .tx(create_bridge(mcDoor, jvb_USD))
             .close()
             .tx(xchain_commit(mcGw, jvb_USD, 1, mcUSD(1), scBob));
 
         // commit to a door account from the door account. This should fail.
-        xEnv(*this)
+        XEnv(*this)
             .tx(trust(mcDoor, mcUSD(10000)))  // door needs to have a trustline
             .tx(create_bridge(mcDoor, jvb_USD))
             .close()
@@ -1148,7 +1170,7 @@ struct XChain_test : public beast::unit_test::suite,
                 ter(tecXCHAIN_SELF_COMMIT));
 
         // commit sent from mcAlice which has no IOU balance => should fail
-        xEnv(*this)
+        XEnv(*this)
             .tx(trust(mcDoor, mcUSD(10000)))  // door needs to have a trustline
             .tx(create_bridge(mcDoor, jvb_USD))
             .close()
@@ -1158,7 +1180,7 @@ struct XChain_test : public beast::unit_test::suite,
         // commit sent from mcAlice which has no IOU balance => should fail
         // just changed the destination to scGw (which is the door account and
         // may not make much sense)
-        xEnv(*this)
+        XEnv(*this)
             .tx(trust(mcDoor, mcUSD(10000)))  // door needs to have a trustline
             .tx(create_bridge(mcDoor, jvb_USD))
             .close()
@@ -1166,7 +1188,7 @@ struct XChain_test : public beast::unit_test::suite,
                 ter(terNO_LINE));
 
         // commit sent from mcAlice which has a IOU balance => should succeed
-        xEnv(*this)
+        XEnv(*this)
             .tx(trust(mcDoor, mcUSD(10000)))
             .tx(trust(mcAlice, mcUSD(10000)))
             .close()
@@ -1177,7 +1199,7 @@ struct XChain_test : public beast::unit_test::suite,
             .tx(xchain_commit(mcAlice, jvb_USD, 1, mcUSD(10), scAlice));
 
         // coverage test: xchain_commit transaction with incorrect flag
-        xEnv(*this)
+        XEnv(*this)
             .tx(create_bridge(mcDoor))
             .close()
             .tx(xchain_commit(mcAlice, jvb, 1, one_xrp, scBob),
@@ -1185,7 +1207,7 @@ struct XChain_test : public beast::unit_test::suite,
                 ter(temINVALID_FLAG));
 
         // coverage test: xchain_commit transaction with xchain feature disabled
-        xEnv(*this)
+        XEnv(*this)
             .tx(create_bridge(mcDoor))
             .disableFeature(featureXChainBridge)
             .close()
@@ -1211,8 +1233,8 @@ struct XChain_test : public beast::unit_test::suite,
         //          one reaching quorum
         for (auto withClaim : {true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
             std::uint32_t const claimID = 1;
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
@@ -1274,8 +1296,8 @@ struct XChain_test : public beast::unit_test::suite,
         // entire transaction should fail.
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
             std::uint32_t const claimID = 1;
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
@@ -1351,8 +1373,8 @@ struct XChain_test : public beast::unit_test::suite,
         // exist and reach quorum
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -1426,8 +1448,8 @@ struct XChain_test : public beast::unit_test::suite,
         // exists and the other has already been claimed
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -1519,8 +1541,8 @@ struct XChain_test : public beast::unit_test::suite,
         // claim ids exist. No transfer should occur.
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -1585,8 +1607,8 @@ struct XChain_test : public beast::unit_test::suite,
         // exist. Test for both reaching quorum
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -1662,8 +1684,8 @@ struct XChain_test : public beast::unit_test::suite,
         // exist. Test for both going over quorum.
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -1728,8 +1750,8 @@ struct XChain_test : public beast::unit_test::suite,
         // exist. Test for one reaching quorum and not the other
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -1797,8 +1819,8 @@ struct XChain_test : public beast::unit_test::suite,
         // means attesting to different values.
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -1903,8 +1925,8 @@ struct XChain_test : public beast::unit_test::suite,
         // 1,2,4 => should succeed
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             std::uint32_t const quorum_7 = 7;
             std::vector<signer> const signers_ = [] {
@@ -1976,8 +1998,8 @@ struct XChain_test : public beast::unit_test::suite,
         // 4,4 => should succeed
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             std::uint32_t const quorum_7 = 7;
             std::vector<signer> const signers_ = [] {
@@ -2051,8 +2073,8 @@ struct XChain_test : public beast::unit_test::suite,
         // 1,2 => should fail
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             std::uint32_t const quorum_7 = 7;
             std::vector<signer> const signers_ = [] {
@@ -2124,8 +2146,8 @@ struct XChain_test : public beast::unit_test::suite,
         // 2,4 => should fail
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             std::uint32_t const quorum_7 = 7;
             std::vector<signer> const signers_ = [] {
@@ -2198,8 +2220,8 @@ struct XChain_test : public beast::unit_test::suite,
         // should fail.
         for (auto withClaim : {false})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -2264,8 +2286,8 @@ struct XChain_test : public beast::unit_test::suite,
         // Add attestations for both account create and claims.
         for (auto withClaim : {false})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
             auto const amt = XRP(1000);
 
             {
@@ -2347,8 +2369,8 @@ struct XChain_test : public beast::unit_test::suite,
         // all the previous create transactions have occurred. Re-adding an
         // attestation should move funds.
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
             auto const amt = XRP(1000);
             auto const amt_plus_reward = amt + reward;
 
@@ -2504,7 +2526,7 @@ struct XChain_test : public beast::unit_test::suite,
         // Check that creating an account with less than the minimum create
         // amount fails.
         {
-            xEnv mcEnv(*this);
+            XEnv mcEnv(*this);
             auto const amt = XRP(19);
 
             mcEnv.tx(create_bridge(mcDoor, jvb, XRP(1), XRP(20))).close();
@@ -2525,8 +2547,8 @@ struct XChain_test : public beast::unit_test::suite,
         // Check that creating an account with less than the minimum reserve
         // fails.
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             auto const amt = res0 - XRP(1);
             auto const amt_plus_reward = amt + reward;
@@ -2571,8 +2593,8 @@ struct XChain_test : public beast::unit_test::suite,
         // Check that sending funds with an account create txn to an existing
         // account works.
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             auto const amt = XRP(111);
             auto const amt_plus_reward = amt + reward;
@@ -2618,8 +2640,8 @@ struct XChain_test : public beast::unit_test::suite,
         // Check that sending funds to an existing account with deposit auth set
         // fails for account create transactions.
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             auto const amt = XRP(1000);
             auto const amt_plus_reward = amt + reward;
@@ -2669,8 +2691,8 @@ struct XChain_test : public beast::unit_test::suite,
         // Create several accounts with a single batch attestation. This should
         // succeed.
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
             auto const amt = XRP(1000);
             auto const amt_plus_reward = amt + reward;
 
@@ -2732,8 +2754,8 @@ struct XChain_test : public beast::unit_test::suite,
         // Create several accounts with a single batch attestation, with
         // attestations not in order. This should succeed.
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
             auto const amt = XRP(1000);
             auto const amt_plus_reward = amt + reward;
 
@@ -2794,8 +2816,8 @@ struct XChain_test : public beast::unit_test::suite,
 
         // try even more mixed up attestations
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
             auto const amt = XRP(1000);
             auto const amt_plus_reward = amt + reward;
 
@@ -2866,8 +2888,8 @@ struct XChain_test : public beast::unit_test::suite,
         // try multiple batches of attestations, with the quorum reached for
         // multiple account create in the second and third batch
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
             auto const amt = XRP(1000);
             auto const amt_plus_reward = amt + reward;
 
@@ -2975,8 +2997,8 @@ struct XChain_test : public beast::unit_test::suite,
         // If an attestation already exists for that server and claim id, the
         // new attestation should replace the old attestation
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
             auto const amt = XRP(1000);
             auto const amt_plus_reward = amt + reward;
 
@@ -3106,8 +3128,8 @@ struct XChain_test : public beast::unit_test::suite,
         {
             using namespace jtx;
 
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             XRPAmount res0 = mcEnv.reserve(0);
             XRPAmount tx_fee = mcEnv.txFee();
@@ -3209,7 +3231,7 @@ struct XChain_test : public beast::unit_test::suite,
 
         // coverage test: add_attestation transaction with incorrect flag
         {
-            xEnv scEnv(*this, true);
+            XEnv scEnv(*this, true);
             Json::Value batch = attestation_claim_batch(
                 jvb, mcAlice, XRP(1000), payees, true, 1, {}, signers);
             scEnv.tx(create_bridge(Account::master, jvb))
@@ -3224,7 +3246,7 @@ struct XChain_test : public beast::unit_test::suite,
         // coverage test: add_attestation with xchain feature
         // disabled
         {
-            xEnv scEnv(*this, true);
+            XEnv scEnv(*this, true);
             Json::Value batch = attestation_claim_batch(
                 jvb, mcAlice, XRP(1000), payees, true, 1, {}, signers);
             scEnv.tx(create_bridge(Account::master, jvb))
@@ -3258,8 +3280,8 @@ struct XChain_test : public beast::unit_test::suite,
         // -----------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -3297,8 +3319,8 @@ struct XChain_test : public beast::unit_test::suite,
         // ---------------------------------
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -3349,8 +3371,8 @@ struct XChain_test : public beast::unit_test::suite,
         // -----------------------------------
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -3394,8 +3416,8 @@ struct XChain_test : public beast::unit_test::suite,
         // -------------------------------------------------
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -3441,8 +3463,8 @@ struct XChain_test : public beast::unit_test::suite,
         // ---------------------------------------------
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -3481,8 +3503,8 @@ struct XChain_test : public beast::unit_test::suite,
         // --------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -3532,8 +3554,8 @@ struct XChain_test : public beast::unit_test::suite,
         // ----------------
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -3580,8 +3602,8 @@ struct XChain_test : public beast::unit_test::suite,
         // ---------------------------------------------------------------------
         for (auto withClaim : {true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -3621,8 +3643,8 @@ struct XChain_test : public beast::unit_test::suite,
         // -----------------------------------------------------------------
         for (auto withClaim : {true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -3663,8 +3685,8 @@ struct XChain_test : public beast::unit_test::suite,
         // ------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
             STAmount huge_reward{XRP(20000)};
@@ -3715,8 +3737,8 @@ struct XChain_test : public beast::unit_test::suite,
         // --------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -3762,8 +3784,8 @@ struct XChain_test : public beast::unit_test::suite,
         // ---------------------------------------
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -3830,8 +3852,8 @@ struct XChain_test : public beast::unit_test::suite,
         // ------------------------------------------
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -3905,8 +3927,8 @@ struct XChain_test : public beast::unit_test::suite,
         // funds to a different account (which doesn't have deposit auth set)
         // --------------------------------------------------------------------
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -3945,8 +3967,8 @@ struct XChain_test : public beast::unit_test::suite,
         // ---------------------------------------------------------
         for (auto withClaim : {true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -3986,8 +4008,8 @@ struct XChain_test : public beast::unit_test::suite,
         // --------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -4032,8 +4054,8 @@ struct XChain_test : public beast::unit_test::suite,
         // ----------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb, tiny_reward)).close();
 
@@ -4079,8 +4101,8 @@ struct XChain_test : public beast::unit_test::suite,
         // -------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -4129,8 +4151,8 @@ struct XChain_test : public beast::unit_test::suite,
 
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -4188,8 +4210,8 @@ struct XChain_test : public beast::unit_test::suite,
         // ------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
-            xEnv mcEnv(*this);
-            xEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
@@ -4251,7 +4273,7 @@ struct XChain_test : public beast::unit_test::suite,
         }
 
         // coverage test: xchain_claim transaction with incorrect flag
-        xEnv(*this, true)
+        XEnv(*this, true)
             .tx(create_bridge(Account::master, jvb))
             .close()
             .tx(xchain_claim(scAlice, jvb, 1, XRP(1000), scBob),
@@ -4261,7 +4283,7 @@ struct XChain_test : public beast::unit_test::suite,
 
         // coverage test: xchain_claim transaction with xchain feature
         // disabled
-        xEnv(*this, true)
+        XEnv(*this, true)
             .tx(create_bridge(Account::master, jvb))
             .disableFeature(featureXChainBridge)
             .close()
@@ -4279,7 +4301,7 @@ struct XChain_test : public beast::unit_test::suite,
 
         // coverage test: transferHelper() - dst == src
         {
-            xEnv scEnv(*this, true);
+            XEnv scEnv(*this, true);
 
             auto const amt = XRP(111);
             auto const amt_plus_reward = amt + reward;
@@ -4306,7 +4328,7 @@ struct XChain_test : public beast::unit_test::suite,
         // coverage test: getSignersListAndQuorum() returns
         // tecXCHAIN_NO_SIGNERS_LIST because no signer list was set.
         {
-            xEnv scEnv(*this, true);
+            XEnv scEnv(*this, true);
 
             auto const amt = XRP(111);
 
@@ -4319,7 +4341,7 @@ struct XChain_test : public beast::unit_test::suite,
         }
 
         // coverage test: xchain_account_create with incorrect flag
-        xEnv(*this)
+        XEnv(*this)
             .tx(create_bridge(Account::master, jvb))
             .tx(sidechain_xchain_account_create(
                     mcAlice, jvb, scuAlice, XRP(100), XRP(20)),
@@ -4327,7 +4349,7 @@ struct XChain_test : public beast::unit_test::suite,
                 ter(temINVALID_FLAG));
 
         // coverage test: xchain_account_create with xchain feature disabled
-        xEnv(*this)
+        XEnv(*this)
             .tx(create_bridge(Account::master, jvb))
             .disableFeature(featureXChainBridge)
             .close()
@@ -4344,11 +4366,11 @@ struct XChain_test : public beast::unit_test::suite,
         testcase("Bridge Delete Door Account");
 
         auto const acctDelFee{
-            drops(xEnv(*this).env_.current()->fees().increment)};
+            drops(XEnv(*this).env_.current()->fees().increment)};
 
         // Deleting a account that owns bridge should fail
         {
-            xEnv mcEnv(*this);
+            XEnv mcEnv(*this);
 
             mcEnv.tx(create_bridge(mcDoor, jvb, XRP(1), XRP(1))).close();
 
@@ -4366,7 +4388,7 @@ struct XChain_test : public beast::unit_test::suite,
 
         // Deleting an account that owns a claim id should fail
         {
-            xEnv scEnv(*this, true);
+            XEnv scEnv(*this, true);
 
             scEnv.tx(create_bridge(Account::master, jvb))
                 .close()
@@ -4432,7 +4454,7 @@ private:
         std::array<bool, num_signers> attested{};
     };
 
-    using ENV = xEnv<XChainSim_test>;
+    using ENV = XEnv<XChainSim_test>;
     using BridgeID = BridgeDef const*;
 
     using ClaimAttn = AttestationBatch::AttestationClaim;
@@ -5013,18 +5035,6 @@ private:
     }
 
 public:
-    XRPAmount
-    reserve(std::uint32_t count)
-    {
-        return xEnv(*this).env_.current()->fees().accountReserve(count);
-    }
-
-    XRPAmount
-    txFee()
-    {
-        return xEnv(*this).env_.current()->fees().base;
-    }
-
     void
     runSimulation(
         std::shared_ptr<ChainStateTracker> const& st,
@@ -5073,8 +5083,8 @@ public:
 
         testcase("Bridge usage simulation");
 
-        xEnv mcEnv(*this);
-        xEnv scEnv(*this, true);
+        XEnv mcEnv(*this);
+        XEnv scEnv(*this, true);
 
         auto st = std::make_shared<ChainStateTracker>(mcEnv, scEnv);
 
@@ -5266,25 +5276,13 @@ public:
 struct XChainCoverage_test : public beast::unit_test::suite,
                              public jtx::XChainBridgeObjects
 {
-    XRPAmount
-    reserve(std::uint32_t count)
-    {
-        return xEnv(*this).env_.current()->fees().accountReserve(count);
-    }
-
-    XRPAmount
-    txFee()
-    {
-        return xEnv(*this).env_.current()->fees().base;
-    }
-
     void
     CreateAccountIssue()
     {
         using namespace jtx;
 
-        xEnv mcEnv(*this);
-        xEnv scEnv(*this, true);
+        XEnv mcEnv(*this);
+        XEnv scEnv(*this, true);
 
         XRPAmount res0 = mcEnv.reserve(0);
         XRPAmount tx_fee = mcEnv.txFee();
@@ -5377,7 +5375,7 @@ struct XChainCoverage_test : public beast::unit_test::suite,
         // below it hits a previous check in BridgeCreate::preflight()
         // returning temSIDECHAIN_NONDOOR_OWNER;
         //
-        // xEnv(*this).tx(
+        // XEnv(*this).tx(
         //    create_bridge(
         //        mcAlice, bridge(mcuAlice, mcAlice["USD"], mcBob,
         //        mcBob["USD"])),
