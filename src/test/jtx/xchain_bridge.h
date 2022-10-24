@@ -263,7 +263,8 @@ struct XChainBridgeObjects
         jtx::AnyAmount const& amt,
         std::optional<jtx::Account> const& dst,
         size_t first_attest,
-        size_t num_attest)
+        size_t num_attest,
+        attestation_cb cb = default_attestation_cb)
     {
         attestation_add_batch_to_vector(
             claims,
@@ -275,7 +276,8 @@ struct XChainBridgeObjects
             claimID,
             dst,
             &signers[first_attest],
-            num_attest);
+            num_attest,
+            cb);
     }
 
     Json::Value
