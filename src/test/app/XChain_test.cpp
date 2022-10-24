@@ -161,6 +161,10 @@ struct SEnv
     }
 };
 
+// XEnv class used for XChain tests. The only difference with SEnv<T> is that it
+// funds some default accounts, and that it enables `supported_amendments() |
+// FeatureBitset{featureXChainBridge}` by default.
+// -----------------------------------------------------------------------------
 template <class T>
 struct XEnv : public jtx::XChainBridgeObjects, public SEnv<T>
 {
@@ -207,6 +211,7 @@ struct XEnv : public jtx::XChainBridgeObjects, public SEnv<T>
     }
 };
 
+// Tracks the xrp balance for one account
 template <class T>
 struct Balance
 {
@@ -226,6 +231,8 @@ struct Balance
     }
 };
 
+// Tracks the xrp balance for multiple accounts involved in a crosss-chain
+// transfer
 template <class T>
 struct BalanceTransfer
 {
