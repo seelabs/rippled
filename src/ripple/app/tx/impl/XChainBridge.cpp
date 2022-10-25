@@ -502,7 +502,8 @@ BridgeCreate::preclaim(PreclaimContext const& ctx)
         if (!isXRP(bridge.issuingChainIssue()) &&
             !ctx.view.read(keylet::account(bridge.issuingChainIssue().account)))
         {
-            return tecNO_ISSUER;
+            return tecNO_ISSUER;  // LCOV_EXCL_LINE unreachable get
+                                  // temSIDECHAIN_NONDOOR_OWNER first
         }
     }
 
@@ -510,7 +511,7 @@ BridgeCreate::preclaim(PreclaimContext const& ctx)
         // Check reserve
         auto const sle = ctx.view.read(keylet::account(account));
         if (!sle)
-            return terNO_ACCOUNT;
+            return terNO_ACCOUNT;  // LCOV_EXCL_LINE unreachable after preflight
 
         auto const balance = (*sle)[sfBalance];
         auto const reserve =
@@ -713,12 +714,14 @@ XChainClaim::preclaim(PreclaimContext const& ctx)
         if (isLockingChain)
         {
             if (bridgeSpec.lockingChainIssue() != thisChainAmount.issue())
-                return tecBAD_XCHAIN_TRANSFER_ISSUE;
+                return tecBAD_XCHAIN_TRANSFER_ISSUE;  // LCOV_EXCL_LINE -
+                                                      // checked in preflight
         }
         else
         {
             if (bridgeSpec.issuingChainIssue() != thisChainAmount.issue())
-                return tecBAD_XCHAIN_TRANSFER_ISSUE;
+                return tecBAD_XCHAIN_TRANSFER_ISSUE;  // LCOV_EXCL_LINE -
+                                                      // checked in preflight
         }
     }
 

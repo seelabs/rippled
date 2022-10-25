@@ -999,6 +999,13 @@ struct XChain_test : public beast::unit_test::suite,
             .disableFeature(featureXChainBridge)
             .close()
             .tx(bridge_modify(mcDoor, jvb, XRP(1), XRP(2)), ter(temDISABLED));
+
+        // coverage test: bridge_modify return temSIDECHAIN_NONDOOR_OWNER;
+        XEnv(*this)
+            .tx(create_bridge(mcDoor, jvb))
+            .close()
+            .tx(bridge_modify(mcAlice, jvb, XRP(1), XRP(2)),
+                ter(temSIDECHAIN_NONDOOR_OWNER));
     }
 
     void
@@ -3138,9 +3145,6 @@ struct XChain_test : public beast::unit_test::suite,
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
-            XRPAmount res0 = mcEnv.reserve(0);
-            XRPAmount tx_fee = mcEnv.txFee();
-
             Account a{"a"};
             Account doorA{"doorA"};
 
@@ -4297,6 +4301,13 @@ struct XChain_test : public beast::unit_test::suite,
             .tx(xchain_claim(scAlice, jvb, 1, XRP(1000), scBob),
                 ter(temDISABLED))
             .close();
+
+        // coverage test: XChainClaim::preclaim - isLockingChain = true;
+        XEnv(*this)
+            .tx(create_bridge(mcDoor, jvb))
+            .close()
+            .tx(xchain_claim(mcAlice, jvb, 1, XRP(1000), mcBob),
+                ter(tecXCHAIN_NO_CLAIM_ID));
     }
 
     void
@@ -5291,7 +5302,6 @@ struct XChainCoverage_test : public beast::unit_test::suite,
         XEnv mcEnv(*this);
         XEnv scEnv(*this, true);
 
-        XRPAmount res0 = mcEnv.reserve(0);
         XRPAmount tx_fee = mcEnv.txFee();
 
         Account a{"a"};
@@ -5387,6 +5397,10 @@ struct XChainCoverage_test : public beast::unit_test::suite,
         //        mcAlice, bridge(mcuAlice, mcAlice["USD"], mcBob,
         //        mcBob["USD"])),
         //    ter(terNO_ACCOUNT));
+
+        // coverage test: BridgeCreate::preclaim() returns tecNO_ISSUER.
+
+        // coverage test: transferHelper() - dst == src
     }
 
     void
