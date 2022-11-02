@@ -105,6 +105,12 @@ struct SEnv
         return *this;
     }
 
+    TER
+    ter() const
+    {
+        return env_.ter();
+    }
+
     STAmount
     balance(jtx::Account const& account) const
     {
@@ -4475,21 +4481,6 @@ private:
     using ENV = XEnv<XChainSim_test>;
     using BridgeID = BridgeDef const*;
 
-    using ClaimAttn = AttestationBatch::AttestationClaim;
-    using CreateClaimAttn = AttestationBatch::AttestationCreateAccount;
-
-    using ClaimVec = std::vector<ClaimAttn>;
-    using CreateClaimVec = std::vector<CreateClaimAttn>;
-
-    struct Claims
-    {
-        ClaimVec xfer_claims;
-        CreateClaimVec create_claims;
-    };
-
-    using SignerAttns = std::unordered_map<BridgeID, Claims>;
-    using SignersAttns = std::array<SignerAttns, num_signers>;
-
     // tracking chain state
     // --------------------
     struct AccountStateTrack
@@ -4513,8 +4504,16 @@ private:
         }
     };
 
+    // --------------------------------------------------
     struct ChainStateTrack
     {
+        using ClaimAttn = AttestationBatch::AttestationClaim;
+        using CreateClaimAttn = AttestationBatch::AttestationCreateAccount;
+
+        using ClaimVec = std::vector<ClaimAttn>;
+        using CreateClaimVec = std::vector<CreateClaimAttn>;
+        using CreateClaimMap = std::map<uint32_t, CreateClaimVec>;
+
         ChainStateTrack(ENV& env)
             : env(env), tx_fee(env.env_.current()->fees().base)
         {
@@ -4523,10 +4522,10 @@ private:
         void
         sendAttestations(size_t signer_idx, BridgeID bridge, ClaimVec& claims)
         {
-            size_t cnt = (claims.size() > 8) ? 8 : claims.size();
             STXChainBridge const stBridge(bridge->jvb);
             while (!claims.empty())
             {
+                size_t cnt = (claims.size() > 8) ? 8 : claims.size();
                 STXChainAttestationBatch attn_batch{
                     stBridge, claims.begin(), claims.begin() + cnt};
                 auto batch = attn_batch.getJson(JsonOptions::none);
@@ -4539,17 +4538,18 @@ private:
             }
         }
 
-        void
+        uint32_t
         sendCreateAttestations(
             size_t signer_idx,
             BridgeID bridge,
             CreateClaimVec& claims)
         {
-            size_t cnt = (claims.size() > 8) ? 8 : claims.size();
             STXChainBridge const stBridge(bridge->jvb);
             AttestationBatch::AttestationClaim* nullc = nullptr;
+            size_t num_successful = 0;
             while (!claims.empty())
             {
+                uint32_t cnt = (claims.size() > 8) ? 8 : claims.size();
                 STXChainAttestationBatch attn_batch{
                     stBridge,
                     nullc,
@@ -4560,23 +4560,58 @@ private:
                 auto signer = bridge->signers[signer_idx].account;
                 auto attn_json = xchain_add_attestation_batch(signer, batch);
                 // std::cout << to_string(attn_json) << '\n';
-                env.tx(attn_json);
+                env.tx(attn_json, jtx::ter(std::ignore));
+                if (env.ter() == tesSUCCESS)
+                {
+                    counters[bridge].signers.push_back(signer_idx);
+                    num_successful += cnt;
+                }
                 spendFee(signer);
                 claims.erase(claims.begin(), claims.begin() + cnt);
             }
+            return num_successful;
         }
 
         void
         sendAttestations()
         {
-            for (size_t i = 0; i < signers_attns.size(); ++i)
+            bool callback_called;
+
+            // we have this "do {} while" loop because we want to process all
+            // the account create which can reach quorum at this time stamp.
+            do
             {
-                for (auto& [bridge, claims] : signers_attns[i])
+                callback_called = false;
+                for (size_t i = 0; i < signers_attns.size(); ++i)
                 {
-                    sendAttestations(i, bridge, claims.xfer_claims);
-                    sendCreateAttestations(i, bridge, claims.create_claims);
+                    for (auto& [bridge, claims] : signers_attns[i])
+                    {
+                        sendAttestations(i, bridge, claims.xfer_claims);
+
+                        auto& c = counters[bridge];
+                        auto& create_claims =
+                            claims.create_claims[c.claim_count];
+                        auto num_attns = create_claims.size();
+                        if (num_attns)
+                        {
+                            c.num_create_attn_sent += sendCreateAttestations(
+                                i, bridge, create_claims);
+                        }
+                        assert(claims.create_claims[c.claim_count].empty());
+                    }
                 }
-            }
+                for (auto& [bridge, c] : counters)
+                {
+                    if (c.num_create_attn_sent >= bridge->quorum)
+                    {
+                        callback_called = true;
+                        c.create_callbacks[c.claim_count](c.signers);
+                        ++c.claim_count;
+                        c.num_create_attn_sent = 0;
+                        c.signers.clear();
+                    }
+                }
+            } while (callback_called);
         }
 
         void
@@ -4604,13 +4639,17 @@ private:
             if (it == accounts.end())
             {
                 accounts[acct].init(env, acct);
-                it = accounts.find(acct);
+                // we just looked up the account, so expectedDiff == 0
             }
-            it->second.expectedDiff +=
-                (divisor == 1
-                     ? amt
-                     : divide(
-                           amt, STAmount(amt.issue(), divisor), amt.issue()));
+            else
+            {
+                it->second.expectedDiff +=
+                    (divisor == 1 ? amt
+                                  : divide(
+                                        amt,
+                                        STAmount(amt.issue(), divisor),
+                                        amt.issue()));
+            }
         }
 
         void
@@ -4650,10 +4689,28 @@ private:
 
         struct BridgeCounters
         {
-            uint32_t claim_id;
-            uint32_t create_count;  // for account create
-            uint32_t claim_count;   // for account create
+            using complete_cb =
+                std::function<void(std::vector<size_t> const& signers)>;
+
+            uint32_t claim_id{0};
+            uint32_t create_count{0};  // for account create. First should be 1
+            uint32_t claim_count{
+                0};  // for account create. Increments after quorum for current
+                     // create_count (starts at 1) is reached.
+
+            uint32_t num_create_attn_sent{0};  // for current claim_count
+            std::vector<size_t> signers;
+            std::vector<complete_cb> create_callbacks;
         };
+
+        struct Claims
+        {
+            ClaimVec xfer_claims;
+            CreateClaimMap create_claims;
+        };
+
+        using SignerAttns = std::unordered_map<BridgeID, Claims>;
+        using SignersAttns = std::array<SignerAttns, num_signers>;
 
         ENV& env;
         std::map<jtx::Account, AccountStateTrack> accounts;
@@ -4790,21 +4847,24 @@ private:
             return ++st.counters[&bridge_].create_count;
         }
 
-        bool
+        void
         attest(uint64_t time, uint32_t rnd)
         {
             ChainStateTrack& st = destState();
 
             // check all signers, but start at a random one
-            for (size_t i = 0; i < num_signers; ++i)
+            size_t i;
+            for (i = 0; i < num_signers; ++i)
             {
                 size_t signer_idx = (rnd + i) % num_signers;
+
                 if (!(cr.attested[signer_idx]))
                 {
                     // enqueue one attestation for this signer
                     cr.attested[signer_idx] = true;
                     create_account_batch_add_to_vector(
-                        st.signers_attns[signer_idx][&bridge_].create_claims,
+                        st.signers_attns[signer_idx][&bridge_]
+                            .create_claims[cr.claim_id - 1],
                         bridge_.jvb,
                         cr.from,
                         cr.amt,
@@ -4819,27 +4879,35 @@ private:
                 }
             }
 
-            // return true if quorum was reached, false otherwise
-            auto num_attestors =
-                std::count(cr.attested.begin(), cr.attested.end(), true);
-            bool quorum = num_attestors >= bridge_.quorum;
+            if (i == num_signers)
+                return;  // did not attest
 
-            if (quorum && cr.claim_id == st.counters[&bridge_].claim_count + 1)
-            {
-                ++st.counters[&bridge_].claim_count;
+            auto& counters = st.counters[&bridge_];
+            if (counters.create_callbacks.size() < cr.claim_id)
+                counters.create_callbacks.resize(cr.claim_id);
+
+            auto complete_cb = [&](std::vector<size_t> const& signers) {
+                auto num_attestors = signers.size();
+                st.env.close();
+                assert(
+                    num_attestors <=
+                    std::count(cr.attested.begin(), cr.attested.end(), true));
+                assert(num_attestors >= bridge_.quorum);
+                assert(cr.claim_id - 1 == counters.claim_count);
+
                 auto r = cr.reward;
                 auto reward = divide(r, STAmount(num_attestors), r.issue());
 
-                for (size_t i = 0; i < num_signers; ++i)
-                {
-                    if (cr.attested[i])
-                        st.receive(bridge_.signers[i].account, reward);
-                }
+                for (auto i : signers)
+                    st.receive(bridge_.signers[i].account, reward);
+
                 st.spend(dstDoor(), reward, num_attestors);
                 st.transfer(dstDoor(), cr.to, cr.amt);
                 st.env.env_.memoize(cr.to);
-            }
-            return quorum;
+                sm_state = st_completed;
+            };
+
+            counters.create_callbacks[cr.claim_id - 1] = std::move(complete_cb);
         }
 
         SmState
@@ -4853,13 +4921,15 @@ private:
                     break;
 
                 case st_attesting:
-                    sm_state = attest(time, rnd) ? st_completed : st_attesting;
+                    attest(time, rnd);
                     break;
 
                 default:
-                case st_completed:
-                    assert(0);  // should have been removed
+                    assert(0);
                     break;
+
+                case st_completed:
+                    break;  // will get this once
             }
             return sm_state;
         }
@@ -5265,7 +5335,6 @@ public:
 
         // run multiple account create to stress attestation batching
         // ----------------------------------------------------------
-        st->reinit_accounts();
         ac(0, st, xrp_b, {a[0], ua[1], XRP(301), xrp_b.reward, true});
         ac(0, st, xrp_b, {a[1], ua[2], XRP(302), xrp_b.reward, true});
         ac(1, st, xrp_b, {a[0], ua[3], XRP(303), xrp_b.reward, true});
@@ -5284,7 +5353,7 @@ public:
         ac(12, st, xrp_b, {a[6], ua[15], XRP(315), xrp_b.reward, true});
         ac(13, st, xrp_b, {a[7], ua[16], XRP(316), xrp_b.reward, true});
         ac(15, st, xrp_b, {a[3], ua[17], XRP(317), xrp_b.reward, true});
-        runSimulation(st, false);  // balances verification not working?
+        runSimulation(st, true);  // balances verification not working?
     }
 
     void
