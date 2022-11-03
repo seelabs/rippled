@@ -4997,6 +4997,20 @@ private:
             st.transfer(xfer.from, srcdoor, xfer.amt);
         }
 
+        void
+        distribute_reward(ChainStateTrack& st)
+        {
+            auto r = bridge_.reward;
+            auto reward = divide(r, STAmount(bridge_.quorum), r.issue());
+
+            for (size_t i = 0; i < num_signers; ++i)
+            {
+                if (xfer.attested[i])
+                    st.receive(bridge_.signers[i].account, reward);
+            }
+            st.spend(xfer.to, reward, bridge_.quorum);
+        }
+
         bool
         attest(uint64_t time, uint32_t rnd)
         {
@@ -5031,19 +5045,10 @@ private:
             bool quorum =
                 std::count(xfer.attested.begin(), xfer.attested.end(), true) >=
                 bridge_.quorum;
-            if (quorum)
+            if (quorum && !xfer.with_claim)
             {
-                auto r = bridge_.reward;
-                auto reward = divide(r, STAmount(bridge_.quorum), r.issue());
-
-                for (size_t i = 0; i < num_signers; ++i)
-                {
-                    if (xfer.attested[i])
-                        st.receive(bridge_.signers[i].account, reward);
-                }
-                st.spend(xfer.to, reward, bridge_.quorum);
-                if (!xfer.with_claim)
-                    st.transfer(dstDoor(), xfer.finaldest, xfer.amt);
+                distribute_reward(st);
+                st.transfer(dstDoor(), xfer.finaldest, xfer.amt);
             }
             return quorum;
         }
@@ -5054,6 +5059,7 @@ private:
             ChainStateTrack& st = destState();
             st.env.tx(xchain_claim(
                 xfer.to, bridge_.jvb, xfer.claim_id, xfer.amt, xfer.finaldest));
+            distribute_reward(st);
             st.transfer(dstDoor(), xfer.finaldest, xfer.amt);
             st.spendFee(xfer.to);
         }
@@ -5292,12 +5298,12 @@ public:
 
         // run multiple XRP transfers
         // --------------------------
-        xfer(0, st, xrp_b, {a[0], a[0], a[1], XRP(6), true});
-        xfer(1, st, xrp_b, {a[0], a[0], a[1], XRP(8), false});
+        xfer(0, st, xrp_b, {a[0], a[0], a[1], XRP(6), true, true});
+        xfer(1, st, xrp_b, {a[0], a[0], a[1], XRP(8), false, true});
         xfer(1, st, xrp_b, {a[1], a[1], a[1], XRP(1), true});
         xfer(2, st, xrp_b, {a[0], a[0], a[1], XRP(3), false});
         xfer(2, st, xrp_b, {a[1], a[1], a[1], XRP(5), false});
-        xfer(2, st, xrp_b, {a[0], a[0], a[1], XRP(7), false});
+        xfer(2, st, xrp_b, {a[0], a[0], a[1], XRP(7), false, true});
         xfer(2, st, xrp_b, {a[1], a[1], a[1], XRP(9), true});
         runSimulation(st);
 
@@ -5353,7 +5359,7 @@ public:
         ac(12, st, xrp_b, {a[6], ua[15], XRP(315), xrp_b.reward, true});
         ac(13, st, xrp_b, {a[7], ua[16], XRP(316), xrp_b.reward, true});
         ac(15, st, xrp_b, {a[3], ua[17], XRP(317), xrp_b.reward, true});
-        runSimulation(st, true);  // balances verification not working?
+        runSimulation(st, true);  // balances verification working now.
     }
 
     void
