@@ -3332,6 +3332,118 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(transfer.has_happened(amt, split_reward));
         }
 
+        // Claim with just one attestation signed by the Master key
+        // => should succeed
+        // -----------------------------------------------------------------
+        for (auto withClaim : {false, true})
+        {
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
+
+            mcEnv.tx(create_bridge(mcDoor, jvb)).close();
+
+            scEnv.tx(create_bridge(Account::master, jvb))
+                .tx(jtx::signers(Account::master, quorum, signers))
+                .close()
+                .tx(xchain_create_claim_id(scAlice, jvb, reward, mcAlice))
+                .close();
+
+            auto dst(withClaim ? std::nullopt : std::optional<Account>{scBob});
+            auto const amt = XRP(1000);
+            std::uint32_t const claimID = 1;
+            mcEnv.tx(xchain_commit(mcAlice, jvb, claimID, amt, dst)).close();
+
+            BalanceTransfer transfer(
+                scEnv,
+                Account::master,
+                scBob,
+                scAlice,
+                &payees[0],
+                1,
+                withClaim);
+
+            jtx::signer master_signer(Account::master);
+            Json::Value batch = attestation_claim_batch(
+                jvb,
+                mcAlice,
+                amt,
+                &payees[0],
+                true,
+                claimID,
+                dst,
+                &master_signer,
+                1);
+            scEnv.tx(xchain_add_attestation_batch(scAttester, batch)).close();
+
+            if (withClaim)
+            {
+                BEAST_EXPECT(transfer.has_not_happened());
+
+                // need to submit a claim transactions
+                scEnv.tx(xchain_claim(scAlice, jvb, claimID, amt, scBob))
+                    .close();
+            }
+
+            BEAST_EXPECT(transfer.has_happened(amt, reward));
+        }
+
+        // Claim with just one attestation signed by a regular key associated to
+        // the master account
+        // => should succeed
+        // -----------------------------------------------------------------
+        for (auto withClaim : {false, true})
+        {
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
+
+            mcEnv.tx(create_bridge(mcDoor, jvb)).close();
+
+            scEnv.tx(create_bridge(Account::master, jvb))
+                .tx(jtx::signers(Account::master, quorum, signers))
+                .tx(jtx::regkey(Account::master, payees[0]))
+                .close()
+                .tx(xchain_create_claim_id(scAlice, jvb, reward, mcAlice))
+                .close();
+
+            auto dst(withClaim ? std::nullopt : std::optional<Account>{scBob});
+            auto const amt = XRP(1000);
+            std::uint32_t const claimID = 1;
+            mcEnv.tx(xchain_commit(mcAlice, jvb, claimID, amt, dst)).close();
+
+            BalanceTransfer transfer(
+                scEnv,
+                Account::master,
+                scBob,
+                scAlice,
+                &payees[0],
+                1,
+                withClaim);
+
+            jtx::signer master_signer(payees[0]);
+            Json::Value batch = attestation_claim_batch(
+                jvb,
+                mcAlice,
+                amt,
+                &payees[0],
+                true,
+                claimID,
+                dst,
+                &master_signer,
+                1);
+            scEnv.tx(xchain_add_attestation_batch(scAttester, batch)).close();
+
+            if (withClaim)
+            {
+                BEAST_EXPECT(transfer.has_not_happened());
+
+                // need to submit a claim transactions
+                scEnv.tx(xchain_claim(scAlice, jvb, claimID, amt, scBob))
+                    .close();
+            }
+
+            BEAST_EXPECT(transfer.has_happened(amt, reward));
+        }
+
         // Claim against non-existent bridge
         // ---------------------------------
         for (auto withClaim : {false, true})
