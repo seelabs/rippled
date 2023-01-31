@@ -34,8 +34,6 @@ namespace ripple {
 
 // {
 //   account: <ident>,
-//   strict: <bool>        // optional (default false)
-//                         //   if true only allow public keys and addresses.
 //   ledger_hash : <ledger>
 //   ledger_index : <ledger_index>
 //   signer_lists : <bool> // optional (default false)
@@ -67,17 +65,15 @@ doAccountInfo(RPC::JsonContext& context)
     if (!ledger)
         return result;
 
-    bool bStrict = params.isMember(jss::strict) && params[jss::strict].asBool();
-    AccountID accountID;
-
     // Get info on account.
+    auto const accountID = parseBase58<AccountID>(strIdent);
+    if (!accountID)
+    {
+        RPC::inject_error(rpcACT_MALFORMED, result);
+        return result;
+    }
 
-    auto jvAccepted = RPC::accountFromString(accountID, strIdent, bStrict);
-
-    if (jvAccepted)
-        return jvAccepted;
-
-    auto const sleAccepted = ledger->read(keylet::account(accountID));
+    auto const sleAccepted = ledger->read(keylet::account(*accountID));
     if (sleAccepted)
     {
         auto const queue =
@@ -91,6 +87,7 @@ doAccountInfo(RPC::JsonContext& context)
             return result;
         }
 
+        Json::Value jvAccepted(Json::objectValue);
         RPC::injectSLE(jvAccepted, *sleAccepted);
         result[jss::account_data] = jvAccepted;
 
@@ -104,7 +101,7 @@ doAccountInfo(RPC::JsonContext& context)
 
             // This code will need to be revisited if in the future we support
             // multiple SignerLists on one account.
-            auto const sleSigners = ledger->read(keylet::signers(accountID));
+            auto const sleSigners = ledger->read(keylet::signers(*accountID));
             if (sleSigners)
                 jvSignerList.append(sleSigners->getJson(JsonOptions::none));
 
@@ -127,7 +124,7 @@ doAccountInfo(RPC::JsonContext& context)
         {
             Json::Value jvQueueData = Json::objectValue;
 
-            auto const txs = context.app.getTxQ().getAccountTxs(accountID);
+            auto const txs = context.app.getTxQ().getAccountTxs(*accountID);
             if (!txs.empty())
             {
                 jvQueueData[jss::txn_count] =
@@ -214,7 +211,7 @@ doAccountInfo(RPC::JsonContext& context)
     }
     else
     {
-        result[jss::account] = toBase58(accountID);
+        result[jss::account] = toBase58(*accountID);
         RPC::inject_error(rpcACT_NOT_FOUND, result);
     }
 
