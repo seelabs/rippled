@@ -1538,32 +1538,34 @@ XChainCreateClaimID::doApply()
 
     (*sleBridge)[sfXChainClaimID] = claimID;
 
-    Keylet const seqKeylet = keylet::xChainClaimID(bridgeSpec, claimID);
-    if (ctx_.view().read(seqKeylet))
+    Keylet const claimIDKeylet = keylet::xChainClaimID(bridgeSpec, claimID);
+    if (ctx_.view().read(claimIDKeylet))
         return tecINTERNAL;  // already checked out!?!
 
-    auto const sleQ = std::make_shared<SLE>(seqKeylet);
+    auto const sleClaimID = std::make_shared<SLE>(claimIDKeylet);
 
-    (*sleQ)[sfAccount] = account;
-    (*sleQ)[sfXChainBridge] = bridgeSpec;
-    (*sleQ)[sfXChainClaimID] = claimID;
-    (*sleQ)[sfOtherChainSource] = otherChainSrc;
-    (*sleQ)[sfSignatureReward] = reward;
-    sleQ->setFieldArray(
+    (*sleClaimID)[sfAccount] = account;
+    (*sleClaimID)[sfXChainBridge] = bridgeSpec;
+    (*sleClaimID)[sfXChainClaimID] = claimID;
+    (*sleClaimID)[sfOtherChainSource] = otherChainSrc;
+    (*sleClaimID)[sfSignatureReward] = reward;
+    sleClaimID->setFieldArray(
         sfXChainClaimAttestations, STArray{sfXChainClaimAttestations});
 
     // Add to owner directory
     {
         auto const page = ctx_.view().dirInsert(
-            keylet::ownerDir(account), seqKeylet, describeOwnerDir(account));
+            keylet::ownerDir(account),
+            claimIDKeylet,
+            describeOwnerDir(account));
         if (!page)
             return tecDIR_FULL;
-        (*sleQ)[sfOwnerNode] = *page;
+        (*sleClaimID)[sfOwnerNode] = *page;
     }
 
     adjustOwnerCount(ctx_.view(), sleAcct, 1, ctx_.journal);
 
-    ctx_.view().insert(sleQ);
+    ctx_.view().insert(sleClaimID);
     ctx_.view().update(sleBridge);
     ctx_.view().update(sleAcct);
 
