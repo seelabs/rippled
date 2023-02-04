@@ -920,7 +920,7 @@ BridgeCreate::preflight(PreflightContext const& ctx)
         return temSIDECHAIN_BAD_ISSUES;
     }
 
-    if (!isXRP(reward) || reward.signum() <= 0)
+    if (!isXRP(reward) || reward.signum() < 0)
     {
         return temXCHAIN_BRIDGE_BAD_REWARD_AMOUNT;
     }
@@ -1077,7 +1077,7 @@ BridgeModify::preflight(PreflightContext const& ctx)
         return temSIDECHAIN_NONDOOR_OWNER;
     }
 
-    if (reward && (!isXRP(*reward) || reward->signum() <= 0))
+    if (reward && (!isXRP(*reward) || reward->signum() < 0))
     {
         return temXCHAIN_BRIDGE_BAD_REWARD_AMOUNT;
     }
@@ -1627,7 +1627,7 @@ XChainCreateAccountCommit::preflight(PreflightContext const& ctx)
         return temBAD_AMOUNT;
 
     auto const reward = ctx.tx[sfSignatureReward];
-    if (reward.signum() <= 0 || !reward.native())
+    if (reward.signum() < 0 || !reward.native())
         return temBAD_AMOUNT;
 
     if (reward.issue() != amount.issue())
