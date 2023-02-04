@@ -662,16 +662,16 @@ STXChainAttestationBatch::noConflicts() const
     };
 
     {
-        auto r = for_each_create_batch<bool>(
-            creates_.begin(), creates_.end(), isConsistent);
+        auto r = for_each_claim_batch<bool>(
+            claims_.begin(), claims_.end(), isConsistent);
         if (!std::all_of(r.begin(), r.end(), [](bool v) { return v; }))
         {
             return false;
         }
     }
     {
-        auto r = for_each_claim_batch<bool>(
-            claims_.begin(), claims_.end(), isConsistent);
+        auto r = for_each_create_batch<bool>(
+            creates_.begin(), creates_.end(), isConsistent);
         if (!std::all_of(r.begin(), r.end(), [](bool v) { return v; }))
         {
             return false;
