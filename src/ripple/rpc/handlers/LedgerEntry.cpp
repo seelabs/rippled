@@ -456,18 +456,20 @@ doLedgerEntry(RPC::JsonContext& context)
             // (locking_chain_door, locking_chain_issue, issuing_chain_door,
             // issuing_chain_issue) and the create account claim id sequence
             // number.
-            auto lcd = parseBase58<AccountID>(
+            auto lockingChainDoor = parseBase58<AccountID>(
                 claim_id[jss::LockingChainDoor].asString());
-            auto icd = parseBase58<AccountID>(
+            auto issuingChainDoor = parseBase58<AccountID>(
                 claim_id[jss::IssuingChainDoor].asString());
-            Issue lci, ici;
-            bool valid = lcd && icd;
+            Issue lockingChainIssue, issuingChainIssue;
+            bool valid = lockingChainDoor && issuingChainDoor;
             if (valid)
             {
                 try
                 {
-                    lci = issueFromJson(claim_id[jss::LockingChainIssue]);
-                    ici = issueFromJson(claim_id[jss::IssuingChainIssue]);
+                    lockingChainIssue =
+                        issueFromJson(claim_id[jss::LockingChainIssue]);
+                    issuingChainIssue =
+                        issueFromJson(claim_id[jss::IssuingChainIssue]);
                 }
                 catch (std::runtime_error const& ex)
                 {
@@ -482,7 +484,11 @@ doLedgerEntry(RPC::JsonContext& context)
                 auto seq =
                     claim_id[jss::xchain_create_account_claim_id].asUInt();
 
-                STXChainBridge bridge_spec(*lcd, lci, *icd, ici);
+                STXChainBridge bridge_spec(
+                    *lockingChainDoor,
+                    lockingChainIssue,
+                    *issuingChainDoor,
+                    issuingChainIssue);
                 Keylet keylet =
                     keylet::xChainCreateAccountClaimID(bridge_spec, seq);
                 uNodeIndex = keylet.key;
