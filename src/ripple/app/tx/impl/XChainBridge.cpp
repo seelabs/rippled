@@ -307,7 +307,7 @@ finalizeClaimHelper(
     {
         auto const cidOwner = (*sleClaimID)[sfAccount];
         {
-            // Remove the sequence number
+            // Remove the claim id
             auto const sleOwner = psb.peek(keylet::account(cidOwner));
             auto const page = (*sleClaimID)[sfOwnerNode];
             if (!psb.dirRemove(
@@ -318,7 +318,7 @@ finalizeClaimHelper(
                 return tefBAD_LEDGER;
             }
 
-            // Remove the sequence number from the ledger
+            // Remove the claim id from the ledger
             psb.erase(sleClaimID);
 
             adjustOwnerCount(psb, sleOwner, -1, j);
@@ -335,12 +335,12 @@ finalizeClaimHelper(
             return divide(rewardPool, den, rewardPool.issue());
         }();
         STAmount distributed = rewardPool.zeroed();
-        for (auto const& ra : rewardAccounts)
+        for (auto const& rewardAccount : rewardAccounts)
         {
             auto const thTer = transferHelper(
                 psb,
                 rewardPoolSrc,
-                ra,
+                rewardAccount,
                 /*dstTag*/ std::nullopt,
                 // claim owner is not relevant to distributing rewards
                 /*claimOwner*/ std::nullopt,
