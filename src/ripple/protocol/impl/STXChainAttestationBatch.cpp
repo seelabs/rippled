@@ -134,7 +134,13 @@ AttestationClaim::AttestationClaim(
     bool wasLockingChainSend_,
     std::uint64_t claimID_,
     std::optional<AccountID> const& dst_)
-    : AttestationBase{publicKey_, std::move(signature_), sendingAccount_, sendingAmount_, rewardAccount_, wasLockingChainSend_}
+    : AttestationBase(
+          publicKey_,
+          std::move(signature_),
+          sendingAccount_,
+          sendingAmount_,
+          rewardAccount_,
+          wasLockingChainSend_)
     , claimID{claimID_}
     , dst{dst_}
 {
@@ -275,7 +281,13 @@ AttestationCreateAccount::AttestationCreateAccount(
     bool wasLockingChainSend_,
     std::uint64_t createCount_,
     AccountID const& toCreate_)
-    : AttestationBase{publicKey_, std::move(signature_), sendingAccount_, sendingAmount_, rewardAccount_, wasLockingChainSend_}
+    : AttestationBase(
+          publicKey_,
+          std::move(signature_),
+          sendingAccount_,
+          sendingAmount_,
+          rewardAccount_,
+          wasLockingChainSend_)
     , createCount{createCount_}
     , toCreate{toCreate_}
     , rewardAmount{rewardAmount_}
