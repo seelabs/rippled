@@ -78,10 +78,10 @@ STXChainBridge::STXChainBridge(SField const& name, Json::Value const& v)
             "STXChainBridge can only be specified with a 'object' Json value");
     }
 
-    Json::Value const lockingChainDoorStr = v[jss::LockingChainDoor];
-    Json::Value const lockingChainIssue = v[jss::LockingChainIssue];
-    Json::Value const issuingChainDoorStr = v[jss::IssuingChainDoor];
-    Json::Value const issuingChainIssue = v[jss::IssuingChainIssue];
+    Json::Value const& lockingChainDoorStr = v[jss::LockingChainDoor];
+    Json::Value const& lockingChainIssue = v[jss::LockingChainIssue];
+    Json::Value const& issuingChainDoorStr = v[jss::IssuingChainDoor];
+    Json::Value const& issuingChainIssue = v[jss::IssuingChainIssue];
 
     if (!lockingChainDoorStr.isString())
     {
