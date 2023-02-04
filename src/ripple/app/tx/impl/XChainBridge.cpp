@@ -162,12 +162,14 @@ transferHelper(
         if (!sleSrc)
             return tecINTERNAL;
 
-        auto const ownerCount = sleSrc->getFieldU32(sfOwnerCount);
-        auto const reserve = psb.fees().accountReserve(ownerCount);
-
-        if ((*sleSrc)[sfBalance] < amt + reserve)
         {
-            return tecINSUFFICIENT_FUNDS;
+            auto const ownerCount = sleSrc->getFieldU32(sfOwnerCount);
+            auto const reserve = psb.fees().accountReserve(ownerCount);
+
+            if ((*sleSrc)[sfBalance] < amt + reserve)
+            {
+                return tecINSUFFICIENT_FUNDS;
+            }
         }
 
         auto sleDst = psb.peek(dstK);
@@ -217,12 +219,10 @@ transferHelper(
         /*sendmax*/ std::nullopt,
         j);
 
-    {
-        auto const r = result.result();
-        if (isTesSuccess(r) || isTecClaim(r) || isTerRetry(r))
-            return r;
-        return tecXCHAIN_PAYMENT_FAILED;
-    }
+    if (auto const r = result.result();
+        isTesSuccess(r) || isTecClaim(r) || isTerRetry(r))
+        return r;
+    return tecXCHAIN_PAYMENT_FAILED;
 }
 
 /**  Action to take when the transfer from the door account to the dst fails
@@ -250,7 +250,7 @@ enum class OnTransferFail {
     @param rewardPool Amount to split among the rewardAccounts.
     @param rewardAccounts Account to receive the reward pool.
     @param srcChain Chain where the commit event occurred.
-    @param sleCID sle for the claim id (may be NULL or XChainClaimID or
+    @param sleClaimID sle for the claim id (may be NULL or XChainClaimID or
            XChainCreateAccountClaimID). Don't read fields that aren't in common
            with those two types and always check for NULL. Remove on success (if
            not null). Remove on fail if the onTransferFail flag is removeClaim.
@@ -275,7 +275,7 @@ finalizeClaimHelper(
     STAmount const& rewardPool,
     std::vector<AccountID> const& rewardAccounts,
     STXChainBridge::ChainType const srcChain,
-    std::shared_ptr<SLE> const& sleCID,
+    std::shared_ptr<SLE> const& sleClaimID,
     OnTransferFail onTransferFail,
     beast::Journal j)
 {
@@ -303,15 +303,15 @@ finalizeClaimHelper(
         return thTer;
     }
 
-    if (sleCID)
+    if (sleClaimID)
     {
-        auto const cidOwner = (*sleCID)[sfAccount];
+        auto const cidOwner = (*sleClaimID)[sfAccount];
         {
             // Remove the sequence number
             auto const sleOwner = psb.peek(keylet::account(cidOwner));
-            auto const page = (*sleCID)[sfOwnerNode];
+            auto const page = (*sleClaimID)[sfOwnerNode];
             if (!psb.dirRemove(
-                    keylet::ownerDir(cidOwner), page, sleCID->key(), true))
+                    keylet::ownerDir(cidOwner), page, sleClaimID->key(), true))
             {
                 JLOG(j.fatal())
                     << "Unable to delete xchain seq number from owner.";
@@ -319,7 +319,7 @@ finalizeClaimHelper(
             }
 
             // Remove the sequence number from the ledger
-            psb.erase(sleCID);
+            psb.erase(sleClaimID);
 
             adjustOwnerCount(psb, sleOwner, -1, j);
         }
@@ -499,11 +499,11 @@ applyClaimAttestations(
 
     PaymentSandbox psb(&view);
 
-    auto const sleCID =
+    auto const sleClaimID =
         psb.peek(keylet::xChainClaimID(bridgeSpec, attBegin->claimID));
-    if (!sleCID)
+    if (!sleClaimID)
         return tecXCHAIN_NO_CLAIM_ID;
-    AccountID const cidOwner = (*sleCID)[sfAccount];
+    AccountID const cidOwner = (*sleClaimID)[sfAccount];
 
     // Add claims that are part of the signer's list to the "claims" vector
     std::vector<AttestationBatch::AttestationClaim> atts;
@@ -520,7 +520,7 @@ applyClaimAttestations(
         return tecXCHAIN_PROOF_UNKNOWN_KEY;
     }
 
-    AccountID const otherChainSource = (*sleCID)[sfOtherChainSource];
+    AccountID const otherChainSource = (*sleClaimID)[sfOtherChainSource];
     if (attBegin->sendingAccount != otherChainSource)
     {
         return tecXCHAIN_SENDING_ACCOUNT_MISMATCH;
@@ -538,18 +538,18 @@ applyClaimAttestations(
     }
 
     XChainClaimAttestations curAtts{
-        sleCID->getFieldArray(sfXChainClaimAttestations)};
+        sleClaimID->getFieldArray(sfXChainClaimAttestations)};
 
     auto const rewardAccounts = curAtts.onNewAttestations(
         &atts[0], &atts[0] + atts.size(), quorum, signersList);
 
     // update the claim id
-    sleCID->setFieldArray(sfXChainClaimAttestations, curAtts.toSTArray());
-    psb.update(sleCID);
+    sleClaimID->setFieldArray(sfXChainClaimAttestations, curAtts.toSTArray());
+    psb.update(sleClaimID);
 
     if (rewardAccounts && attBegin->dst)
     {
-        auto const& rewardPoolSrc = (*sleCID)[sfAccount];
+        auto const& rewardPoolSrc = (*sleClaimID)[sfAccount];
         auto const r = finalizeClaimHelper(
             psb,
             bridgeSpec,
@@ -558,10 +558,10 @@ applyClaimAttestations(
             cidOwner,
             attBegin->sendingAmount,
             rewardPoolSrc,
-            (*sleCID)[sfSignatureReward],
+            (*sleClaimID)[sfSignatureReward],
             *rewardAccounts,
             srcChain,
-            sleCID,
+            sleClaimID,
             OnTransferFail::keepClaim,
             j);
         if (!isTesSuccess(r))
@@ -628,11 +628,11 @@ applyCreateAccountAttestations(
     auto const claimKeylet =
         keylet::xChainCreateAccountClaimID(bridgeSpec, attBegin->createCount);
 
-    // sleCID may be null. If it's null it isn't created until the end of this
-    // function (if needed)
-    auto const sleCID = psb.peek(claimKeylet);
+    // sleClaimID may be null. If it's null it isn't created until the end of
+    // this function (if needed)
+    auto const sleClaimID = psb.peek(claimKeylet);
     bool createCID = false;
-    if (!sleCID)
+    if (!sleClaimID)
     {
         createCID = true;
 
@@ -659,9 +659,9 @@ applyCreateAccountAttestations(
     }
 
     XChainCreateAccountAttestations curAtts = [&] {
-        if (sleCID)
+        if (sleClaimID)
             return XChainCreateAccountAttestations{
-                sleCID->getFieldArray(sfXChainCreateAccountAttestations)};
+                sleClaimID->getFieldArray(sfXChainCreateAccountAttestations)};
         return XChainCreateAccountAttestations{};
     }();
 
@@ -672,11 +672,11 @@ applyCreateAccountAttestations(
     {
         // Modify the object before it's potentially deleted, so the meta data
         // will include the new attestations
-        if (!sleCID)
+        if (!sleClaimID)
             return tecINTERNAL;
-        sleCID->setFieldArray(
+        sleClaimID->setFieldArray(
             sfXChainCreateAccountAttestations, curAtts.toSTArray());
-        psb.update(sleCID);
+        psb.update(sleClaimID);
     }
 
     // Account create transactions must happen in order
@@ -693,7 +693,7 @@ applyCreateAccountAttestations(
             attBegin->rewardAmount,
             *rewardAccounts,
             srcChain,
-            sleCID,
+            sleClaimID,
             OnTransferFail::removeClaim,
             j);
         if (!isTesSuccess(r))
@@ -709,14 +709,14 @@ applyCreateAccountAttestations(
     }
     else if (createCID)
     {
-        if (sleCID)
+        if (sleClaimID)
             return tecINTERNAL;
 
-        auto const sleCID = std::make_shared<SLE>(claimKeylet);
-        (*sleCID)[sfAccount] = doorAccount;
-        (*sleCID)[sfXChainBridge] = bridgeSpec;
-        (*sleCID)[sfXChainAccountCreateCount] = attBegin->createCount;
-        sleCID->setFieldArray(
+        auto const sleClaimID = std::make_shared<SLE>(claimKeylet);
+        (*sleClaimID)[sfAccount] = doorAccount;
+        (*sleClaimID)[sfXChainBridge] = bridgeSpec;
+        (*sleClaimID)[sfXChainAccountCreateCount] = attBegin->createCount;
+        sleClaimID->setFieldArray(
             sfXChainCreateAccountAttestations, curAtts.toSTArray());
 
         // Add to owner directory of the door account
@@ -726,11 +726,11 @@ applyCreateAccountAttestations(
             describeOwnerDir(doorAccount));
         if (!page)
             return tecDIR_FULL;
-        (*sleCID)[sfOwnerNode] = *page;
+        (*sleClaimID)[sfOwnerNode] = *page;
 
         // Reserve was already checked
         adjustOwnerCount(psb, sleDoor, 1, j);
-        psb.insert(sleCID);
+        psb.insert(sleClaimID);
         psb.update(sleDoor);
     }
 
@@ -1231,17 +1231,17 @@ XChainClaim::preclaim(PreclaimContext const& ctx)
         return r;
     }();
 
-    auto const sleCID =
+    auto const sleClaimID =
         ctx.view.read(keylet::xChainClaimID(bridgeSpec, claimID));
     {
         // Check that the sequence number is owned by the sender of this
         // transaction
-        if (!sleCID)
+        if (!sleClaimID)
         {
             return tecXCHAIN_NO_CLAIM_ID;
         }
 
-        if ((*sleCID)[sfAccount] != account)
+        if ((*sleClaimID)[sfAccount] != account)
         {
             // Sequence number isn't owned by the sender of this transaction
             return tecXCHAIN_BAD_CLAIM_ID;
@@ -1265,9 +1265,10 @@ XChainClaim::doApply()
 
     auto const sleAcc = psb.peek(keylet::account(account));
     auto const sleB = peekBridge(psb, bridgeSpec);
-    auto const sleCID = psb.peek(keylet::xChainClaimID(bridgeSpec, claimID));
+    auto const sleClaimID =
+        psb.peek(keylet::xChainClaimID(bridgeSpec, claimID));
 
-    if (!(sleB && sleCID && sleAcc))
+    if (!(sleB && sleClaimID && sleAcc))
         return tecINTERNAL;
 
     AccountID const thisDoor = (*sleB)[sfAccount];
@@ -1297,7 +1298,7 @@ XChainClaim::doApply()
         return slTer;
 
     XChainClaimAttestations curAtts{
-        sleCID->getFieldArray(sfXChainClaimAttestations)};
+        sleClaimID->getFieldArray(sfXChainClaimAttestations)};
 
     auto claimR = curAtts.onClaim(
         sendingAmount,
@@ -1308,7 +1309,7 @@ XChainClaim::doApply()
         return claimR.error();
 
     auto const& rewardAccounts = claimR.value();
-    auto const& rewardPoolSrc = (*sleCID)[sfAccount];
+    auto const& rewardPoolSrc = (*sleClaimID)[sfAccount];
 
     std::optional<std::uint32_t> dstTag = ctx_.tx[~sfDestinationTag];
 
@@ -1320,10 +1321,10 @@ XChainClaim::doApply()
         /*claimOwner*/ account,
         sendingAmount,
         rewardPoolSrc,
-        (*sleCID)[sfSignatureReward],
+        (*sleClaimID)[sfSignatureReward],
         rewardAccounts,
         srcChain,
-        sleCID,
+        sleClaimID,
         OnTransferFail::keepClaim,
         ctx_.journal);
     if (!isTesSuccess(r))
