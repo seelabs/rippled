@@ -719,11 +719,12 @@ applyCreateAccountAttestations(
         if (sleClaimID)
             return tecINTERNAL;
 
-        auto const sleClaimID = std::make_shared<SLE>(claimKeylet);
-        (*sleClaimID)[sfAccount] = doorAccount;
-        (*sleClaimID)[sfXChainBridge] = bridgeSpec;
-        (*sleClaimID)[sfXChainAccountCreateCount] = attBegin->createCount;
-        sleClaimID->setFieldArray(
+        auto const createdSleClaimID = std::make_shared<SLE>(claimKeylet);
+        (*createdSleClaimID)[sfAccount] = doorAccount;
+        (*createdSleClaimID)[sfXChainBridge] = bridgeSpec;
+        (*createdSleClaimID)[sfXChainAccountCreateCount] =
+            attBegin->createCount;
+        createdSleClaimID->setFieldArray(
             sfXChainCreateAccountAttestations, curAtts.toSTArray());
 
         // Add to owner directory of the door account
@@ -733,11 +734,11 @@ applyCreateAccountAttestations(
             describeOwnerDir(doorAccount));
         if (!page)
             return tecDIR_FULL;
-        (*sleClaimID)[sfOwnerNode] = *page;
+        (*createdSleClaimID)[sfOwnerNode] = *page;
 
         // Reserve was already checked
         adjustOwnerCount(psb, sleDoor, 1, j);
-        psb.insert(sleClaimID);
+        psb.insert(createdSleClaimID);
         psb.update(sleDoor);
     }
 
