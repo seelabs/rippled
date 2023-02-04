@@ -311,7 +311,7 @@ XChainAttestationsBase<TAttestation>::XChainAttestationsBase(
     if (!v.isObject())
     {
         Throw<std::runtime_error>(
-            "XChainAttestationsBase can only be specified with a 'object' "
+            "XChainAttestationsBase can only be specified with an 'object' "
             "Json "
             "value");
     }
