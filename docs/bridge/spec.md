@@ -15,13 +15,13 @@ happens on two chains, requires multiple transactions and involves an additional
 server type called a "witness". This key operation is described in a section
 below.
 
-This bridge does not exchange assets between two ledger - instead it locks
+This bridge does not exchange assets between two ledgers - instead it locks
 assets on one ledger (the locking-chain) and represents those assets with
 wrapped assets on another chain (the issuing-chain). A good model to keep in
 mind is a box with in infinite supply of wrapped assets. Putting an asset from
 the locking chain into the box will release a wrapped asset onto the issuing
 chain. Putting a wrapped asset from the issuing chain back into the box will
-release one of the exiting locking-chain assets back onto the locking chain.
+release one of the existing locking-chain assets back onto the locking chain.
 There is no other way to get assets into or out of the box. Note that there is
 no way for the box to "run out of" wrapped assets - it has an infinite supply.
 
@@ -63,19 +63,19 @@ chain.
 
 ## List of new transactions
 
-XChainCreateBridge
-XChainModifyBridge
-XChainCreateClaimID
-XChainCommit
-XChainClaim
-XChainCreateAccountCommit
-XChainAddAttestation
+- XChainCreateBridge
+- XChainModifyBridge
+- XChainCreateClaimID
+- XChainCommit
+- XChainClaim
+- XChainCreateAccountCommit
+- XChainAddAttestation
 
 ## List of new ledger objects
 
-Bridge
-XChainClaimID
-XChainCreateAccountClaimState
+- Bridge
+- XChainClaimID
+- XChainCreateAccountClaimState
 
 ## Cross-chain transfers overview
 
@@ -117,7 +117,7 @@ destination chain are:
    object called a "xchain claim id" that will be used to identify the
    initiating transaction and prevent the initiating transaction from being
    claimed on the destination chain more than once. This transaction will
-   include a signature reward amount, in XRP. Rewards amounts much match the
+   include a signature reward amount, in XRP. Reward amounts must match the
    amount specified by the bridge ledger object, and the reward amount will
    be deducted from the account's balance and held on this ledger object.
    Collecting rewards is discussed below. The door account will keep a new
@@ -199,7 +199,7 @@ create" transaction for the locking-chain, the minimum amount of XRP needed for
 an "account create" transaction for the issuing-chain may be specified (only if this
 is an XRP to XRP bridge). If the amount is not specified, the
 `XChainCreateAccountCommit` (see below) will be disabled for this bridge.
-Currently, this ledger object can never be deleted (tho this my change) and
+Currently, this ledger object can never be deleted (though this my change) and
 adding this ledger object means the bridge-specific transactions sent from other
 accounts may move funds from this account.
 
@@ -220,12 +220,12 @@ the existing account. To prevent transaction replay, the transactions that
 create the accounts on the destination chain must execute in the same relative
 order as the the initiating `XChainCreateAccountCommit` transactions on the
 source chain. This transaction ordering requirement means this transaction
-should only be enabled where an account can not inadvertently (or maliciously)
+should only be enabled where an account cannot inadvertently (or maliciously)
 block subsequent transactions by failing to deliver signatures. If the witness
 servers themselves submit the signatures, they are already trusted not to be
 malicious and are designed to reliably submit the required signatures.
 
-The `XChainAddAttestation` transaction is used to by witness servers (or accounts
+The `XChainAddAttestation` transaction is used by witness servers (or accounts
 that use witness servers) to add a witness's attestation that some event
 happened.
 
@@ -258,7 +258,7 @@ first model, the servers are completely private. They submit transactions to the
 chains themselves and collect the rewards themselves. Allowing the servers to be
 private has the advantage of greatly reducing the attack surface on these
 servers. They won't have to deal with adversarial input to their RPC commands,
-and since their ip address will be unknown, it will be hard to mount an DOS
+and since their ip address will be unknown, it will be hard to mount a DOS
 attack.
 
 In the second model, the witness server monitors events on a chain, but does not
@@ -272,7 +272,7 @@ witness for multiple bridges (tho only one side of the bridge).
 
 As a side note, since submitting a signature requires submitting a transaction
 and paying a fee, supporting rewards for signatures is an important requirement.
-Of course, the reward can be higher than the fee, providing an incentive to
+Of course, the reward can be higher than the fee, providing an incentive for
 running a witness server.
 
 ## Why use the signer's list on the account
@@ -308,7 +308,7 @@ Setting up an issuing-chain requires the following:
 
 3) Create the bridge ledger object on each door account.
 
-4) If this is an XRP to XRP bridge, use a `AccountCreate`
+4) If this is an XRP to XRP bridge, use an `AccountCreate`
 transaction to create accounts for the signature rewards and accounts for the
 witness servers to submit transactions from (they may be the same account). Use
 the door account's master key to add witness signatures for this bootstrap
@@ -347,7 +347,7 @@ To successfully create an account with the `XChainCreateAccountCommit`
 transaction, the ordering number must match the current order number on the
 bridge ledger object. After the transaction runs, the order number on the
 bridge ledger object is incremented. Since this number is incremented, the
-transaction can not be replayed since the order number in the transaction will
+transaction cannot be replayed since the order number in the transaction will
 never match again.
 
 Since the `XChainCommit` can contain an optional destination account
@@ -397,20 +397,20 @@ are the parameters that define a bridge. It contains the following fields:
 * issuingChainDoor: `AccountID` of the door account on the issuing-chain. This account
   will issue wrapped assets representing assets put into trust on the locking-chain.
     
-* issuingChainIssue: `Issue` of the asset used to represent from the locking-chain.
+* issuingChainIssue: `Issue` of the asset used to represent assets from the locking-chain.
 
 Note: There are several constraints that must be met for a bridge to be valid.
 
 * `lockingChainDoor` and `issuingChainDoor` must be distinct accounts. This is
   done to help prevent transaction replay attacks.
 
-* `lockingChainIssue` and `issuingChainIssue` must both XRP or both be IOUs.
+* `lockingChainIssue` and `issuingChainIssue` must both be XRP or both be IOUs.
   This is done because the exchange rate is fixed at 1:1, and IOUs and XRP have
   a different numeric range and precision. This requirement may be relaxed in
   the future.
   
 * If the `issuingChainIssue` is an IOU, the issuingChainDoor must be the issuer.
-  This is done so wrapping transactions done fail because the door account
+  This is done so wrapping transactions don't fail because the door account
   doesn't have a sufficient balance.
   
 * If the `issuingChainIssue` is XRP, the issuingChainDoor must be the genesis
@@ -439,7 +439,7 @@ parameters. Note, the signatures used to attest to chain events are on the claim
 id ledger objects, not on this ledger object. It is created with a
 `XChainCreateBridge` transaction, modified with a `XChainModifyBridge`
 transaction (only the `MinAccountCreateAmount` and `SignaturesReward` may be
-changed). It can not be deleted.
+changed). It cannot be deleted.
 
 #### Fields
 
@@ -447,7 +447,7 @@ The ledger object contains the following fields:
 
 * Account: The account that owns this object. The door account. Required.
 
-* SignaturesReward: Total amount, in XRP, to be rewarded for providing a
+* SignaturesReward: Total amount, in XRP, to be rewarded for providing
   signatures for a cross-chain transfer or for signing for the cross-chain
   reward. This will be split among the signers. Required.
 
@@ -470,7 +470,7 @@ The ledger object contains the following fields:
   transaction is "claimed" on the destination chain. When the "claim"
   transaction is run on the destination chain, the `XChainAccountClaimCount`
   must match the value that the `XChainAccountCreateCount` had at the time the
-  `XChainAccountClaimCount` was run on the source chain. This orders the claims
+  `XChainAccountCreate` was run on the source chain. This orders the claims
   to run in the same order that the `XChainAccountCreate` transactions ran on
   the source chain and prevents transaction replay.
 
@@ -493,9 +493,9 @@ The c++ code for this ledger object format is:
         commonFields);
 ```
 
-#### Ledger ID
+#### Ledger Index
 
-The ledger id is a hash of a unique prefix for bridge object, and the fields
+The ledger index is a hash of a unique prefix for bridge object, and the fields
 in `STXChainBridge`. The C++ code for this is:
 
 ```c++
@@ -567,9 +567,9 @@ The c++ code for this ledger object format is:
         },
         commonFields);
 ```
-#### Ledger ID
+#### Ledger Index
 
-The ledger id is a hash of a unique prefix for "chain claim id"s, the
+The ledger index is a hash of a unique prefix for "chain claim id"s, the
 sequence number, and the fields in `STXChainBridge`. The C++ code for this is:
 
 ```c++
@@ -628,12 +628,12 @@ adds a signature attesting to a `XChainAccountCreate` transaction and the
         commonFields);
 ```
 
-#### LedgerID
+#### Ledger Index
 
-The ledger id is a hash of a unique prefix for cross-chain account create
+The ledger index is a hash of a unique prefix for cross-chain account create
 signatures, the bridge, and the initiating transaction ID.
 
-The ledger id is a hash of a unique prefix for "create account claim id"s, the
+The ledger index is a hash of a unique prefix for "create account claim id"s, the
 sequence number, and the fields in `STXChainBridge`. The C++ code for this is:
 ```c++
 Keylet
@@ -663,7 +663,7 @@ The transaction contains the following fields:
 
 * Bridge: Door accounts and assets. See `STXChainBridge` above. Required.
 
-* SignaturesReward: Total amount, in XRP, to be rewarded for providing a
+* SignaturesReward: Total amount, in XRP, to be rewarded for providing
   signatures for a cross-chain transfer or for signing for the cross-chain
   reward. This will be split among the signers. Required.
 
@@ -940,7 +940,7 @@ The transaction contains the following fields:
 
 * Bridge: Door accounts and assets. See `STXChainBridge` above. Required.
 
-* SignaturesReward: Total amount, in XRP, to be rewarded for providing a
+* SignaturesReward: Total amount, in XRP, to be rewarded for providing
   signatures for a cross-chain transfer or for signing for the cross-chain
   reward. This will be split among the signers. Optional.
 
