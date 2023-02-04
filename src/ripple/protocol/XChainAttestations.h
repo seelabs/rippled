@@ -274,7 +274,7 @@ protected:
 
     // Return the message that was expected to be signed by the attesters given
     // the data to be proved.
-    std::vector<std::uint8_t>
+    [[nodiscard]] std::vector<std::uint8_t>
     message() const;
 };
 
