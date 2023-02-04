@@ -413,6 +413,9 @@ XChainAttestationsBase<TAttestation>::claimHelper(
     for (auto const& a : attestations_)
     {
         auto const matchR = a.match(toMatch);
+        // The dest must match if claimHelper is being run as a result of an add
+        // attestation transaction. The dst does not need to match if the
+        // claimHelper is being run using an explicit claim transaction.
         if (matchR == AttestationMatch::nonDstMatch ||
             (checkDst == CheckDst::check && matchR != AttestationMatch::match))
             continue;
