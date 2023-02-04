@@ -249,7 +249,7 @@ public:
     attestations() const;
 
     // verify that all the signatures attest to transaction data.
-    bool
+    [[nodiscard]] bool
     verify() const;
 
 protected:
