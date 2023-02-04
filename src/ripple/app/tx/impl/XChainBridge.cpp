@@ -380,7 +380,7 @@ finalizeClaimHelper(
    regular key can sign)
 */
 std::tuple<std::unordered_map<AccountID, std::uint32_t>, std::uint32_t, TER>
-getSignersListAndQuorum(ApplyView& view, SLE const& sleB, beast::Journal j)
+getSignersListAndQuorum(ReadView const& view, SLE const& sleB, beast::Journal j)
 {
     std::unordered_map<AccountID, std::uint32_t> r;
     std::uint32_t q = std::numeric_limits<std::uint32_t>::max();
