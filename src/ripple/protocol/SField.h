@@ -496,7 +496,6 @@ extern SF_AMOUNT const sfMinimumOffer;
 extern SF_AMOUNT const sfRippleEscrow;
 extern SF_AMOUNT const sfDeliveredAmount;
 extern SF_AMOUNT const sfNFTokenBrokerFee;
-extern SF_AMOUNT const sfXChainFee;
 extern SF_AMOUNT const sfSignatureReward;
 extern SF_AMOUNT const sfMinAccountCreateAmount;
 

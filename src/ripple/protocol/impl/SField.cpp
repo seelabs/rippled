@@ -238,7 +238,6 @@ CONSTRUCT_TYPED_SFIELD(sfRippleEscrow,          "RippleEscrow",         AMOUNT, 
 CONSTRUCT_TYPED_SFIELD(sfDeliveredAmount,       "DeliveredAmount",      AMOUNT,    18);
 CONSTRUCT_TYPED_SFIELD(sfNFTokenBrokerFee,      "NFTokenBrokerFee",     AMOUNT,    19);
     // 20 - 27 are used by AMMs
-CONSTRUCT_TYPED_SFIELD(sfXChainFee,             "XChainFee",            AMOUNT,    28);
 CONSTRUCT_TYPED_SFIELD(sfSignatureReward,       "SignatureReward",      AMOUNT,    29);
 CONSTRUCT_TYPED_SFIELD(sfMinAccountCreateAmount, "MinAccountCreateAmount", AMOUNT, 30);
 
