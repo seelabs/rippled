@@ -411,6 +411,7 @@ doLedgerEntry(RPC::JsonContext& context)
                 catch (std::runtime_error const& ex)
                 {
                     valid = false;
+                    jvResult[jss::error] = "malformedRequest";
                 }
             }
 
@@ -471,6 +472,7 @@ doLedgerEntry(RPC::JsonContext& context)
                 catch (std::runtime_error const& ex)
                 {
                     valid = false;
+                    jvResult[jss::error] = "malformedRequest";
                 }
             }
 
