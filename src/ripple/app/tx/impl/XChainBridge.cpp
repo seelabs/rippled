@@ -529,15 +529,17 @@ applyClaimAttestations(
         return tecXCHAIN_SENDING_ACCOUNT_MISMATCH;
     }
 
-    STXChainBridge::ChainType const dstChain =
-        STXChainBridge::otherChain(srcChain);
-
-    STXChainBridge::ChainType const attDstChain =
-        STXChainBridge::dstChain(attBegin->wasLockingChainSend);
-
-    if (attDstChain != dstChain)
     {
-        return tecXCHAIN_WRONG_CHAIN;
+        STXChainBridge::ChainType const dstChain =
+            STXChainBridge::otherChain(srcChain);
+
+        STXChainBridge::ChainType const attDstChain =
+            STXChainBridge::dstChain(attBegin->wasLockingChainSend);
+
+        if (attDstChain != dstChain)
+        {
+            return tecXCHAIN_WRONG_CHAIN;
+        }
     }
 
     XChainClaimAttestations curAtts{
@@ -617,15 +619,17 @@ applyCreateAccountAttestations(
         return tecXCHAIN_ACCOUNT_CREATE_TOO_MANY;
     }
 
-    STXChainBridge::ChainType const dstChain =
-        STXChainBridge::otherChain(srcChain);
-
-    STXChainBridge::ChainType const attDstChain =
-        STXChainBridge::dstChain(attBegin->wasLockingChainSend);
-
-    if (attDstChain != dstChain)
     {
-        return tecXCHAIN_WRONG_CHAIN;
+        STXChainBridge::ChainType const dstChain =
+            STXChainBridge::otherChain(srcChain);
+
+        STXChainBridge::ChainType const attDstChain =
+            STXChainBridge::dstChain(attBegin->wasLockingChainSend);
+
+        if (attDstChain != dstChain)
+        {
+            return tecXCHAIN_WRONG_CHAIN;
+        }
     }
 
     auto const claimKeylet =
