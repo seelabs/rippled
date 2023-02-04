@@ -153,9 +153,6 @@ private:
 
     friend bool
     operator==(AttestationClaim const& lhs, AttestationClaim const& rhs);
-
-    friend bool
-    operator!=(AttestationClaim const& lhs, AttestationClaim const& rhs);
 };
 
 struct CmpByClaimID
@@ -215,11 +212,6 @@ struct AttestationCreateAccount : AttestationBase
 
     friend bool
     operator==(
-        AttestationCreateAccount const& lhs,
-        AttestationCreateAccount const& rhs);
-
-    friend bool
-    operator!=(
         AttestationCreateAccount const& lhs,
         AttestationCreateAccount const& rhs);
 
@@ -374,11 +366,6 @@ private:
 
     friend bool
     operator==(
-        STXChainAttestationBatch const& lhs,
-        STXChainAttestationBatch const& rhs);
-
-    friend bool
-    operator!=(
         STXChainAttestationBatch const& lhs,
         STXChainAttestationBatch const& rhs);
 };

@@ -247,12 +247,6 @@ operator==(AttestationClaim const& lhs, AttestationClaim const& rhs)
         tie(lhs.claimID, lhs.dst) == tie(rhs.claimID, rhs.dst);
 }
 
-bool
-operator!=(AttestationClaim const& lhs, AttestationClaim const& rhs)
-{
-    return !(lhs == rhs);
-}
-
 AttestationCreateAccount::AttestationCreateAccount(STObject const& o)
     : AttestationBase(o)
     , createCount{o[sfXChainAccountCreateCount]}
@@ -392,14 +386,6 @@ operator==(
         std::tie(rhs.createCount, rhs.toCreate, rhs.rewardAmount);
 }
 
-bool
-operator!=(
-    AttestationCreateAccount const& lhs,
-    AttestationCreateAccount const& rhs)
-{
-    return !(lhs == rhs);
-}
-
 }  // namespace AttestationBatch
 
 bool
@@ -409,14 +395,6 @@ operator==(
 {
     return std::tie(lhs.bridge_, lhs.claims_, lhs.creates_) ==
         std::tie(rhs.bridge_, rhs.claims_, rhs.creates_);
-}
-
-bool
-operator!=(
-    STXChainAttestationBatch const& lhs,
-    STXChainAttestationBatch const& rhs)
-{
-    return !operator==(lhs, rhs);
 }
 
 STXChainAttestationBatch::STXChainAttestationBatch()
