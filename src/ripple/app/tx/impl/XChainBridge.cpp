@@ -887,7 +887,7 @@ attestationDoApply(ApplyContext& ctx)
 //------------------------------------------------------------------------------
 
 NotTEC
-BridgeCreate::preflight(PreflightContext const& ctx)
+XChainCreateBridge::preflight(PreflightContext const& ctx)
 {
     if (!ctx.rules.enabled(featureXChainBridge))
         return temDISABLED;
@@ -961,7 +961,7 @@ BridgeCreate::preflight(PreflightContext const& ctx)
 }
 
 TER
-BridgeCreate::preclaim(PreclaimContext const& ctx)
+XChainCreateBridge::preclaim(PreclaimContext const& ctx)
 {
     auto const account = ctx.tx[sfAccount];
     auto const bridge = ctx.tx[sfXChainBridge];
@@ -1003,7 +1003,7 @@ BridgeCreate::preclaim(PreclaimContext const& ctx)
 }
 
 TER
-BridgeCreate::doApply()
+XChainCreateBridge::doApply()
 {
     auto const account = ctx_.tx[sfAccount];
     auto const bridge = ctx_.tx[sfXChainBridge];

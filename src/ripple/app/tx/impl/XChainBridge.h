@@ -32,12 +32,12 @@ struct AttestationClaim;
 
 // Attach a new bridge to a door account. Once this is done, the cross-chain
 // transfer transactions may be used to transfer funds from this account.
-class BridgeCreate : public Transactor
+class XChainCreateBridge : public Transactor
 {
 public:
     static constexpr ConsequencesFactoryType ConsequencesFactory{Normal};
 
-    explicit BridgeCreate(ApplyContext& ctx) : Transactor(ctx)
+    explicit XChainCreateBridge(ApplyContext& ctx) : Transactor(ctx)
     {
     }
 

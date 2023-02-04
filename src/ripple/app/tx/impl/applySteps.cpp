@@ -150,7 +150,7 @@ invoke_preflight(PreflightContext const& ctx)
         case ttNFTOKEN_ACCEPT_OFFER:
             return invoke_preflight_helper<NFTokenAcceptOffer>(ctx);
         case ttXCHAIN_CREATE_BRIDGE:
-            return invoke_preflight_helper<BridgeCreate>(ctx);
+            return invoke_preflight_helper<XChainCreateBridge>(ctx);
         case ttXCHAIN_MODIFY_BRIDGE:
             return invoke_preflight_helper<BridgeModify>(ctx);
         case ttXCHAIN_CREATE_CLAIM_ID:
@@ -268,7 +268,7 @@ invoke_preclaim(PreclaimContext const& ctx)
         case ttNFTOKEN_ACCEPT_OFFER:
             return invoke_preclaim<NFTokenAcceptOffer>(ctx);
         case ttXCHAIN_CREATE_BRIDGE:
-            return invoke_preclaim<BridgeCreate>(ctx);
+            return invoke_preclaim<XChainCreateBridge>(ctx);
         case ttXCHAIN_MODIFY_BRIDGE:
             return invoke_preclaim<BridgeModify>(ctx);
         case ttXCHAIN_CREATE_CLAIM_ID:
@@ -345,7 +345,7 @@ invoke_calculateBaseFee(ReadView const& view, STTx const& tx)
         case ttNFTOKEN_ACCEPT_OFFER:
             return NFTokenAcceptOffer::calculateBaseFee(view, tx);
         case ttXCHAIN_CREATE_BRIDGE:
-            return BridgeCreate::calculateBaseFee(view, tx);
+            return XChainCreateBridge::calculateBaseFee(view, tx);
         case ttXCHAIN_MODIFY_BRIDGE:
             return BridgeModify::calculateBaseFee(view, tx);
         case ttXCHAIN_CREATE_CLAIM_ID:
@@ -514,7 +514,7 @@ invoke_apply(ApplyContext& ctx)
             return p();
         }
         case ttXCHAIN_CREATE_BRIDGE: {
-            BridgeCreate p(ctx);
+            XChainCreateBridge p(ctx);
             return p();
         }
         case ttXCHAIN_MODIFY_BRIDGE: {
