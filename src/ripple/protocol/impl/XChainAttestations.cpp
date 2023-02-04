@@ -154,9 +154,9 @@ XChainClaimAttestation::match(
 {
     if (std::tie(amount, wasLockingChainSend) !=
         std::tie(rhs.amount, rhs.wasLockingChainSend))
-        return AttestationMatch::non_dst_mismatch;
+        return AttestationMatch::nonDstMatch;
     if (dst != rhs.dst)
-        return AttestationMatch::match_except_dst;
+        return AttestationMatch::matchExceptDst;
     return AttestationMatch::match;
 }
 
@@ -244,9 +244,9 @@ XChainCreateAccountAttestation::match(
 {
     if (std::tie(amount, rewardAmount, wasLockingChainSend) !=
         std::tie(rhs.amount, rhs.rewardAmount, rhs.wasLockingChainSend))
-        return AttestationMatch::non_dst_mismatch;
+        return AttestationMatch::nonDstMatch;
     if (dst != rhs.dst)
-        return AttestationMatch::match_except_dst;
+        return AttestationMatch::matchExceptDst;
     return AttestationMatch::match;
 }
 
@@ -413,7 +413,7 @@ XChainAttestationsBase<TAttestation>::claimHelper(
     for (auto const& a : attestations_)
     {
         auto const matchR = a.match(toMatch);
-        if (matchR == AttestationMatch::non_dst_mismatch ||
+        if (matchR == AttestationMatch::nonDstMatch ||
             (checkDst == CheckDst::check && matchR != AttestationMatch::match))
             continue;
         auto i = signersList.find(a.keyAccount);

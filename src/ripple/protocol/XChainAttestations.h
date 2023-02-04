@@ -43,9 +43,9 @@ struct AttestationCreateAccount;
 // Result when checking when two attestation match.
 enum class AttestationMatch {
     // One of the fields doesn't match, and it isn't the dst field
-    non_dst_mismatch,
+    nonDstMatch,
     // all of the fields match, except the dst field
-    match_except_dst,
+    matchExceptDst,
     // all of the fields match
     match
 };
