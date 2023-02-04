@@ -99,7 +99,7 @@ struct XChainClaimAttestation
     AttestationMatch
     match(MatchFields const& rhs) const;
 
-    STObject
+    [[nodiscard]] STObject
     toSTObject() const;
 
     friend bool
@@ -148,7 +148,7 @@ struct XChainCreateAccountAttestation
 
     explicit XChainCreateAccountAttestation(Json::Value const& v);
 
-    STObject
+    [[nodiscard]] STObject
     toSTObject() const;
 
     AttestationMatch
@@ -192,7 +192,7 @@ public:
 
     explicit XChainAttestationsBase(STArray const& arr);
 
-    STArray
+    [[nodiscard]] STArray
     toSTArray() const;
 
     /**
