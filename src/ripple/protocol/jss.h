@@ -49,13 +49,12 @@ JSS(AccountRoot);                        // ledger type.
 JSS(AccountSet);                         // transaction type.
 JSS(Amendments);                         // ledger type.
 JSS(Amount);                             // in: TransactionSign; field.
+JSS(Bridge);                             // ledger type.
 JSS(Check);                              // ledger type.
 JSS(CheckCancel);                        // transaction type.
 JSS(CheckCash);                          // transaction type.
 JSS(CheckCreate);                        // transaction type.
 JSS(ClearFlag);                          // field.
-JSS(XChainClaimID);                      // ledger type.
-JSS(XChainCreateAccountClaimID);         // ledger type.
 JSS(DeliverMin);                         // in: TransactionSign
 JSS(DepositPreauth);                     // transaction and ledger type.
 JSS(Destination);                        // in: TransactionSign; field.
@@ -77,6 +76,7 @@ JSS(LedgerHashes);                       // ledger type.
 JSS(LimitAmount);                        // field.
 JSS(LockingChainDoor);                   // field.
 JSS(LockingChainIssue);                  // field.
+JSS(NegativeUNL);                        // out: ValidatorList; ledger type
 JSS(NFTokenBurn);                        // transaction type.
 JSS(NFTokenMint);                        // transaction type.
 JSS(NFTokenOffer);                       // ledger type.
@@ -103,16 +103,6 @@ JSS(SendMax);                            // in: TransactionSign
 JSS(Sequence);                           // in/out: TransactionSign; field.
 JSS(SetFlag);                            // field.
 JSS(SetRegularKey);                      // transaction type.
-JSS(Bridge);                             // ledger type.
-JSS(XChainBridge);                       // field.
-JSS(XChainCreateBridge);                 // transaction type.
-JSS(XChainModifyBridge);                 // transaction type.
-JSS(XChainCreateClaimID);                // transaction type.
-JSS(XChainCommit);                       // transaction type.
-JSS(XChainClaim);                        // transaction type.
-JSS(XChainAddClaimAttestation);          // transaction type.
-JSS(XChainAddAccountCreateAttestation);  // transaction type.
-JSS(XChainAccountCreateCommit);          // transaction type.
 JSS(SignerList);                         // ledger type.
 JSS(SignerListSet);                      // transaction type.
 JSS(SigningPubKey);                      // field.
@@ -124,6 +114,17 @@ JSS(TxnSignature);                       // field.
 JSS(TransactionType);                    // in: TransactionSign.
 JSS(TransferRate);                       // in: TransferRate.
 JSS(TrustSet);                           // transaction type.
+JSS(XChainAddAccountCreateAttestation);  // transaction type.
+JSS(XChainAddClaimAttestation);          // transaction type.
+JSS(XChainAccountCreateCommit);          // transaction type.
+JSS(XChainBridge);                       // field.
+JSS(XChainClaim);                        // transaction type.
+JSS(XChainClaimID);                      // ledger type.
+JSS(XChainCommit);                       // transaction type.
+JSS(XChainCreateAccountClaimID);         // ledger type.
+JSS(XChainCreateBridge);                 // transaction type.
+JSS(XChainCreateClaimID);                // transaction type.
+JSS(XChainModifyBridge);                 // transaction type.
 JSS(aborted);                            // out: InboundLedger
 JSS(accepted);               // out: LedgerToJson, OwnerInfo, SubmitTransaction
 JSS(account);                // in/out: many
@@ -333,7 +334,6 @@ JSS(ip);                   // in: Connect, out: OverlayImpl
 JSS(issuer);               // in: RipplePathFind, Subscribe,
                            //     Unsubscribe, BookOffers
                            // out: STPathSet, STAmount
-JSS(was_src_chain_send);   // in: sidechain
 JSS(job);
 JSS(job_queue);
 JSS(jobs);
@@ -675,12 +675,12 @@ JSS(volume_b);                // out: BookChanges
 JSS(vote);                    // in: Feature
 JSS(warning);                 // rpc:
 JSS(warnings);                // out: server_info, server_state
+JSS(was_src_chain_send);      // in: sidechain
 JSS(workers);
 JSS(write_load);                      // out: GetCounts
-JSS(xchain_seq);                      // in: sidechain
 JSS(xchain_claim_id);                 // in: LedgerEntry, AccountObjects
 JSS(xchain_create_account_claim_id);  // in: LedgerEntry
-JSS(NegativeUNL);                     // out: ValidatorList; ledger type
+JSS(xchain_seq);                      // in: sidechain
 #undef JSS
 
 }  // namespace jss
