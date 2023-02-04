@@ -1304,7 +1304,7 @@ XChainClaim::doApply()
     XChainClaimAttestations curAtts{
         sleClaimID->getFieldArray(sfXChainClaimAttestations)};
 
-    auto claimR = curAtts.onClaim(
+    auto const claimR = curAtts.onClaim(
         sendingAmount,
         /*wasLockingChainSend*/ srcChain == STXChainBridge::ChainType::locking,
         quorum,
@@ -1315,7 +1315,7 @@ XChainClaim::doApply()
     auto const& rewardAccounts = claimR.value();
     auto const& rewardPoolSrc = (*sleClaimID)[sfAccount];
 
-    std::optional<std::uint32_t> dstTag = ctx_.tx[~sfDestinationTag];
+    std::optional<std::uint32_t> const dstTag = ctx_.tx[~sfDestinationTag];
 
     auto const r = finalizeClaimHelper(
         psb,
