@@ -1544,7 +1544,7 @@ XChainCreateClaimID::doApply()
     (*sleBridge)[sfXChainClaimID] = claimID;
 
     Keylet const claimIDKeylet = keylet::xChainClaimID(bridgeSpec, claimID);
-    if (ctx_.view().read(claimIDKeylet))
+    if (ctx_.view().exists(claimIDKeylet))
         return tecINTERNAL;  // already checked out!?!
 
     auto const sleClaimID = std::make_shared<SLE>(claimIDKeylet);
@@ -1665,7 +1665,7 @@ XChainCreateAccountCommit::preclaim(PreclaimContext const& ctx)
         return tecXCHAIN_REWARD_MISMATCH;
     }
 
-    std::optional<STAmount> minCreateAmount =
+    std::optional<STAmount> const minCreateAmount =
         (*sleBridge)[~sfMinAccountCreateAmount];
 
     if (!minCreateAmount || amount < *minCreateAmount)
