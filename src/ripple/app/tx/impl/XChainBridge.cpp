@@ -1428,8 +1428,7 @@ XChainCommit::doApply()
     auto const amount = ctx_.tx[sfAmount];
     auto const bridge = ctx_.tx[sfXChainBridge];
 
-    auto const sle = psb.peek(keylet::account(account));
-    if (!sle)
+    if (!psb.read(keylet::account(account)))
         return tecINTERNAL;
 
     auto const sleBridge = readBridge(psb, bridge);
