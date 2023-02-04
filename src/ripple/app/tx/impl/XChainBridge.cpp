@@ -1010,8 +1010,8 @@ XChainCreateBridge::doApply()
     auto const reward = ctx_.tx[sfSignatureReward];
     auto const minAccountCreate = ctx_.tx[~sfMinAccountCreateAmount];
 
-    auto const sleAcc = ctx_.view().peek(keylet::account(account));
-    if (!sleAcc)
+    auto const sleAcct = ctx_.view().peek(keylet::account(account));
+    if (!sleAcct)
         return tecINTERNAL;
 
     STXChainBridge::ChainType const chainType =
@@ -1038,10 +1038,10 @@ XChainCreateBridge::doApply()
         (*sleB)[sfOwnerNode] = *page;
     }
 
-    adjustOwnerCount(ctx_.view(), sleAcc, 1, ctx_.journal);
+    adjustOwnerCount(ctx_.view(), sleAcct, 1, ctx_.journal);
 
     ctx_.view().insert(sleB);
-    ctx_.view().update(sleAcc);
+    ctx_.view().update(sleAcct);
 
     return tesSUCCESS;
 }
@@ -1118,8 +1118,8 @@ BridgeModify::doApply()
     auto const reward = ctx_.tx[~sfSignatureReward];
     auto const minAccountCreate = ctx_.tx[~sfMinAccountCreateAmount];
 
-    auto const sleAcc = ctx_.view().peek(keylet::account(account));
-    if (!sleAcc)
+    auto const sleAcct = ctx_.view().peek(keylet::account(account));
+    if (!sleAcct)
         return tecINTERNAL;
 
     STXChainBridge::ChainType const chainType =
@@ -1263,12 +1263,12 @@ XChainClaim::doApply()
     STAmount const& thisChainAmount = ctx_.tx[sfAmount];
     auto const claimID = ctx_.tx[sfXChainClaimID];
 
-    auto const sleAcc = psb.peek(keylet::account(account));
+    auto const sleAcct = psb.peek(keylet::account(account));
     auto const sleB = peekBridge(psb, bridgeSpec);
     auto const sleClaimID =
         psb.peek(keylet::xChainClaimID(bridgeSpec, claimID));
 
-    if (!(sleB && sleClaimID && sleAcc))
+    if (!(sleB && sleClaimID && sleAcct))
         return tecINTERNAL;
 
     AccountID const thisDoor = (*sleB)[sfAccount];
@@ -1519,8 +1519,8 @@ XChainCreateClaimID::doApply()
     auto const reward = ctx_.tx[sfSignatureReward];
     auto const otherChainSrc = ctx_.tx[sfOtherChainSource];
 
-    auto const sleAcc = ctx_.view().peek(keylet::account(account));
-    if (!sleAcc)
+    auto const sleAcct = ctx_.view().peek(keylet::account(account));
+    if (!sleAcct)
         return tecINTERNAL;
 
     auto const sleB = peekBridge(ctx_.view(), bridge);
@@ -1556,11 +1556,11 @@ XChainCreateClaimID::doApply()
         (*sleQ)[sfOwnerNode] = *page;
     }
 
-    adjustOwnerCount(ctx_.view(), sleAcc, 1, ctx_.journal);
+    adjustOwnerCount(ctx_.view(), sleAcct, 1, ctx_.journal);
 
     ctx_.view().insert(sleQ);
     ctx_.view().update(sleB);
-    ctx_.view().update(sleAcc);
+    ctx_.view().update(sleAcct);
 
     return tesSUCCESS;
 }
