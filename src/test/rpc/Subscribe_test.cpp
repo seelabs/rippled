@@ -781,8 +781,7 @@ public:
                         idx = r[jss::account_history_tx_index].asInt();
                     if (r.isMember(jss::account_history_tx_first))
                         first_flag = true;
-                    bool boundary =
-                        r.isMember(jss::account_history_ledger_boundary);
+                    bool boundary = r.isMember(jss::account_history_boundary);
                     int ledger_idx = r[jss::ledger_index].asInt();
                     if (r.isMember(jss::transaction) &&
                         r[jss::transaction].isMember(jss::hash))

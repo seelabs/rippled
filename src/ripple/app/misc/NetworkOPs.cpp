@@ -3232,7 +3232,7 @@ NetworkOPsImp::pubAccountTransaction(
             isrListener->send(jvObj, true);
 
         if (last)
-            jvObj[jss::account_history_ledger_boundary] = true;
+            jvObj[jss::account_history_boundary] = true;
 
         assert(!jvObj.isMember(jss::account_history_tx_stream));
         for (auto& info : accountHistoryNotify)
@@ -3674,7 +3674,7 @@ NetworkOPsImp::addAccountHistoryJob(SubAccountHistoryInfoWeak subInfo)
 
                         if (i + 1 == num_txns ||
                             txns[i + 1].first->getLedger() != tx->getLedger())
-                            jvTx[jss::account_history_ledger_boundary] = true;
+                            jvTx[jss::account_history_boundary] = true;
 
                         RPC::insertDeliveredAmount(
                             jvTx[jss::meta], *curTxLedger, stTxn, *meta);

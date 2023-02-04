@@ -140,11 +140,11 @@ JSS(account_sequence_available);  // out: SubmitTransaction
 JSS(account_history_tx_stream);   // in: Subscribe, Unsubscribe
 JSS(account_history_tx_index);    // out: Account txn history subscribe
 
-JSS(account_history_tx_first);         // out: Account txn history subscribe
-JSS(account_history_ledger_boundary);  // out: Account txn history subscribe
-JSS(accounts);                         // in: LedgerEntry, Subscribe,
-                                       //     handlers/Ledger, Unsubscribe
-JSS(accounts_proposed);                // in: Subscribe, Unsubscribe
+JSS(account_history_tx_first);  // out: Account txn history subscribe
+JSS(account_history_boundary);  // out: Account txn history subscribe
+JSS(accounts);                  // in: LedgerEntry, Subscribe,
+                                //     handlers/Ledger, Unsubscribe
+JSS(accounts_proposed);         // in: Subscribe, Unsubscribe
 JSS(action);
 JSS(acquiring);                   // out: LedgerRequest
 JSS(address);                     // out: PeerImp
