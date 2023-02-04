@@ -94,7 +94,6 @@ transResults()
         MAKE_ERROR(tecXCHAIN_CLAIM_NO_QUORUM,        "xchain claim no quorum."),
         MAKE_ERROR(tecXCHAIN_PROOF_UNKNOWN_KEY,      "xchain proof unknown key."),
         MAKE_ERROR(tecXCHAIN_CREATE_ACCOUNT_NONXRP_ISSUE, "xchain create account non-xrp issue."),
-        MAKE_ERROR(tecXCHAIN_CLAIM_ACCOUNT_DST_EXISTS, "xchain claim account dst exists."),
         MAKE_ERROR(tecXCHAIN_WRONG_CHAIN,             "xchain wrong chain."),
         MAKE_ERROR(tecXCHAIN_REWARD_MISMATCH,         "xchain reward mismatch."),
         MAKE_ERROR(tecXCHAIN_NO_SIGNERS_LIST,         "xchain no signers list."),
