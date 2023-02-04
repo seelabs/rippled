@@ -453,7 +453,7 @@ ValidNewAccountRoot::visitEntry(
     if (!before && after->getType() == ltACCOUNT_ROOT)
     {
         accountsCreated_++;
-        accountSeqs_.push_back((*after)[sfSequence]);
+        accountSeq_ = (*after)[sfSequence];
     }
 }
 
@@ -465,9 +465,6 @@ ValidNewAccountRoot::finalize(
     ReadView const& view,
     beast::Journal const& j)
 {
-    if (accountSeqs_.size() != accountsCreated_)
-        return false;
-
     if (accountsCreated_ == 0)
         return true;
 
@@ -487,7 +484,7 @@ ValidNewAccountRoot::finalize(
         std::uint32_t const startingSeq{
             view.rules().enabled(featureDeletableAccounts) ? view.seq() : 1};
 
-        if (accountSeqs_[0] != startingSeq)
+        if (accountSeq_ != startingSeq)
         {
             JLOG(j.fatal()) << "Invariant failed: account created with "
                                "wrong starting sequence number";

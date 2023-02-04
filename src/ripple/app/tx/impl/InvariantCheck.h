@@ -26,8 +26,6 @@
 #include <ripple/protocol/STTx.h>
 #include <ripple/protocol/TER.h>
 
-#include <boost/container/small_vector.hpp>
-
 #include <cstdint>
 #include <map>
 #include <tuple>
@@ -303,8 +301,7 @@ public:
 class ValidNewAccountRoot
 {
     std::uint32_t accountsCreated_ = 0;
-    boost::container::small_vector<std::uint32_t, 8>
-        accountSeqs_;  // Only meaningful if accountsCreated_ > 0
+    std::uint32_t accountSeq_ = 0;
 
 public:
     void
