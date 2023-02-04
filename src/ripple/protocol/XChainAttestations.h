@@ -186,7 +186,7 @@ public:
     XChainAttestationsBase&
     operator=(XChainAttestationsBase const& rhs) = default;
 
-    XChainAttestationsBase(AttCollection&& sigs);
+    explicit XChainAttestationsBase(AttCollection&& sigs);
 
     explicit XChainAttestationsBase(Json::Value const& v);
 
