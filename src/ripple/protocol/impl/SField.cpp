@@ -344,18 +344,12 @@ CONSTRUCT_UNTYPED_SFIELD(sfXChainClaimProofSig, "XChainClaimProofSig",  OBJECT, 
 CONSTRUCT_UNTYPED_SFIELD(sfXChainCreateAccountProofSig,
                                                 "XChainCreateAccountProofSig",
                                                                         OBJECT,    33);
-CONSTRUCT_UNTYPED_SFIELD(sfXChainAttestationBatchElement,
-                                                 "XChainAttestationBatchElement",
-                                                                        OBJECT,    34);
 CONSTRUCT_UNTYPED_SFIELD(sfXChainClaimAttestationBatchElement,
                                                  "XChainClaimAttestationBatchElement",
-                                                                        OBJECT,    35);
+                                                                        OBJECT,    34);
 CONSTRUCT_UNTYPED_SFIELD(sfXChainCreateAccountAttestationBatchElement,
                                                  "XChainCreateAccountAttestationBatchElement",
-                                                                        OBJECT,    36);
-CONSTRUCT_UNTYPED_SFIELD(sfXChainAttestationBatchInner,
-                                                 "XChainAttestationBatchInner",
-                                                                        OBJECT,    37);
+                                                                        OBJECT,    35);
 
 // array of objects
 //                                                                            ARRAY/1 is reserved for end of array

@@ -592,10 +592,8 @@ extern SField const sfHookParameter;
 extern SField const sfHookGrant;
 extern SField const sfXChainClaimProofSig;
 extern SField const sfXChainCreateAccountProofSig;
-extern SField const sfXChainAttestationBatchElement;
 extern SField const sfXChainClaimAttestationBatchElement;
 extern SField const sfXChainCreateAccountAttestationBatchElement;
-extern SField const sfXChainAttestationBatchInner;
 
 // array of objects (common)
 // ARRAY/1 is reserved for end of array
