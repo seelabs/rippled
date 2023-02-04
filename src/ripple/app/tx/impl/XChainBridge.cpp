@@ -781,7 +781,7 @@ attestationPreflight(PreflightContext const& ctx)
     if (!att)
         return temMALFORMED;
 
-    STXChainBridge bridgeSpec = ctx.tx[sfXChainBridge];
+    STXChainBridge const bridgeSpec = ctx.tx[sfXChainBridge];
     if (!att->verify(bridgeSpec))
         return temBAD_XCHAIN_PROOF;
     if (!att->validAmounts())
@@ -806,7 +806,7 @@ attestationDoApply(ApplyContext& ctx)
         // Should already be checked in preflight
         return tecINTERNAL;
 
-    STXChainBridge bridgeSpec = ctx.tx[sfXChainBridge];
+    STXChainBridge const bridgeSpec = ctx.tx[sfXChainBridge];
 
     // Note: sle's lifetimes should not overlap calls to applyCreateAccount
     // and applyClaims because those functions create a sandbox `sleBridge` is
@@ -1176,7 +1176,7 @@ TER
 XChainClaim::preclaim(PreclaimContext const& ctx)
 {
     AccountID const account = ctx.tx[sfAccount];
-    STXChainBridge bridgeSpec = ctx.tx[sfXChainBridge];
+    STXChainBridge const bridgeSpec = ctx.tx[sfXChainBridge];
     STAmount const& thisChainAmount = ctx.tx[sfAmount];
     auto const claimID = ctx.tx[sfXChainClaimID];
 
@@ -1263,7 +1263,7 @@ XChainClaim::doApply()
 
     AccountID const account = ctx_.tx[sfAccount];
     auto const dst = ctx_.tx[sfDestination];
-    STXChainBridge bridgeSpec = ctx_.tx[sfXChainBridge];
+    STXChainBridge const bridgeSpec = ctx_.tx[sfXChainBridge];
     STAmount const& thisChainAmount = ctx_.tx[sfAmount];
     auto const claimID = ctx_.tx[sfXChainClaimID];
 
