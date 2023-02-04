@@ -370,19 +370,18 @@ CONSTRUCT_UNTYPED_SFIELD(sfDisabledValidators,  "DisabledValidators",   ARRAY,  
 CONSTRUCT_UNTYPED_SFIELD(sfHookExecutions,      "HookExecutions",       ARRAY,     18);
 CONSTRUCT_UNTYPED_SFIELD(sfHookParameters,      "HookParameters",       ARRAY,     19);
 CONSTRUCT_UNTYPED_SFIELD(sfHookGrants,          "HookGrants",           ARRAY,     20);
-CONSTRUCT_UNTYPED_SFIELD(sfXChainProofSigs,     "XChainProofSigs",      ARRAY,     21);
 CONSTRUCT_UNTYPED_SFIELD(sfXChainClaimAttestationBatch,
                                                  "XChainClaimAttestationBatch",
-                                                                        ARRAY,     22);
+                                                                        ARRAY,     21);
 CONSTRUCT_UNTYPED_SFIELD(sfXChainCreateAccountAttestationBatch,
                                                  "XChainCreateAccountAttestationBatch",
-                                                                        ARRAY,     23);
+                                                                        ARRAY,     22);
 CONSTRUCT_UNTYPED_SFIELD(sfXChainClaimAttestations,
                                                  "XChainClaimAttestations",
-                                                                        ARRAY,     24);
+                                                                        ARRAY,     23);
 CONSTRUCT_UNTYPED_SFIELD(sfXChainCreateAccountAttestations,
                                                  "XChainCreateAccountAttestations",
-                                                                        ARRAY,     25);
+                                                                        ARRAY,     24);
 
 // clang-format on
 
