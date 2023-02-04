@@ -283,7 +283,6 @@ CONSTRUCT_TYPED_SFIELD(sfEmitCallback,          "EmitCallback",         ACCOUNT,
 
 // account (uncommon)
 CONSTRUCT_TYPED_SFIELD(sfHookAccount,           "HookAccount",          ACCOUNT,   16);
-CONSTRUCT_TYPED_SFIELD(sfThisChainAccount,      "ThisChainAccount",     ACCOUNT,   17);
 CONSTRUCT_TYPED_SFIELD(sfOtherChainSource,      "OtherChainSource",     ACCOUNT,   18);
 CONSTRUCT_TYPED_SFIELD(sfOtherChainDestination, "OtherChainDestination",ACCOUNT,   19);
 CONSTRUCT_TYPED_SFIELD(sfAttestationSignerAccount, "AttestationSignerAccount", ACCOUNT, 20);
