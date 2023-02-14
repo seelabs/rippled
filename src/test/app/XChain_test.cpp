@@ -403,6 +403,37 @@ struct XChain_test : public beast::unit_test::suite,
     }
 
     void
+    testXChainBridgeExtraFields()
+    {
+        auto jBridge = create_bridge(mcDoor);
+        bool exceptionPresent = false;
+        try
+        {
+            exceptionPresent = false;
+            [[maybe_unused]] STXChainBridge testBridge1(jBridge);
+        }
+        catch (std::exception& ec)
+        {
+            exceptionPresent = true;
+        }
+
+        BEAST_EXPECT(!exceptionPresent);
+
+        try
+        {
+            exceptionPresent = false;
+            jBridge["Extra"] = 1;
+            [[maybe_unused]] STXChainBridge testBridge2(jBridge);
+        }
+        catch ([[maybe_unused]] std::exception& ec)
+        {
+            exceptionPresent = true;
+        }
+
+        BEAST_EXPECT(exceptionPresent);
+    }
+
+    void
     testXChainCreateBridge()
     {
         XRPAmount res1 = reserve(1);
@@ -3946,6 +3977,7 @@ struct XChain_test : public beast::unit_test::suite,
     void
     run() override
     {
+        testXChainBridgeExtraFields();
         testXChainCreateBridge();
         testXChainOneBridgePerAccount();
         testXChainCreateBridgeMatrix();

@@ -71,12 +71,27 @@ STXChainBridge::STXChainBridge(Json::Value const& v)
 STXChainBridge::STXChainBridge(SField const& name, Json::Value const& v)
     : STBase{name}
 {
-    // TODO; Check that there are no extra fields
     if (!v.isObject())
     {
         Throw<std::runtime_error>(
             "STXChainBridge can only be specified with a 'object' Json value");
     }
+
+    auto checkExtra = [](Json::Value const& v) {
+        static auto const jbridge =
+            ripple::STXChainBridge().getJson(ripple::JsonOptions::none);
+        for (auto it = v.begin(); it != v.end(); ++it)
+        {
+            std::string const name = it.memberName();
+            if (!jbridge.isMember(name))
+            {
+                Throw<std::runtime_error>(
+                    "STXChainBridge extra field detected: " + name);
+            }
+        }
+        return true;
+    };
+    checkExtra(v);
 
     Json::Value const& lockingChainDoorStr =
         v[sfLockingChainDoor.getJsonName()];
