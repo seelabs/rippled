@@ -358,7 +358,7 @@ XChainAttestationsBase<TAttestation>::toSTArray() const
 }
 
 template <class TAttestation>
-std::optional<std::vector<AccountID>>
+typename XChainAttestationsBase<TAttestation>::OnNewAttestationResult
 XChainAttestationsBase<TAttestation>::onNewAttestations(
     ReadView const& view,
     typename TAttestation::TBatchAttestation const* attBegin,
@@ -370,6 +370,7 @@ XChainAttestationsBase<TAttestation>::onNewAttestations(
     if (attBegin == attEnd)
         return {};
 
+    bool changed = false;
     for (auto att = attBegin; att != attEnd; ++att)
     {
         if (Attestations::checkAttestationPublicKey(
@@ -398,10 +399,12 @@ XChainAttestationsBase<TAttestation>::onNewAttestations(
             // existing attestation
             // replace old attestation with new attestion
             *i = TAttestation{*att};
+            changed = true;
         }
         else
         {
             attestations_.emplace_back(*att);
+            changed = true;
         }
     }
 
@@ -414,9 +417,9 @@ XChainAttestationsBase<TAttestation>::onNewAttestations(
         j);
 
     if (!r.has_value())
-        return std::nullopt;
+        return {std::nullopt, changed};
 
-    return std::optional<std::vector<AccountID>>{std::move(r.value())};
+    return {std::move(r.value()), changed};
 };
 
 template <class TAttestation>

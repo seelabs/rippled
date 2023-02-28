@@ -3384,7 +3384,15 @@ struct XChain_test : public beast::unit_test::suite,
                 {
                     scEnv.tx(txns[i]).close();
                 }
-                scEnv.tx(txns.back(), ter(tecINSUFFICIENT_FUNDS)).close();
+                scEnv.tx(txns.back());
+                scEnv.close();
+                // The attestation should succeed, because it adds an
+                // attestation, but the claim should fail with insufficient
+                // funds
+                scEnv
+                    .tx(xchain_claim(scAlice, jvb, claimID, amt, scBob),
+                        ter(tecINSUFFICIENT_FUNDS))
+                    .close();
             }
 
             BEAST_EXPECT(transfer.has_not_happened());
@@ -3510,7 +3518,11 @@ struct XChain_test : public beast::unit_test::suite,
             }
             else
             {
-                scEnv.tx(txns.back(), ter(tecNO_PERMISSION)).close();
+                scEnv.tx(txns.back()).close();
+                scEnv
+                    .tx(xchain_claim(scAlice, jvb, claimID, amt, scBob),
+                        ter(tecNO_PERMISSION))
+                    .close();
                 // A way would be to remove deposit auth and resubmit the
                 // attestations (even though the witness servers won't do
                 // it)
@@ -3588,7 +3600,11 @@ struct XChain_test : public beast::unit_test::suite,
             }
             else
             {
-                scEnv.tx(txns.back(), ter(tecDST_TAG_NEEDED)).close();
+                scEnv.tx(txns.back()).close();
+                scEnv
+                    .tx(xchain_claim(scAlice, jvb, claimID, amt, scBob),
+                        ter(tecDST_TAG_NEEDED))
+                    .close();
                 // A way would be to remove the destination tag requirement
                 // and resubmit the attestations (even though the witness
                 // servers won't do it)
@@ -3602,11 +3618,6 @@ struct XChain_test : public beast::unit_test::suite,
                 BEAST_EXPECT(scBob_bal.diff() == amt);
             }
         }
-
-#if 0
-        // enable after Scott changes: "I'll have to change add_attestation to
-        // return success. The funds didn't transfer, but attestations were
-        // added.".
 
         // Pay to an account with deposit auth set. Check that the attestations
         // are still validated and that we can used the claimID to transfer the
@@ -3630,14 +3641,20 @@ struct XChain_test : public beast::unit_test::suite,
             std::uint32_t const claimID = 1;
             mcEnv.tx(xchain_commit(mcAlice, jvb, claimID, amt, dst)).close();
 
-            auto batch = attestation_claim_batch(
-                jvb, mcAlice, amt, payees, true, claimID, dst, signers);
-
             // we should be able to submit the attestations, but the transfer
             // should not occur because dest account has deposit auth set
             Balance scBob_bal(scEnv, scBob);
 
-            scEnv.tx(xchain_add_attestation_batch(scAttester, batch)).close();
+            scEnv.multiTx(claim_attestations(
+                scAttester,
+                jvb,
+                mcAlice,
+                amt,
+                payees,
+                true,
+                claimID,
+                dst,
+                signers));
             BEAST_EXPECT(scBob_bal.diff() == STAmount(0));
 
             // Check that check that we still can use the claimID to transfer
@@ -3647,7 +3664,6 @@ struct XChain_test : public beast::unit_test::suite,
             scEnv.tx(xchain_claim(scAlice, jvb, claimID, amt, scCarol)).close();
             BEAST_EXPECT(scCarol_bal.diff() == amt);
         }
-#endif
 
         // Claim where the amount different from what is attested to
         // ---------------------------------------------------------

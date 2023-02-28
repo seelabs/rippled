@@ -259,13 +259,58 @@ enum class OnTransferFail {
            are removed so they don't block future txns.
     @param j Log
 
-    @return tesSUCCESS if payment succeeds, otherwise the error code for the
-            failure reason. Note that failure to distribute rewards is still
-            considered success.
+    @return FinalizeClaimHelperResult. See the comments in this struct for what
+            the fields mean. The individual ters need to be returned instead of
+            an overall ter because the caller needs this information if the
+            attestation list changed or not.
  */
-TER
+
+struct FinalizeClaimHelperResult
+{
+    /// Ter for transfering the payment funds
+    std::optional<TER> mainFundsTer;
+    // Ter for transfering the reward funds
+    std::optional<TER> rewardTer;
+    // Ter for removing the sle (if is sle is to be removed)
+    std::optional<TER> rmSleTer;
+
+    // Helper to check for overall success. If there wasn't overall success the
+    // individual ters can be used to decide what needs to be done.
+    bool
+    isTesSuccess() const
+    {
+        return mainFundsTer == tesSUCCESS && rewardTer == tesSUCCESS &&
+            (!rmSleTer || *rmSleTer == tesSUCCESS);
+    }
+
+    TER
+    ter() const
+    {
+        // if any phase return a tecINTERNAL or a tef, prefer returning those
+        // codes
+        if (mainFundsTer &&
+            (isTefFailure(*mainFundsTer) || *mainFundsTer == tecINTERNAL))
+            return *mainFundsTer;
+        if (rewardTer &&
+            (isTefFailure(*rewardTer) || *rewardTer == tecINTERNAL))
+            return *rewardTer;
+        if (rmSleTer && (isTefFailure(*rmSleTer) || *rmSleTer == tecINTERNAL))
+            return *rmSleTer;
+
+        // Only after the tecINTERNAL and tef are checked, return the first
+        // non-success error code.
+        if (mainFundsTer && mainFundsTer != tesSUCCESS)
+            return *mainFundsTer;
+        if (rewardTer && rewardTer != tesSUCCESS)
+            return *rewardTer;
+        if (rmSleTer && rmSleTer != tesSUCCESS)
+            return *rmSleTer;
+        return tesSUCCESS;
+    }
+};
+FinalizeClaimHelperResult
 finalizeClaimHelper(
-    PaymentSandbox& psb,
+    PaymentSandbox& outerSb,
     STXChainBridge const& bridgeSpec,
     AccountID const& dst,
     std::optional<std::uint32_t> const& dstTag,
@@ -279,6 +324,8 @@ finalizeClaimHelper(
     OnTransferFail onTransferFail,
     beast::Journal j)
 {
+    FinalizeClaimHelperResult result;
+
     STXChainBridge::ChainType const dstChain =
         STXChainBridge::otherChain(srcChain);
     STAmount const thisChainAmount = [&] {
@@ -288,19 +335,91 @@ finalizeClaimHelper(
     }();
     auto const& thisDoor = bridgeSpec.door(dstChain);
 
-    auto const thTer = transferHelper(
-        psb,
-        thisDoor,
-        dst,
-        dstTag,
-        claimOwner,
-        thisChainAmount,
-        TransferHelperCanCreateDst::yes,
-        j);
-
-    if (!isTesSuccess(thTer) && onTransferFail == OnTransferFail::keepClaim)
     {
-        return thTer;
+        PaymentSandbox innerSb{&outerSb};
+        // If distributing the reward pool fails, the mainFunds transfer should
+        // be rolled back
+        //
+        // If the claimid is removed, the rewards should be distributed
+        // even if the mainFunds fails.
+        //
+        // The claim should be removed even if the
+        // rewards can not be distributed if "remove on fail" is true.
+
+        // transfer funds to the dst
+        result.mainFundsTer = transferHelper(
+            innerSb,
+            thisDoor,
+            dst,
+            dstTag,
+            claimOwner,
+            thisChainAmount,
+            TransferHelperCanCreateDst::yes,
+            j);
+
+        if (!isTesSuccess(*result.mainFundsTer) &&
+            onTransferFail == OnTransferFail::keepClaim)
+        {
+            return result;
+        }
+
+        // handle the reward pool
+        result.rewardTer = [&]() -> TER {
+            if (rewardAccounts.empty())
+                return tesSUCCESS;
+
+            // distribute the reward pool
+            // if the transfer failed, distribute the pool for "OnTransferFail"
+            // cases (the attesters did their job)
+            STAmount const share = [&] {
+                STAmount const den{rewardAccounts.size()};
+                return divide(rewardPool, den, rewardPool.issue());
+            }();
+            STAmount distributed = rewardPool.zeroed();
+            for (auto const& rewardAccount : rewardAccounts)
+            {
+                auto const thTer = transferHelper(
+                    innerSb,
+                    rewardPoolSrc,
+                    rewardAccount,
+                    /*dstTag*/ std::nullopt,
+                    // claim owner is not relevant to distributing rewards
+                    /*claimOwner*/ std::nullopt,
+                    share,
+                    TransferHelperCanCreateDst::no,
+                    j);
+
+                if (thTer == tecINSUFFICIENT_FUNDS || thTer == tecINTERNAL)
+                    return thTer;
+
+                if (isTesSuccess(thTer))
+                    distributed += share;
+
+                // let txn succeed if error distributing rewards (other than
+                // inability to pay)
+            }
+
+            if (distributed > rewardPool)
+                return tecINTERNAL;
+
+            return tesSUCCESS;
+        }();
+
+        if (!isTesSuccess(*result.rewardTer) &&
+            (onTransferFail == OnTransferFail::keepClaim ||
+             *result.rewardTer == tecINTERNAL))
+        {
+            return result;
+        }
+
+        if (!isTesSuccess(*result.mainFundsTer) ||
+            isTesSuccess(*result.rewardTer))
+        {
+            // Note: if the mainFunds transfer succeeds and the result transfer
+            // fails, we don't apply the inner sandbox (i.e. the mainTransfer is
+            // rolled back)
+            innerSb.apply(outerSb);
+        }
     }
 
     if (sleClaimID)
@@ -308,61 +427,25 @@ finalizeClaimHelper(
         auto const cidOwner = (*sleClaimID)[sfAccount];
         {
             // Remove the claim id
-            auto const sleOwner = psb.peek(keylet::account(cidOwner));
+            auto const sleOwner = outerSb.peek(keylet::account(cidOwner));
             auto const page = (*sleClaimID)[sfOwnerNode];
-            if (!psb.dirRemove(
+            if (!outerSb.dirRemove(
                     keylet::ownerDir(cidOwner), page, sleClaimID->key(), true))
             {
                 JLOG(j.fatal())
                     << "Unable to delete xchain seq number from owner.";
-                return tefBAD_LEDGER;
+                result.rmSleTer = tefBAD_LEDGER;
+                return result;
             }
 
             // Remove the claim id from the ledger
-            psb.erase(sleClaimID);
+            outerSb.erase(sleClaimID);
 
-            adjustOwnerCount(psb, sleOwner, -1, j);
+            adjustOwnerCount(outerSb, sleOwner, -1, j);
         }
     }
 
-    if (!rewardAccounts.empty())
-    {
-        // distribute the reward pool
-        // if the transfer failed, distribute the pool for "OnTransferFail"
-        // cases (the attesters did their job)
-        STAmount const share = [&] {
-            STAmount const den{rewardAccounts.size()};
-            return divide(rewardPool, den, rewardPool.issue());
-        }();
-        STAmount distributed = rewardPool.zeroed();
-        for (auto const& rewardAccount : rewardAccounts)
-        {
-            auto const thTer = transferHelper(
-                psb,
-                rewardPoolSrc,
-                rewardAccount,
-                /*dstTag*/ std::nullopt,
-                // claim owner is not relevant to distributing rewards
-                /*claimOwner*/ std::nullopt,
-                share,
-                TransferHelperCanCreateDst::no,
-                j);
-
-            if (thTer == tecINSUFFICIENT_FUNDS || thTer == tecINTERNAL)
-                return thTer;
-
-            if (isTesSuccess(thTer))
-                distributed += share;
-
-            // let txn succeed if error distributing rewards (other than
-            // inability to pay)
-        }
-
-        if (distributed > rewardPool)
-            return tecINTERNAL;
-    }
-
-    return thTer;
+    return result;
 }
 
 /** Get signers list corresponding to the account that owns the bridge
@@ -545,7 +628,7 @@ applyClaimAttestations(
     XChainClaimAttestations curAtts{
         sleClaimID->getFieldArray(sfXChainClaimAttestations)};
 
-    auto const rewardAccounts = curAtts.onNewAttestations(
+    auto const [rewardAccounts, attListChanged] = curAtts.onNewAttestations(
         view, &atts[0], &atts[0] + atts.size(), quorum, signersList, j);
 
     // update the claim id
@@ -569,8 +652,12 @@ applyClaimAttestations(
             sleClaimID,
             OnTransferFail::keepClaim,
             j);
-        if (!isTesSuccess(r))
-            return r;
+
+        auto const rTer = r.ter();
+
+        if (!isTesSuccess(rTer) &&
+            (!attListChanged || rTer == tecINTERNAL || rTer == tefBAD_LEDGER))
+            return rTer;
     }
 
     psb.apply(rawView);
@@ -672,7 +759,7 @@ applyCreateAccountAttestations(
         return XChainCreateAccountAttestations{};
     }();
 
-    auto const rewardAccounts = curAtts.onNewAttestations(
+    auto const [rewardAccounts, attListChanged] = curAtts.onNewAttestations(
         view, &atts[0], &atts[0] + atts.size(), quorum, signersList, j);
 
     if (!createCID)
@@ -703,11 +790,14 @@ applyCreateAccountAttestations(
             sleClaimID,
             OnTransferFail::removeClaim,
             j);
-        if (!isTesSuccess(r))
+
+        auto const rTer = r.ter();
+
+        if (!isTesSuccess(rTer))
         {
-            if (r == tecINTERNAL || r == tecINSUFFICIENT_FUNDS ||
-                isTefFailure(r))
-                return r;
+            if (rTer == tecINTERNAL || rTer == tecINSUFFICIENT_FUNDS ||
+                isTefFailure(rTer))
+                return rTer;
         }
         // Move past this claim id even if it fails, so it doesn't block
         // subsequent claim ids
@@ -1384,8 +1474,8 @@ XChainClaim::doApply()
         sleClaimID,
         OnTransferFail::keepClaim,
         ctx_.journal);
-    if (!isTesSuccess(r))
-        return r;
+    if (!r.isTesSuccess())
+        return r.ter();
 
     psb.apply(ctx_.rawView());
 

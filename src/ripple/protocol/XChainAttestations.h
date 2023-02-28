@@ -234,7 +234,14 @@ public:
            add the new attestation (in fact, it may not add the attestation at
            all). Instead, it handles the event of a new attestation.
      */
-    std::optional<std::vector<AccountID>>
+    struct OnNewAttestationResult
+    {
+        std::optional<std::vector<AccountID>> rewardAccounts;
+        // `changed` if true if the attestation collection changed in any way
+        // (added/removed/changed)
+        bool changed{false};
+    };
+    [[nodiscard]] OnNewAttestationResult
     onNewAttestations(
         ReadView const& view,
         typename TAttestation::TBatchAttestation const* attBegin,
