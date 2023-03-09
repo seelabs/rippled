@@ -29,7 +29,7 @@ namespace ripple {
 class Serializer;
 class STObject;
 
-class STXChainBridge final : public STBase
+class STXChainBridge final
 {
     STAccount lockingChainDoor_{sfLockingChainDoor};
     STIssue lockingChainIssue_{sfLockingChainIssue};
@@ -52,8 +52,6 @@ public:
 
     STXChainBridge();
 
-    explicit STXChainBridge(SField const& name);
-
     STXChainBridge(STXChainBridge const& rhs) = default;
 
     STXChainBridge(STObject const& o);
@@ -66,15 +64,11 @@ public:
 
     explicit STXChainBridge(Json::Value const& v);
 
-    explicit STXChainBridge(SField const& name, Json::Value const& v);
-
-    explicit STXChainBridge(SerialIter& sit, SField const& name);
-
     STXChainBridge&
     operator=(STXChainBridge const& rhs) = default;
 
     std::string
-    getText() const override;
+    getText() const;
 
     STObject
     toSTObject() const;
@@ -97,32 +91,15 @@ public:
     Issue const&
     issue(ChainType ct) const;
 
-    SerializedTypeID
-    getSType() const override;
-
-    Json::Value getJson(JsonOptions) const override;
-
     void
-    add(Serializer& s) const override;
+    add(Serializer& s) const;
 
-    bool
-    isEquivalent(const STBase& t) const override;
-
-    bool
-    isDefault() const override;
+    Json::Value getJson(JsonOptions) const;
 
     value_type const&
     value() const noexcept;
 
 private:
-    static std::unique_ptr<STXChainBridge>
-    construct(SerialIter&, SField const& name);
-
-    STBase*
-    copy(std::size_t n, void* buf) const override;
-    STBase*
-    move(std::size_t n, void* buf) override;
-
     friend bool
     operator==(STXChainBridge const& lhs, STXChainBridge const& rhs);
 

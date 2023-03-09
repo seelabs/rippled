@@ -303,10 +303,6 @@ CONSTRUCT_UNTYPED_SFIELD(sfPaths,               "Paths",                PATHSET,
 CONSTRUCT_TYPED_SFIELD(sfLockingChainIssue,      "LockingChainIssue",   ISSUE, 1);
 CONSTRUCT_TYPED_SFIELD(sfIssuingChainIssue,      "IssuingChainIssue",   ISSUE, 2);
 
-// Bridge
-CONSTRUCT_TYPED_SFIELD(sfXChainBridge,           "XChainBridge",        XCHAIN_BRIDGE,
-                                                                               1);
-
 // inner object
 // OBJECT/1 is reserved for end of object
 CONSTRUCT_UNTYPED_SFIELD(sfTransactionMetaData, "TransactionMetaData",  OBJECT,     2);
@@ -344,6 +340,7 @@ CONSTRUCT_UNTYPED_SFIELD(sfXChainClaimAttestationCollectionElement,
 CONSTRUCT_UNTYPED_SFIELD(sfXChainCreateAccountAttestationCollectionElement,
                                                  "XChainCreateAccountAttestationCollectionElement",
                                                                         OBJECT,    35);
+CONSTRUCT_UNTYPED_SFIELD(sfXChainBridge,         "XChainBridge",        OBJECT,    36);
 
 // array of objects
 //                                                                            ARRAY/1 is reserved for end of array

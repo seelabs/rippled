@@ -47,6 +47,22 @@
 
 namespace ripple::test {
 
+STXChainBridge
+getBridgeSpec(STObject const& o)
+{
+    // TODO
+    STObject oBridge =
+        dynamic_cast<STObject const&>(o.peekAtField(sfXChainBridge));
+    return STXChainBridge{oBridge};
+}
+
+STXChainBridge
+getBridgeSpec(SLE const&)
+{
+    // TODO
+    return STXChainBridge{};
+}
+
 // SEnv class - encapsulate jtx::Env to make it more user-friendly,
 // for example having APIs that return a *this reference so that calls can be
 // chained (fluent interface) allowing to create an environment and use it
@@ -158,7 +174,7 @@ struct SEnv
             [&](STXChainBridge::ChainType ct) -> std::shared_ptr<SLE const> {
             if (auto r = env_.le(keylet::bridge(b.door(ct))))
             {
-                if ((*r)[sfXChainBridge] == b)
+                if (getBridgeSpec(*r) == b)
                     return r;
             }
             return nullptr;

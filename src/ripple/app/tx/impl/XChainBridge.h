@@ -26,6 +26,9 @@
 
 namespace ripple {
 
+STXChainBridge
+getBridgeSpec(STObject const& o);
+
 // Attach a new bridge to a door account. Once this is done, the cross-chain
 // transfer transactions may be used to transfer funds from this account.
 class XChainCreateBridge : public Transactor

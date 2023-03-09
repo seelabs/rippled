@@ -22,7 +22,6 @@
 #include <ripple/protocol/Indexes.h>
 #include <ripple/protocol/Issue.h>
 #include <ripple/protocol/PublicKey.h>
-#include <ripple/protocol/SField.h>
 #include <ripple/protocol/STAccount.h>
 #include <ripple/protocol/STObject.h>
 #include <ripple/protocol/STXChainBridge.h>
@@ -35,11 +34,7 @@
 
 namespace ripple {
 
-STXChainBridge::STXChainBridge() : STBase{sfXChainBridge}
-{
-}
-
-STXChainBridge::STXChainBridge(SField const& name) : STBase{name}
+STXChainBridge::STXChainBridge()
 {
 }
 
@@ -48,8 +43,7 @@ STXChainBridge::STXChainBridge(
     Issue const& srcChainIssue,
     AccountID const& dstChainDoor,
     Issue const& dstChainIssue)
-    : STBase{sfXChainBridge}
-    , lockingChainDoor_{sfLockingChainDoor, srcChainDoor}
+    : lockingChainDoor_{sfLockingChainDoor, srcChainDoor}
     , lockingChainIssue_{sfLockingChainIssue, srcChainIssue}
     , issuingChainDoor_{sfIssuingChainDoor, dstChainDoor}
     , issuingChainIssue_{sfIssuingChainIssue, dstChainIssue}
@@ -57,8 +51,7 @@ STXChainBridge::STXChainBridge(
 }
 
 STXChainBridge::STXChainBridge(STObject const& o)
-    : STBase{sfXChainBridge}
-    , lockingChainDoor_{sfLockingChainDoor, o[sfLockingChainDoor]}
+    : lockingChainDoor_{sfLockingChainDoor, o[sfLockingChainDoor]}
     , lockingChainIssue_{sfLockingChainIssue, o[sfLockingChainIssue]}
     , issuingChainDoor_{sfIssuingChainDoor, o[sfIssuingChainDoor]}
     , issuingChainIssue_{sfIssuingChainIssue, o[sfIssuingChainIssue]}
@@ -66,12 +59,6 @@ STXChainBridge::STXChainBridge(STObject const& o)
 }
 
 STXChainBridge::STXChainBridge(Json::Value const& v)
-    : STXChainBridge{sfXChainBridge, v}
-{
-}
-
-STXChainBridge::STXChainBridge(SField const& name, Json::Value const& v)
-    : STBase{name}
 {
     if (!v.isObject())
     {
@@ -136,14 +123,6 @@ STXChainBridge::STXChainBridge(SField const& name, Json::Value const& v)
         STIssue{sfIssuingChainIssue, issueFromJson(issuingChainIssue)};
 }
 
-STXChainBridge::STXChainBridge(SerialIter& sit, SField const& name)
-    : STBase{name}
-    , lockingChainDoor_{sit, sfLockingChainDoor}
-    , lockingChainIssue_{sit, sfLockingChainIssue}
-    , issuingChainDoor_{sit, sfIssuingChainDoor}
-    , issuingChainIssue_{sit, sfIssuingChainIssue}
-{
-}
 
 void
 STXChainBridge::add(Serializer& s) const
@@ -153,7 +132,6 @@ STXChainBridge::add(Serializer& s) const
     issuingChainDoor_.add(s);
     issuingChainIssue_.add(s);
 }
-
 Json::Value
 STXChainBridge::getJson(JsonOptions jo) const
 {
@@ -187,41 +165,4 @@ STXChainBridge::toSTObject() const
     return o;
 }
 
-SerializedTypeID
-STXChainBridge::getSType() const
-{
-    return STI_XCHAIN_BRIDGE;
-}
-
-bool
-STXChainBridge::isEquivalent(const STBase& t) const
-{
-    const STXChainBridge* v = dynamic_cast<const STXChainBridge*>(&t);
-    return v && (*v == *this);
-}
-
-bool
-STXChainBridge::isDefault() const
-{
-    return lockingChainDoor_.isDefault() && lockingChainIssue_.isDefault() &&
-        issuingChainDoor_.isDefault() && issuingChainIssue_.isDefault();
-}
-
-std::unique_ptr<STXChainBridge>
-STXChainBridge::construct(SerialIter& sit, SField const& name)
-{
-    return std::make_unique<STXChainBridge>(sit, name);
-}
-
-STBase*
-STXChainBridge::copy(std::size_t n, void* buf) const
-{
-    return emplace(n, buf, *this);
-}
-
-STBase*
-STXChainBridge::move(std::size_t n, void* buf)
-{
-    return emplace(n, buf, std::move(*this));
-}
 }  // namespace ripple

@@ -49,7 +49,6 @@ template <std::size_t>
 class STBitString;
 template <class>
 class STInteger;
-class STXChainBridge;
 class STVector256;
 
 enum SerializedTypeID {
@@ -80,7 +79,6 @@ enum SerializedTypeID {
     STI_UINT384 = 22,
     STI_UINT512 = 23,
     STI_ISSUE = 24,
-    STI_XCHAIN_BRIDGE = 25,
 
     // high level types
     // cannot be serialized inside other types
@@ -326,7 +324,6 @@ using SF_AMOUNT = TypedField<STAmount>;
 using SF_ISSUE = TypedField<STIssue>;
 using SF_VL = TypedField<STBlob>;
 using SF_VECTOR256 = TypedField<STVector256>;
-using SF_XCHAIN_BRIDGE = TypedField<STXChainBridge>;
 
 //------------------------------------------------------------------------------
 
@@ -547,9 +544,6 @@ extern SF_ACCOUNT const sfIssuingChainDoor;
 // path set
 extern SField const sfPaths;
 
-// bridge
-extern SF_XCHAIN_BRIDGE const sfXChainBridge;
-
 // issues
 extern SF_ISSUE const sfLockingChainIssue;
 extern SF_ISSUE const sfIssuingChainIssue;
@@ -588,6 +582,7 @@ extern SField const sfXChainClaimProofSig;
 extern SField const sfXChainCreateAccountProofSig;
 extern SField const sfXChainClaimAttestationCollectionElement;
 extern SField const sfXChainCreateAccountAttestationCollectionElement;
+extern SField const sfXChainBridge;
 
 // array of objects (common)
 // ARRAY/1 is reserved for end of array

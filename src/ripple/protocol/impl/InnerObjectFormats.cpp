@@ -113,6 +113,15 @@ InnerObjectFormats::InnerObjectFormats()
             {sfWasLockingChainSend, soeREQUIRED},
             {sfDestination, soeREQUIRED},
         });
+
+    add(sfXChainBridge.jsonName.c_str(),
+        sfXChainBridge.getCode(),
+        {
+            {sfLockingChainDoor, soeREQUIRED},
+            {sfLockingChainIssue, soeREQUIRED},
+            {sfIssuingChainDoor, soeREQUIRED},
+            {sfIssuingChainIssue, soeREQUIRED},
+        });
 }
 
 InnerObjectFormats const&

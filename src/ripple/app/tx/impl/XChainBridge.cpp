@@ -47,6 +47,27 @@
 
 namespace ripple {
 
+STXChainBridge
+getBridgeSpec(STObject const& o)
+{
+    // TODO
+    STObject oBridge =
+        dynamic_cast<STObject const&>(o.peekAtField(sfXChainBridge));
+    return STXChainBridge{oBridge};
+}
+
+void
+setBridgeSpec(STObject& sle, STXChainBridge const& b)
+{
+    if (auto const index = sle.getFieldIndex(sfXChainBridge); index > 0)
+    {
+        *sle.getPIndex(index) = b.toSTObject();
+    }
+    else
+    {
+        sle.emplace_back(b.toSTObject());
+    }
+}
 /*
    Bridges connect two independent ledgers: a "locking chain" and an "issuing
    chain". An asset can be moved from the locking chain to the issuing chain by
@@ -532,7 +553,7 @@ readOrpeekBridge(F&& getter, STXChainBridge const& bridgeSpec)
     auto tryGet = [&](STXChainBridge::ChainType ct) -> R {
         if (auto r = getter(bridgeSpec, ct))
         {
-            if ((*r)[sfXChainBridge] == bridgeSpec)
+            if (getBridgeSpec(*r) == bridgeSpec)
                 return r;
         }
         return nullptr;
@@ -863,7 +884,7 @@ applyCreateAccountAttestations(
     {
         auto const createdSleClaimID = std::make_shared<SLE>(claimIDKeylet);
         (*createdSleClaimID)[sfAccount] = doorAccount;
-        (*createdSleClaimID)[sfXChainBridge] = bridgeSpec;
+        setBridgeSpec(*createdSleClaimID, bridgeSpec);
         (*createdSleClaimID)[sfXChainAccountCreateCount] =
             attBegin->createCount;
         createdSleClaimID->setFieldArray(
@@ -930,7 +951,7 @@ attestationPreflight(PreflightContext const& ctx)
     if (!att)
         return temMALFORMED;
 
-    STXChainBridge const bridgeSpec = ctx.tx[sfXChainBridge];
+    STXChainBridge const bridgeSpec = getBridgeSpec(ctx.tx);
     if (!att->verify(bridgeSpec))
         return temBAD_XCHAIN_PROOF;
     if (!att->validAmounts())
@@ -954,7 +975,7 @@ attestationPreclaim(PreclaimContext const& ctx)
     if (!att)
         return tecINTERNAL;  // checked in preflight
 
-    STXChainBridge const bridgeSpec = ctx.tx[sfXChainBridge];
+    STXChainBridge const bridgeSpec = getBridgeSpec(ctx.tx);
     auto const sleBridge = readBridge(ctx.view, bridgeSpec);
     if (!sleBridge)
     {
@@ -985,7 +1006,7 @@ attestationDoApply(ApplyContext& ctx)
         // Should already be checked in preflight
         return tecINTERNAL;
 
-    STXChainBridge const bridgeSpec = ctx.tx[sfXChainBridge];
+    STXChainBridge const bridgeSpec = getBridgeSpec(ctx.tx);
 
     struct ScopeResult
     {
@@ -1093,7 +1114,7 @@ XChainCreateBridge::preflight(PreflightContext const& ctx)
     auto const account = ctx.tx[sfAccount];
     auto const reward = ctx.tx[sfSignatureReward];
     auto const minAccountCreate = ctx.tx[~sfMinAccountCreateAmount];
-    auto const bridgeSpec = ctx.tx[sfXChainBridge];
+    auto const bridgeSpec = getBridgeSpec(ctx.tx);
     // Doors must be distinct to help prevent transaction replay attacks
     if (bridgeSpec.lockingChainDoor() == bridgeSpec.issuingChainDoor())
     {
@@ -1166,7 +1187,7 @@ TER
 XChainCreateBridge::preclaim(PreclaimContext const& ctx)
 {
     auto const account = ctx.tx[sfAccount];
-    auto const bridgeSpec = ctx.tx[sfXChainBridge];
+    auto const bridgeSpec = getBridgeSpec(ctx.tx);
 
     // The bridge can't already exist on this ledger, and the bridge for the
     // locking chain and issuing chain can't live on the same ledger.
@@ -1208,7 +1229,7 @@ TER
 XChainCreateBridge::doApply()
 {
     auto const account = ctx_.tx[sfAccount];
-    auto const bridgeSpec = ctx_.tx[sfXChainBridge];
+    auto const bridgeSpec = getBridgeSpec(ctx_.tx);
     auto const reward = ctx_.tx[sfSignatureReward];
     auto const minAccountCreate = ctx_.tx[~sfMinAccountCreateAmount];
 
@@ -1226,7 +1247,7 @@ XChainCreateBridge::doApply()
     (*sleBridge)[sfSignatureReward] = reward;
     if (minAccountCreate)
         (*sleBridge)[sfMinAccountCreateAmount] = *minAccountCreate;
-    (*sleBridge)[sfXChainBridge] = bridgeSpec;
+    setBridgeSpec(*sleBridge, bridgeSpec);
     (*sleBridge)[sfXChainClaimID] = 0;
     (*sleBridge)[sfXChainAccountCreateCount] = 0;
     (*sleBridge)[sfXChainAccountClaimCount] = 0;
@@ -1265,7 +1286,7 @@ BridgeModify::preflight(PreflightContext const& ctx)
     auto const account = ctx.tx[sfAccount];
     auto const reward = ctx.tx[~sfSignatureReward];
     auto const minAccountCreate = ctx.tx[~sfMinAccountCreateAmount];
-    auto const bridgeSpec = ctx.tx[sfXChainBridge];
+    auto const bridgeSpec = getBridgeSpec(ctx.tx);
     bool const clearAccountCreate =
         ctx.tx.getFlags() & tfClearAccountCreateAmount;
 
@@ -1307,7 +1328,7 @@ TER
 BridgeModify::preclaim(PreclaimContext const& ctx)
 {
     auto const account = ctx.tx[sfAccount];
-    auto const bridgeSpec = ctx.tx[sfXChainBridge];
+    auto const bridgeSpec = getBridgeSpec(ctx.tx);
 
     STXChainBridge::ChainType const chainType =
         STXChainBridge::srcChain(account == bridgeSpec.lockingChainDoor());
@@ -1324,7 +1345,7 @@ TER
 BridgeModify::doApply()
 {
     auto const account = ctx_.tx[sfAccount];
-    auto const bridgeSpec = ctx_.tx[sfXChainBridge];
+    auto const bridgeSpec = getBridgeSpec(ctx_.tx);
     auto const reward = ctx_.tx[~sfSignatureReward];
     auto const minAccountCreate = ctx_.tx[~sfMinAccountCreateAmount];
     bool const clearAccountCreate =
@@ -1371,7 +1392,7 @@ XChainClaim::preflight(PreflightContext const& ctx)
     if (ctx.tx.getFlags() & tfUniversalMask)
         return temINVALID_FLAG;
 
-    STXChainBridge const bridgeSpec = ctx.tx[sfXChainBridge];
+    STXChainBridge const bridgeSpec = getBridgeSpec(ctx.tx);
     auto const amount = ctx.tx[sfAmount];
 
     if (amount.signum() <= 0 ||
@@ -1388,7 +1409,7 @@ TER
 XChainClaim::preclaim(PreclaimContext const& ctx)
 {
     AccountID const account = ctx.tx[sfAccount];
-    STXChainBridge const bridgeSpec = ctx.tx[sfXChainBridge];
+    STXChainBridge const bridgeSpec = getBridgeSpec(ctx.tx);
     STAmount const& thisChainAmount = ctx.tx[sfAmount];
     auto const claimID = ctx.tx[sfXChainClaimID];
 
@@ -1475,7 +1496,7 @@ XChainClaim::doApply()
 
     AccountID const account = ctx_.tx[sfAccount];
     auto const dst = ctx_.tx[sfDestination];
-    STXChainBridge const bridgeSpec = ctx_.tx[sfXChainBridge];
+    STXChainBridge const bridgeSpec = getBridgeSpec(ctx_.tx);
     STAmount const& thisChainAmount = ctx_.tx[sfAmount];
     auto const claimID = ctx_.tx[sfXChainClaimID];
     auto const claimIDKeylet = keylet::xChainClaimID(bridgeSpec, claimID);
@@ -1608,7 +1629,7 @@ XChainCommit::preflight(PreflightContext const& ctx)
         return temINVALID_FLAG;
 
     auto const amount = ctx.tx[sfAmount];
-    auto const bridgeSpec = ctx.tx[sfXChainBridge];
+    auto const bridgeSpec = getBridgeSpec(ctx.tx);
 
     if (amount.signum() <= 0 || !isLegalNet(amount))
         return temBAD_AMOUNT;
@@ -1623,7 +1644,7 @@ XChainCommit::preflight(PreflightContext const& ctx)
 TER
 XChainCommit::preclaim(PreclaimContext const& ctx)
 {
-    auto const bridgeSpec = ctx.tx[sfXChainBridge];
+    auto const bridgeSpec = getBridgeSpec(ctx.tx);
     auto const amount = ctx.tx[sfAmount];
 
     auto const sleBridge = readBridge(ctx.view, bridgeSpec);
@@ -1672,7 +1693,7 @@ XChainCommit::doApply()
 
     auto const account = ctx_.tx[sfAccount];
     auto const amount = ctx_.tx[sfAmount];
-    auto const bridgeSpec = ctx_.tx[sfXChainBridge];
+    auto const bridgeSpec = getBridgeSpec(ctx_.tx);
 
     if (!psb.read(keylet::account(account)))
         return tecINTERNAL;
@@ -1727,7 +1748,7 @@ TER
 XChainCreateClaimID::preclaim(PreclaimContext const& ctx)
 {
     auto const account = ctx.tx[sfAccount];
-    auto const bridgeSpec = ctx.tx[sfXChainBridge];
+    auto const bridgeSpec = getBridgeSpec(ctx.tx);
     auto const sleBridge = readBridge(ctx.view, bridgeSpec);
 
     if (!sleBridge)
@@ -1764,7 +1785,7 @@ TER
 XChainCreateClaimID::doApply()
 {
     auto const account = ctx_.tx[sfAccount];
-    auto const bridgeSpec = ctx_.tx[sfXChainBridge];
+    auto const bridgeSpec = getBridgeSpec(ctx_.tx);
     auto const reward = ctx_.tx[sfSignatureReward];
     auto const otherChainSrc = ctx_.tx[sfOtherChainSource];
 
@@ -1789,7 +1810,7 @@ XChainCreateClaimID::doApply()
     auto const sleClaimID = std::make_shared<SLE>(claimIDKeylet);
 
     (*sleClaimID)[sfAccount] = account;
-    (*sleClaimID)[sfXChainBridge] = bridgeSpec;
+    setBridgeSpec(*sleClaimID, bridgeSpec);
     (*sleClaimID)[sfXChainClaimID] = claimID;
     (*sleClaimID)[sfOtherChainSource] = otherChainSrc;
     (*sleClaimID)[sfSignatureReward] = reward;
@@ -1888,7 +1909,7 @@ XChainCreateAccountCommit::preflight(PreflightContext const& ctx)
 TER
 XChainCreateAccountCommit::preclaim(PreclaimContext const& ctx)
 {
-    STXChainBridge const bridgeSpec = ctx.tx[sfXChainBridge];
+    STXChainBridge const bridgeSpec = getBridgeSpec(ctx.tx);
     STAmount const amount = ctx.tx[sfAmount];
     STAmount const reward = ctx.tx[sfSignatureReward];
 
@@ -1952,7 +1973,7 @@ XChainCreateAccountCommit::doApply()
     AccountID const account = ctx_.tx[sfAccount];
     STAmount const amount = ctx_.tx[sfAmount];
     STAmount const reward = ctx_.tx[sfSignatureReward];
-    STXChainBridge const bridge = ctx_.tx[sfXChainBridge];
+    STXChainBridge const bridge = getBridgeSpec(ctx_.tx);
 
     auto const sle = psb.peek(keylet::account(account));
     if (!sle)

@@ -746,18 +746,6 @@ parseLeaf(
                 return ret;
             }
             break;
-        case STI_XCHAIN_BRIDGE:
-            try
-            {
-                ret = detail::make_stvar<STXChainBridge>(
-                    STXChainBridge(field, value));
-            }
-            catch (std::exception const&)
-            {
-                error = invalid_data(json_name, fieldName);
-                return ret;
-            }
-            break;
 
         default:
             error = bad_type(json_name, fieldName);
