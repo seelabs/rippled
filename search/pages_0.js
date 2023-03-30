@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['building_20documentation_27173',['Building documentation',['../md____w_rippled_rippled_docs_README.html',1,'']]],
-  ['basics_27174',['Basics',['../md_ripple_basics_README.html',1,'']]]
+  ['a_20crash_20course_20in_20cmake_20and_20conan_27255',['A crash course in CMake and Conan',['../md____w_rippled_rippled_docs_build_conan.html',1,'']]]
 ];

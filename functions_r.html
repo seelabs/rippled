@@ -448,7 +448,7 @@ $(function() {
 , <a class="el" href="classripple_1_1test_1_1csf_1_1PeerGroup.html#a3f3547dc02b990527b602e2ae92503ec">ripple::test::csf::PeerGroup</a>
 </li>
 <li>reference_fee
-: <a class="el" href="structripple_1_1FeeVote_1_1Setup.html#a97f426b8d134160cbe1ba12478574007">ripple::FeeVote::Setup</a>
+: <a class="el" href="structripple_1_1FeeSetup.html#a0eec4da1884d29e364b4475f57f1453d">ripple::FeeSetup</a>
 </li>
 <li>referenceFeeLevel
 : <a class="el" href="structripple_1_1TxQ_1_1Metrics.html#a9ef5bb734c6c198cd67ab6b9ccd9fe4e">ripple::TxQ::Metrics</a>
@@ -1372,6 +1372,7 @@ $(function() {
 , <a class="el" href="classripple_1_1RangeSet__test.html#aff5e0fd59f41390de2df61a72e831c39">ripple::RangeSet_test</a>
 , <a class="el" href="classripple_1_1Resource_1_1ManagerImp.html#aa7347699a72054f278d014e3be4ad85e">ripple::Resource::ManagerImp</a>
 , <a class="el" href="classripple_1_1Resource_1_1ResourceManager__test.html#a6c2efb0e08cf367fdfc7cac0a3d7d69d">ripple::Resource::ResourceManager_test</a>
+, <a class="el" href="classripple_1_1RPC_1_1AccountLinesRPC__test.html#ab7d172fde6649b94fa73f2624e38c34c">ripple::RPC::AccountLinesRPC_test</a>
 , <a class="el" href="classripple_1_1RPC_1_1codeString__test.html#a3ca676e2f794455c0077dc02975461e3">ripple::RPC::codeString_test</a>
 , <a class="el" href="classripple_1_1RPC_1_1fillJson__test.html#aa6e0e41678d7d2c35f32408c8e690e0d">ripple::RPC::fillJson_test</a>
 , <a class="el" href="classripple_1_1RPC_1_1JSONRPC__test.html#a36aa6e32886c10154783d9c1befa9178">ripple::RPC::JSONRPC_test</a>
@@ -1400,7 +1401,6 @@ $(function() {
 , <a class="el" href="classripple_1_1Taker__test.html#a07a2e3a550f8ebbea4361276081e7b41">ripple::Taker_test</a>
 , <a class="el" href="structripple_1_1TER__test.html#a88f3a996b3d2410c761ca4abd688665d">ripple::TER_test</a>
 , <a class="el" href="classripple_1_1test_1_1AccountDelete__test.html#a90580c0aa5b257088a7b6b0dc52f4934">ripple::test::AccountDelete_test</a>
-, <a class="el" href="classripple_1_1test_1_1AccountInfo__test.html#a357b3c7d5de889c86b071ffeb1d239cc">ripple::test::AccountInfo_test</a>
 , <a class="el" href="classripple_1_1test_1_1AccountObjects__test.html#aba5ff7cd0b791ba8dc4e62dec9128854">ripple::test::AccountObjects_test</a>
 , <a class="el" href="classripple_1_1test_1_1AccountOffers__test.html#a001ebfe19a9cf1b3d7c7bae7ae1e97f8">ripple::test::AccountOffers_test</a>
 , <a class="el" href="classripple_1_1test_1_1AccountTx__test.html#a3a725944abc3a750aa1c84189305e988">ripple::test::AccountTx_test</a>
@@ -1518,7 +1518,7 @@ $(function() {
 , <a class="el" href="classripple_1_1test_1_1WSClient__test.html#aaca8e8e3540eeb40dd1c7454f02ecca7">ripple::test::WSClient_test</a>
 , <a class="el" href="classripple_1_1tests_1_1cluster__test.html#a4a3bf6ddbee28f9706d9f4e0ae58c70f">ripple::tests::cluster_test</a>
 , <a class="el" href="classripple_1_1tests_1_1FetchPack__test.html#ab489ad431b56ac98a9298d3b093bf20c">ripple::tests::FetchPack_test</a>
-, <a class="el" href="classripple_1_1tests_1_1SHAMap__test.html#a01e6fa673aed8fcb6cc6cfba738f3440">ripple::tests::SHAMap_test</a>
+, <a class="el" href="classripple_1_1tests_1_1SHAMap__test.html#a16276cc3cbae0341de86b9642064caa5">ripple::tests::SHAMap_test</a>
 , <a class="el" href="classripple_1_1tests_1_1SHAMapPathProof__test.html#aa5cc68e2fd2f7d00fe5a0cd8f2a36224">ripple::tests::SHAMapPathProof_test</a>
 , <a class="el" href="classripple_1_1tests_1_1SHAMapSync__test.html#aaa54cd3a34629232204777d3e28a5fa9">ripple::tests::SHAMapSync_test</a>
 , <a class="el" href="classripple_1_1Ticket__test.html#aeefd4a6fb9e1f90c7e2b3fbae03718eb">ripple::Ticket_test</a>
@@ -1580,7 +1580,7 @@ $(function() {
 : <a class="el" href="classripple_1_1NodeStore_1_1Database.html#ad9f741a64dae54f4b30f31fb68565283">ripple::NodeStore::Database</a>
 </li>
 <li>runTest()
-: <a class="el" href="structJson_1_1Output__test.html#a31a6f9aa6b66c866afbe423ca4df2fc3">Json::Output_test</a>
+: <a class="el" href="structJson_1_1Output__test.html#a84be62654f8e7ad2473ff56f17413685">Json::Output_test</a>
 </li>
 <li>runTime()
 : <a class="el" href="classripple_1_1LoadEvent.html#a77fe563d65b3545d3621f60b5937dc79">ripple::LoadEvent</a>
