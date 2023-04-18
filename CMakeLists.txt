@@ -97,8 +97,11 @@ if(rocksdb)
   set_target_properties(RocksDB::rocksdb PROPERTIES
     INTERFACE_COMPILE_DEFINITIONS RIPPLE_ROCKSDB_AVAILABLE=1
   )
-  find_package(liburing REQUIRED)
-  target_link_libraries(ripple_libs INTERFACE RocksDB::rocksdb liburing::liburing)
+  if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
+    set(LIB_URING liburing::liburing)
+    find_package(liburing REQUIRED)
+  endif()
+  target_link_libraries(ripple_libs INTERFACE RocksDB::rocksdb ${LIB_URING})
 endif()
 
 find_package(nudb REQUIRED)
