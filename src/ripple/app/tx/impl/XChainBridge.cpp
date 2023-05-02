@@ -574,10 +574,10 @@ getSignersListAndQuorum(
 };
 
 template <class R, class F>
-R
+std::shared_ptr<R>
 readOrpeekBridge(F&& getter, STXChainBridge const& bridgeSpec)
 {
-    auto tryGet = [&](STXChainBridge::ChainType ct) -> R {
+    auto tryGet = [&](STXChainBridge::ChainType ct) -> std::shared_ptr<R> {
         if (auto r = getter(bridgeSpec, ct))
         {
             if ((*r)[sfXChainBridge] == bridgeSpec)
@@ -593,7 +593,7 @@ readOrpeekBridge(F&& getter, STXChainBridge const& bridgeSpec)
 std::shared_ptr<SLE>
 peekBridge(ApplyView& v, STXChainBridge const& bridgeSpec)
 {
-    return readOrpeekBridge<std::shared_ptr<SLE>>(
+    return readOrpeekBridge<SLE>(
         [&v](STXChainBridge const& b, STXChainBridge::ChainType ct)
             -> std::shared_ptr<SLE> {
             return v.peek(keylet::bridge(b.door(ct)));
@@ -604,7 +604,7 @@ peekBridge(ApplyView& v, STXChainBridge const& bridgeSpec)
 std::shared_ptr<SLE const>
 readBridge(ReadView const& v, STXChainBridge const& bridgeSpec)
 {
-    return readOrpeekBridge<std::shared_ptr<SLE const>>(
+    return readOrpeekBridge<SLE const>(
         [&v](STXChainBridge const& b, STXChainBridge::ChainType ct)
             -> std::shared_ptr<SLE const> {
             return v.read(keylet::bridge(b.door(ct)));
@@ -1398,7 +1398,8 @@ BridgeModify::doApply()
     {
         (*sleBridge)[sfMinAccountCreateAmount] = *minAccountCreate;
     }
-    if (clearAccountCreate && (*sleBridge)[~sfMinAccountCreateAmount])
+    if (clearAccountCreate &&
+        sleBridge->isFieldPresent(sfMinAccountCreateAmount))
     {
         sleBridge->makeFieldAbsent(sfMinAccountCreateAmount);
     }

@@ -146,12 +146,6 @@ operator==(STXChainBridge const& lhs, STXChainBridge const& rhs)
 }
 
 inline bool
-operator!=(STXChainBridge const& lhs, STXChainBridge const& rhs)
-{
-    return !(lhs == rhs);
-}
-
-inline bool
 operator<(STXChainBridge const& lhs, STXChainBridge const& rhs)
 {
     return std::tie(

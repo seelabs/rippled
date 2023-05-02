@@ -94,7 +94,7 @@ enum LedgerEntryType : std::uint16_t
 
     /** The ledger object which lists details about sidechains.
 
-        \sa keyyet::sidechain
+        \sa keylet::bridge
     */
     ltBRIDGE = 0x0069,
 

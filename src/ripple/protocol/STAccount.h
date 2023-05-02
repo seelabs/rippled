@@ -123,6 +123,12 @@ operator<(STAccount const& lhs, AccountID const& rhs)
     return lhs.value() < rhs;
 }
 
+inline auto
+operator<(AccountID const& lhs, STAccount const& rhs)
+{
+    return lhs < rhs.value();
+}
+
 }  // namespace ripple
 
 #endif

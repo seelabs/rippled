@@ -1,7 +1,7 @@
 //------------------------------------------------------------------------------
 /*
     This file is part of rippled: https://github.com/ripple/rippled
-    Copyright (c) 2012, 2013 Ripple Labs Inc.
+    Copyright (c) 2022 Ripple Labs Inc.
 
     Permission to use, copy, modify, and/or distribute this software for any
     purpose  with  or without fee is hereby granted, provided that the above
@@ -155,7 +155,7 @@ public:
 
 //------------------------------------------------------------------------------
 
-// Provide attestations from witness server (or servers) attesting to events on
+// Provide attestations from a witness server attesting to events on
 // the other chain. The signatures must be from one of the keys on the door's
 // signer's list at the time the signature was provided. However, if the
 // signature list changes between the time the signature was submitted and the

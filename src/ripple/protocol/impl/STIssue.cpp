@@ -1,7 +1,7 @@
 //------------------------------------------------------------------------------
 /*
     This file is part of rippled: https://github.com/ripple/rippled
-    Copyright (c) 2012, 2013 Ripple Labs Inc.
+    Copyright (c) 2022 Ripple Labs Inc.
 
     Permission to use, copy, modify, and/or distribute this software for any
     purpose  with  or without fee is hereby granted, provided that the above
@@ -68,27 +68,11 @@ STIssue::getSType() const
 std::string
 STIssue::getText() const
 {
-    std::string ret;
-
-    ret.reserve(64);
-    ret = to_string(issue_.currency);
-
-    if (!isXRP(issue_.currency))
-    {
-        ret += "/";
-
-        if (isXRP(issue_.account))
-            ret += "0";
-        else if (issue_.account == noAccount())
-            ret += "1";
-        else
-            ret += to_string(issue_.account);
-    }
-
-    return ret;
+    return to_string(issue_);
 }
 
-Json::Value STIssue::getJson(JsonOptions) const
+Json::Value
+STIssue::getJson(JsonOptions) const
 {
     return to_json(issue_);
 }

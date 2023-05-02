@@ -139,6 +139,7 @@ getOrThrow(Json::Value const& v, ripple::SField const& field)
     Throw<JsonTypeMismatchError>(field.getJsonName(), "Buffer");
 }
 
+// This function may be used by external projects (like the witness server).
 template <class T>
 std::optional<T>
 getOptional(Json::Value const& v, ripple::SField const& field)

@@ -270,7 +270,7 @@ struct CmpByCreateCount
 // Result when checking when two attestation match.
 enum class AttestationMatch {
     // One of the fields doesn't match, and it isn't the dst field
-    nonDstMatch,
+    nonDstMismatch,
     // all of the fields match, except the dst field
     matchExceptDst,
     // all of the fields match
@@ -336,10 +336,6 @@ struct XChainClaimAttestation
     operator==(
         XChainClaimAttestation const& lhs,
         XChainClaimAttestation const& rhs);
-    friend bool
-    operator!=(
-        XChainClaimAttestation const& lhs,
-        XChainClaimAttestation const& rhs);
 };
 
 struct XChainCreateAccountAttestation
@@ -388,10 +384,6 @@ struct XChainCreateAccountAttestation
 
     friend bool
     operator==(
-        XChainCreateAccountAttestation const& lhs,
-        XChainCreateAccountAttestation const& rhs);
-    friend bool
-    operator!=(
         XChainCreateAccountAttestation const& lhs,
         XChainCreateAccountAttestation const& rhs);
 };
@@ -449,7 +441,7 @@ public:
      there is a quorum for the amount specified on the new attestation, then
      return the reward accounts for that amount, otherwise return a nullopt.
      Note that if the signer's list changes and there have been `commit`
-     transactions at different amounts then there may be a different subset that
+     transactions of different amounts then there may be a different subset that
      has reached quorum. However, to "trigger" that subset would require adding
      (or re-adding) an attestation that supports that subset.
 
@@ -464,7 +456,7 @@ public:
     struct OnNewAttestationResult
     {
         std::optional<std::vector<AccountID>> rewardAccounts;
-        // `changed` if true if the attestation collection changed in any way
+        // `changed` is true if the attestation collection changed in any way
         // (added/removed/changed)
         bool changed{false};
     };
@@ -525,21 +517,12 @@ protected:
 };
 
 template <class TAttestation>
-inline bool
+[[nodiscard]] inline bool
 operator==(
     XChainAttestationsBase<TAttestation> const& lhs,
     XChainAttestationsBase<TAttestation> const& rhs)
 {
     return lhs.attestations() == rhs.attestations();
-}
-
-template <class TAttestation>
-inline bool
-operator!=(
-    XChainAttestationsBase<TAttestation> const& lhs,
-    XChainAttestationsBase<TAttestation> const& rhs)
-{
-    return !(lhs == rhs);
 }
 
 template <class TAttestation>

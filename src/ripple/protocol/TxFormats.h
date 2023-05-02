@@ -139,6 +139,7 @@ enum TxType : std::uint16_t
     /** This transaction accepts an existing offer to buy or sell an existing  NFT. */
     ttNFTOKEN_ACCEPT_OFFER = 29,
 
+    // Start at 40 to leave gap for the AMM
     /** This transactions creates a sidechain */
     ttXCHAIN_CREATE_BRIDGE = 40,
 
@@ -160,7 +161,7 @@ enum TxType : std::uint16_t
     /** This transaction adds an attestation to a claimid*/
     ttXCHAIN_ADD_ACCOUNT_CREATE_ATTESTATION = 46,
 
-    /** This transactions modifies a sidechain */
+    /** This transaction modifies a sidechain */
     ttXCHAIN_MODIFY_BRIDGE = 47,
 
     /** This system-generated transaction type is used to update the status of the various amendments.
