@@ -775,7 +775,7 @@ applyCreateAccountAttestations(
     {
         return tecXCHAIN_ACCOUNT_CREATE_PAST;
     }
-    if (attBegin->createCount >= claimCount + 128)
+    if (attBegin->createCount >= claimCount + xbridgeMaxAccountCreateClaims)
     {
         // Limit the number of claims on the account
         return tecXCHAIN_ACCOUNT_CREATE_TOO_MANY;
@@ -1239,13 +1239,13 @@ XChainCreateBridge::preclaim(PreclaimContext const& ctx)
 
     {
         // Check reserve
-        auto const sle = ctx.view.read(keylet::account(account));
-        if (!sle)
+        auto const sleAcc = ctx.view.read(keylet::account(account));
+        if (!sleAcc)
             return terNO_ACCOUNT;
 
-        auto const balance = (*sle)[sfBalance];
+        auto const balance = (*sleAcc)[sfBalance];
         auto const reserve =
-            ctx.view.fees().accountReserve((*sle)[sfOwnerCount] + 1);
+            ctx.view.fees().accountReserve((*sleAcc)[sfOwnerCount] + 1);
 
         if (balance < reserve)
             return tecINSUFFICIENT_RESERVE;

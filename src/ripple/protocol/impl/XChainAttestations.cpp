@@ -762,14 +762,11 @@ template <class TAttestation>
 XChainAttestationsBase<TAttestation>::XChainAttestationsBase(
     Json::Value const& v)
 {
-    // TODO: Rewrite this whole thing in the style of the
-    // STXChainAttestationBatch
     if (!v.isObject())
     {
         Throw<std::runtime_error>(
             "XChainAttestationsBase can only be specified with an 'object' "
-            "Json "
-            "value");
+            "Json value");
     }
 
     attestations_ = [&] {
@@ -832,9 +829,9 @@ XChainAttestationsBase<TAttestation>::onNewAttestations(
                 att->publicKey,
                 j) != tesSUCCESS)
         {
-            // The checkAttestationPublicKey is not strictly nessisary here (it
+            // The checkAttestationPublicKey is not strictly necessary here (it
             // should be checked in a preclaim step), but it would be bad to let
-            // on slip through if that changes, and the check is relatively
+            // this slip through if that changes, and the check is relatively
             // cheap, so we check again
             continue;
         }
@@ -849,7 +846,7 @@ XChainAttestationsBase<TAttestation>::onNewAttestations(
             i != attestations_.end())
         {
             // existing attestation
-            // replace old attestation with new attestion
+            // replace old attestation with new attestation
             *i = TAttestation{*att};
             changed = true;
         }
@@ -885,9 +882,9 @@ XChainAttestationsBase<TAttestation>::claimHelper(
     beast::Journal j)
 {
     {
-        // Remove attestations that are valid signers. They may be no longer
+        // Remove attestations that are not valid signers. They may be no longer
         // part of the signers list, or their master key may have been disabled,
-        // or their regular may have changed
+        // or their regular key may have changed
         auto i = std::remove_if(
             attestations_.begin(), attestations_.end(), [&](auto const& a) {
                 return Attestations::checkAttestationPublicKey(
@@ -897,8 +894,7 @@ XChainAttestationsBase<TAttestation>::claimHelper(
         attestations_.erase(i, attestations_.end());
     }
 
-    // Check if we have quorum for the amount on specified on the new
-    // claimAtt
+    // Check if we have quorum for the amount specified on the new claimAtt
     std::vector<AccountID> rewardAccounts;
     rewardAccounts.reserve(attestations_.size());
     std::uint32_t weight = 0;
@@ -908,8 +904,9 @@ XChainAttestationsBase<TAttestation>::claimHelper(
         // The dest must match if claimHelper is being run as a result of an add
         // attestation transaction. The dst does not need to match if the
         // claimHelper is being run using an explicit claim transaction.
-        if (matchR == AttestationMatch::nonDstMismatch ||
-            (checkDst == CheckDst::check && matchR != AttestationMatch::match))
+        using enum AttestationMatch;
+        if (matchR == nonDstMismatch ||
+            (checkDst == CheckDst::check && matchR != match))
             continue;
         auto i = signersList.find(a.keyAccount);
         if (i == signersList.end())

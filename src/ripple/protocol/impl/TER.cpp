@@ -99,10 +99,10 @@ transResults()
         MAKE_ERROR(tecXCHAIN_NO_SIGNERS_LIST,        "The account did not have a signers list."),
         MAKE_ERROR(tecXCHAIN_SENDING_ACCOUNT_MISMATCH,"The sending account did not match the expected sending account."),
         MAKE_ERROR(tecXCHAIN_INSUFF_CREATE_AMOUNT,   "Insufficient amount to create an account."),
-        MAKE_ERROR(tecXCHAIN_ACCOUNT_CREATE_PAST,    "The account create count has already pasted."),
+        MAKE_ERROR(tecXCHAIN_ACCOUNT_CREATE_PAST,    "The account create count has already passed."),
         MAKE_ERROR(tecXCHAIN_ACCOUNT_CREATE_TOO_MANY, "There are too many pending account create transactions to submit a new one."),
         MAKE_ERROR(tecXCHAIN_PAYMENT_FAILED,         "Failed to transfer funds in a xchain transaction."),
-        MAKE_ERROR(tecXCHAIN_SELF_COMMIT,            "Accounts cannot commit funds to itself."),
+        MAKE_ERROR(tecXCHAIN_SELF_COMMIT,            "Account cannot commit funds to itself."),
         MAKE_ERROR(tecXCHAIN_BAD_PUBLIC_KEY_ACCOUNT_PAIR, "Bad public key account pair in an xchain transaction."),
         MAKE_ERROR(tecXCHAIN_CREATE_ACCOUNT_DISABLED, "This bridge does not support account creation."),
 
@@ -186,7 +186,6 @@ transResults()
         MAKE_ERROR(temXCHAIN_BRIDGE_NONDOOR_OWNER,   "Malformed: Bridge owner must be one of the door accounts."),
         MAKE_ERROR(temXCHAIN_BRIDGE_BAD_MIN_ACCOUNT_CREATE_AMOUNT,   "Malformed: Bad min account create amount."),
         MAKE_ERROR(temXCHAIN_BRIDGE_BAD_REWARD_AMOUNT, "Malformed: Bad reward amount."),
-        MAKE_ERROR(temXCHAIN_TOO_MANY_ATTESTATIONS, "Malformed: Too many attestations."),
 
         MAKE_ERROR(terRETRY,                  "Retry transaction."),
         MAKE_ERROR(terFUNDS_SPENT,            "DEPRECATED."),
