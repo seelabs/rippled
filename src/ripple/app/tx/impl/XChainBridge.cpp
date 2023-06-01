@@ -503,11 +503,6 @@ finalizeClaimHelper(
 
     @return map of the signer's list (AccountIDs and weights), the quorum, and
             error code
-
-    @note If the account includes a regular key or master key, it is included
-   with the signer's list with a maximum weight. If the account does not include
-   a signer's list, the threshold is set to 1 (i.e. either the master key or
-   regular key can sign)
 */
 std::tuple<std::unordered_map<AccountID, std::uint32_t>, std::uint32_t, TER>
 getSignersListAndQuorum(
@@ -526,27 +521,9 @@ getSignersListAndQuorum(
         return {r, q, tecINTERNAL};
     }
 
-    auto const masterKey = [&]() -> std::optional<AccountID> {
-        if (sleDoor->isFlag(lsfDisableMaster))
-            return std::nullopt;
-        return thisDoor;
-    }();
-
-    std::optional<AccountID> regularKey = (*sleDoor)[~sfRegularKey];
-
     auto const sleS = view.read(keylet::signers(sleBridge[sfAccount]));
     if (!sleS)
     {
-        if (masterKey || regularKey)
-        {
-            q = 1;
-            if (masterKey)
-                r[*masterKey] = std::numeric_limits<std::uint16_t>::max();
-            if (regularKey)
-                r[*regularKey] = std::numeric_limits<std::uint16_t>::max();
-
-            return {std::move(r), q, tesSUCCESS};
-        }
         return {r, q, tecXCHAIN_NO_SIGNERS_LIST};
     }
     q = (*sleS)[sfSignerQuorum];
@@ -562,13 +539,6 @@ getSignersListAndQuorum(
     {
         r[as.account] = as.weight;
     }
-
-    // add the master and regular keys. If they are already part of the signer's
-    // list, overwrite their weights.
-    if (masterKey)
-        r[*masterKey] = std::numeric_limits<std::uint16_t>::max();
-    if (regularKey)
-        r[*regularKey] = std::numeric_limits<std::uint16_t>::max();
 
     return {std::move(r), q, tesSUCCESS};
 };

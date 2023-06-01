@@ -2775,7 +2775,7 @@ struct XChain_test : public beast::unit_test::suite,
         }
 
         // Claim with just one attestation signed by the Master key
-        // => should succeed
+        // => should not succeed
         // -----------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
@@ -2808,32 +2808,24 @@ struct XChain_test : public beast::unit_test::suite,
             jtx::signer master_signer(Account::master);
             scEnv
                 .tx(claim_attestation(
-                    scAttester,
-                    jvb,
-                    mcAlice,
-                    amt,
-                    payees[0],
-                    true,
-                    claimID,
-                    dst,
-                    master_signer))
+                        scAttester,
+                        jvb,
+                        mcAlice,
+                        amt,
+                        payees[0],
+                        true,
+                        claimID,
+                        dst,
+                        master_signer),
+                    ter(tecXCHAIN_NO_SIGNERS_LIST))
                 .close();
 
-            if (withClaim)
-            {
-                BEAST_EXPECT(transfer.has_not_happened());
-
-                // need to submit a claim transactions
-                scEnv.tx(xchain_claim(scAlice, jvb, claimID, amt, scBob))
-                    .close();
-            }
-
-            BEAST_EXPECT(transfer.has_happened(amt, reward));
+            BEAST_EXPECT(transfer.has_not_happened());
         }
 
         // Claim with just one attestation signed by a regular key
         // associated to the master account
-        // => should succeed
+        // => should not succeed
         // -----------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
@@ -2867,27 +2859,19 @@ struct XChain_test : public beast::unit_test::suite,
             jtx::signer master_signer(payees[0]);
             scEnv
                 .tx(claim_attestation(
-                    scAttester,
-                    jvb,
-                    mcAlice,
-                    amt,
-                    payees[0],
-                    true,
-                    claimID,
-                    dst,
-                    master_signer))
+                        scAttester,
+                        jvb,
+                        mcAlice,
+                        amt,
+                        payees[0],
+                        true,
+                        claimID,
+                        dst,
+                        master_signer),
+                    ter(tecXCHAIN_NO_SIGNERS_LIST))
                 .close();
 
-            if (withClaim)
-            {
-                BEAST_EXPECT(transfer.has_not_happened());
-
-                // need to submit a claim transactions
-                scEnv.tx(xchain_claim(scAlice, jvb, claimID, amt, scBob))
-                    .close();
-            }
-
-            BEAST_EXPECT(transfer.has_happened(amt, reward));
+            BEAST_EXPECT(transfer.has_not_happened());
         }
 
         // Claim against non-existent bridge
