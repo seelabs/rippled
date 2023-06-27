@@ -816,9 +816,6 @@ XChainAttestationsBase<TAttestation>::onNewAttestations(
     std::unordered_map<AccountID, std::uint32_t> const& signersList,
     beast::Journal j)
 {
-    if (attBegin == attEnd)
-        return {};
-
     bool changed = false;
     for (auto att = attBegin; att != attEnd; ++att)
     {
