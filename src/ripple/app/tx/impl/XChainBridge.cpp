@@ -1773,13 +1773,13 @@ XChainCreateClaimID::preclaim(PreclaimContext const& ctx)
 
     {
         // Check reserve
-        auto const sle = ctx.view.read(keylet::account(account));
-        if (!sle)
+        auto const sleAcc = ctx.view.read(keylet::account(account));
+        if (!sleAcc)
             return terNO_ACCOUNT;
 
-        auto const balance = (*sle)[sfBalance];
+        auto const balance = (*sleAcc)[sfBalance];
         auto const reserve =
-            ctx.view.fees().accountReserve((*sle)[sfOwnerCount] + 1);
+            ctx.view.fees().accountReserve((*sleAcc)[sfOwnerCount] + 1);
 
         if (balance < reserve)
             return tecINSUFFICIENT_RESERVE;

@@ -551,35 +551,6 @@ struct XChain_test : public beast::unit_test::suite,
         XEnv(*this)
             .disableFeature(featureXChainBridge)
             .tx(create_bridge(mcAlice, jvb), ter(temDISABLED));
-
-        // coverage test: An attempt to create many bridge objects until
-        // we get tecDIR_FULL... but it doesn't seem to happen?
-        if (0)
-        {
-            XEnv env(*this);
-            for (uint32_t i = 5; i < 4096; ++i)
-            {
-                using namespace std::literals;
-                char curr[20];
-                snprintf(curr, 20, "%03X", i);
-                Account door{Account::master};
-                IOU mcIssue = mcAlice[curr], scIssue = door[curr];
-                auto jvb{bridge(mcDoor, mcIssue, door, scIssue)};
-                if (i < 4096)
-                {
-                    env.tx(create_bridge(Account::master, jvb));
-                    if (i % 64 == 0)
-                        env.close();
-                    assert(env.ter() == tesSUCCESS);
-                }
-                else
-                {
-                    env.tx(
-                        create_bridge(Account::master, jvb), ter(tecDIR_FULL));
-                    break;
-                }
-            }
-        }
     }
 
     void
@@ -2729,51 +2700,6 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(transfer.has_happened(amt, split_reward_quorum));
         }
 
-        // Coverage test: Don't define signers list on door -> should
-        // get tecXCHAIN_NO_SIGNERS_LIST. It is not reachable (when I don't
-        // define a signers list the masterkey flag is set).
-        // -----------------------------------------------------------------
-        if (0)
-        {
-            XEnv mcEnv(*this);
-            XEnv scEnv(*this, true);
-
-            Account door{scCarol};
-            IOU mcIssue = mcAlice["USD"], scIssue = door["USD"];
-            auto jvb{bridge(mcDoor, mcIssue, door, scIssue)};
-
-            mcEnv.tx(create_bridge(mcDoor, jvb)).close();
-
-            scEnv.tx(create_bridge(door, jvb))
-                .close()
-                .tx(xchain_create_claim_id(scAlice, jvb, reward, mcAlice))
-                .close();
-
-            auto dst(std::optional<Account>{scBob});
-            auto const amt = mcIssue(1000);
-            std::uint32_t const claimID = 1;
-            mcEnv.tx(xchain_commit(mcAlice, jvb, claimID, amt, dst)).close();
-
-            BalanceTransfer transfer(
-                scEnv, Account::master, scBob, scAlice, payees, false);
-
-            scEnv
-                .multiTx(
-                    claim_attestations(
-                        scAttester,
-                        jvb,
-                        mcAlice,
-                        amt,
-                        payees,
-                        true,
-                        claimID,
-                        dst,
-                        signers),
-                    ter(tecXCHAIN_NO_SIGNERS_LIST))
-                .close();
-            BEAST_EXPECT(transfer.has_not_happened());
-        }
-
         // Claim with just one attestation signed by the Master key
         // => should not succeed
         // -----------------------------------------------------------------
@@ -4403,13 +4329,6 @@ private:
         }
 
         void
-        reinit_accounts()
-        {
-            for (auto& a : accounts)
-                init(a.first);
-        }
-
-        void
         receive(
             jtx::Account const& acct,
             STAmount amt,
@@ -4525,13 +4444,6 @@ private:
         {
             a_.init(acct);
             b_.init(acct);
-        }
-
-        void
-        reinit_accounts()
-        {
-            a_.reinit_accounts();
-            b_.reinit_accounts();
         }
 
         ChainStateTrack a_;
