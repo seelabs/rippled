@@ -574,7 +574,7 @@ private:
                 if (ec)
                     break;
 
-                std::string path = req.target();
+                std::string path{req.target()};
                 res.insert("Server", "TrustedPublisherServer");
                 res.version(req.version());
                 res.keep_alive(req.keep_alive());

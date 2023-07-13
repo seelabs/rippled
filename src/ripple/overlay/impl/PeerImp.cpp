@@ -176,7 +176,7 @@ PeerImp::run()
     if (auto const iter = headers_.find("Closed-Ledger");
         iter != headers_.end())
     {
-        closed = parseLedgerHash(iter->value());
+        closed = parseLedgerHash(std::string{iter->value()});
 
         if (!closed)
             fail("Malformed handshake data (1)");
@@ -185,7 +185,7 @@ PeerImp::run()
     if (auto const iter = headers_.find("Previous-Ledger");
         iter != headers_.end())
     {
-        previous = parseLedgerHash(iter->value());
+        previous = parseLedgerHash(std::string{iter->value()});
 
         if (!previous)
             fail("Malformed handshake data (2)");
@@ -372,8 +372,8 @@ std::string
 PeerImp::getVersion() const
 {
     if (inbound_)
-        return headers_["User-Agent"];
-    return headers_["Server"];
+        return std::string{headers_["User-Agent"]};
+    return std::string{headers_["Server"]};
 }
 
 Json::Value
@@ -839,7 +839,7 @@ PeerImp::name() const
 std::string
 PeerImp::domain() const
 {
-    return headers_["Server-Domain"];
+    return std::string{headers_["Server-Domain"]};
 }
 
 //------------------------------------------------------------------------------
