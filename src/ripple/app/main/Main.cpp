@@ -381,8 +381,13 @@ run(int argc, char** argv)
         "Override the minimum validation quorum.")(
         "reportingReadOnly", "Run in read-only reporting mode")(
         "silent", "No output to the console after startup.")(
-        "standalone,a", "Run with no peers.")("verbose,v", "Verbose logging.")(
-        "version", "Display the build version.");
+        "standalone,a", "Run with no peers.")("verbose,v", "Verbose logging.")
+
+        ("force_ledger_present_range",
+         po::value<std::string>(),
+         "Tell LedgerMaster that the range of ledgers are present. Min and max "
+         "values are comma separated.")(
+            "version", "Display the build version.");
 
     po::options_description data("Ledger/Data Options");
     data.add_options()("import", importText.c_str())(

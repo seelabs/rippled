@@ -1272,6 +1272,35 @@ ApplicationImp::setup(boost::program_options::variables_map const& cmdline)
         }
     }
 
+    if (cmdline.contains("force_ledger_present_range"))
+    {
+        auto const r = [&cmdline]() -> std::vector<std::uint32_t> {
+            std::vector<std::string> strVec;
+            boost::split(
+                strVec,
+                cmdline["force_ledger_present_range"].as<std::string>(),
+                boost::algorithm::is_any_of(","));
+            std::vector<std::uint32_t> result;
+            for (auto& s : strVec)
+            {
+                boost::trim(s);
+                if (!s.empty())
+                    result.push_back(std::stoi(s));
+            }
+            return result;
+        }();
+
+        if (r.size() == 2)
+        {
+            m_ledgerMaster->setLedgerRangePresent(r[0], r[1]);
+        }
+        else
+        {
+            // TODO: error handler
+            assert(0);
+        }
+    }
+
     if (!config().reporting())
         m_orderBookDB.setup(getLedgerMaster().getCurrentLedger());
 
