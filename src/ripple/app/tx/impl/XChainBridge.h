@@ -81,9 +81,8 @@ public:
 class XChainClaim : public Transactor
 {
 public:
-    // "Normal" isn't right - as rewards are paid, but we don't know the reward
-    // amount on preflight.
-    static constexpr ConsequencesFactoryType ConsequencesFactory{Normal};
+    // Blocker since we cannot accurately calculate the consequences
+    static constexpr ConsequencesFactoryType ConsequencesFactory{Blocker};
 
     explicit XChainClaim(ApplyContext& ctx) : Transactor(ctx)
     {
@@ -167,9 +166,8 @@ public:
 class XChainAddClaimAttestation : public Transactor
 {
 public:
-    // "Normal" isn't right - as rewards are paid, but we don't know if the
-    // account submitting this transaction will pay some of the rewards or not
-    static constexpr ConsequencesFactoryType ConsequencesFactory{Normal};
+    // Blocker since we cannot accurately calculate the consequences
+    static constexpr ConsequencesFactoryType ConsequencesFactory{Blocker};
 
     explicit XChainAddClaimAttestation(ApplyContext& ctx) : Transactor(ctx)
     {
@@ -188,9 +186,10 @@ public:
 class XChainAddAccountCreateAttestation : public Transactor
 {
 public:
-    // "Normal" isn't right - as rewards are paid, but we don't know if the
-    // account submitting this transaction will pay some of the rewards or not
-    static constexpr ConsequencesFactoryType ConsequencesFactory{Normal};
+    // Blocker since we cannot accurately calculate the consequences
+    static constexpr ConsequencesFactoryType ConsequencesFactory{Blocker};
+
+    // are paid, but we don't know the reward amount in preflight)
 
     explicit XChainAddAccountCreateAttestation(ApplyContext& ctx)
         : Transactor(ctx)
