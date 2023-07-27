@@ -189,8 +189,6 @@ public:
     // Blocker since we cannot accurately calculate the consequences
     static constexpr ConsequencesFactoryType ConsequencesFactory{Blocker};
 
-    // are paid, but we don't know the reward amount in preflight)
-
     explicit XChainAddAccountCreateAttestation(ApplyContext& ctx)
         : Transactor(ctx)
     {

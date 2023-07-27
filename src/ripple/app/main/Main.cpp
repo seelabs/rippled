@@ -385,8 +385,8 @@ run(int argc, char** argv)
 
         ("force_ledger_present_range",
          po::value<std::string>(),
-         "Tell LedgerMaster that the range of ledgers are present. Min and max "
-         "values are comma separated.")(
+         "Specify the range of present ledgers for testing purposes. Min and "
+         "max values are comma separated.")(
             "version", "Display the build version.");
 
     po::options_description data("Ledger/Data Options");
