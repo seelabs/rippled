@@ -1201,10 +1201,18 @@ XChainCreateBridge::preclaim(PreclaimContext const& ctx)
     STXChainBridge::ChainType const chainType =
         STXChainBridge::srcChain(account == bridgeSpec.lockingChainDoor());
 
-    if (!isXRP(bridgeSpec.issue(chainType)) &&
-        !ctx.view.read(keylet::account(bridgeSpec.issue(chainType).account)))
+    if (!isXRP(bridgeSpec.issue(chainType)))
     {
-        return tecNO_ISSUER;
+        auto const sleIssuer =
+            ctx.view.read(keylet::account(bridgeSpec.issue(chainType).account));
+
+        if (!sleIssuer)
+            return tecNO_ISSUER;
+
+        // Allowing clawing back funds would break the bridge's invariant that
+        // wrapped funds are always backed by locked funds
+        if (sleIssuer->getFlags() & lsfAllowTrustLineClawback)
+            return tecNO_PERMISSION;
     }
 
     {
