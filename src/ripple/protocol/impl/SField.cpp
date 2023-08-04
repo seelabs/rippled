@@ -404,7 +404,8 @@ CONSTRUCT_UNTYPED_SFIELD(sfXChainClaimAttestations,
 CONSTRUCT_UNTYPED_SFIELD(sfXChainCreateAccountAttestations,
                                                  "XChainCreateAccountAttestations",
                                                                         ARRAY,     22);
-CONSTRUCT_UNTYPED_SFIELD(sfAuthAccounts,        "AuthAccounts",         ARRAY,     23);
+// 23 and 24 are unused and available for use
+CONSTRUCT_UNTYPED_SFIELD(sfAuthAccounts,        "AuthAccounts",         ARRAY,     25);
 
 // clang-format on
 
