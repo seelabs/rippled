@@ -397,10 +397,19 @@ amm(uint256 const& id) noexcept
 }
 
 Keylet
-bridge(AccountID const& door)
+bridge(STXChainBridge const& bridge, STXChainBridge::ChainType chainType)
 {
-    // There can be at most one brige per door account
-    return {ltBRIDGE, indexHash(LedgerNameSpace::BRIDGE, door)};
+    // A door account can support multiple bridges. On the locking chain
+    // there can only be one bridge per lockingChainIssue. On the issuing chain
+    // there can only be one bridge per issuingChainIssue.
+    auto const& issue = bridge.issue(chainType);
+    return {
+        ltBRIDGE,
+        indexHash(
+            LedgerNameSpace::BRIDGE,
+            bridge.door(chainType),
+            issue.account,
+            issue.currency)};
 }
 
 Keylet

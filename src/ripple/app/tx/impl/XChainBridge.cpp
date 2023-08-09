@@ -565,9 +565,7 @@ peekBridge(ApplyView& v, STXChainBridge const& bridgeSpec)
 {
     return readOrpeekBridge<SLE>(
         [&v](STXChainBridge const& b, STXChainBridge::ChainType ct)
-            -> std::shared_ptr<SLE> {
-            return v.peek(keylet::bridge(b.door(ct)));
-        },
+            -> std::shared_ptr<SLE> { return v.peek(keylet::bridge(b, ct)); },
         bridgeSpec);
 }
 
@@ -577,7 +575,7 @@ readBridge(ReadView const& v, STXChainBridge const& bridgeSpec)
     return readOrpeekBridge<SLE const>(
         [&v](STXChainBridge const& b, STXChainBridge::ChainType ct)
             -> std::shared_ptr<SLE const> {
-            return v.read(keylet::bridge(b.door(ct)));
+            return v.read(keylet::bridge(b, ct));
         },
         bridgeSpec);
 }
@@ -1190,10 +1188,10 @@ XChainCreateBridge::preclaim(PreclaimContext const& ctx)
 
     // The bridge can't already exist on this ledger, and the bridge for the
     // locking chain and issuing chain can't live on the same ledger.
-    if (ctx.view.read(keylet::bridge(
-            bridgeSpec.door(STXChainBridge::ChainType::locking))) ||
-        ctx.view.read(keylet::bridge(
-            bridgeSpec.door(STXChainBridge::ChainType::issuing))))
+    if (ctx.view.read(
+            keylet::bridge(bridgeSpec, STXChainBridge::ChainType::locking)) ||
+        ctx.view.read(
+            keylet::bridge(bridgeSpec, STXChainBridge::ChainType::issuing)))
     {
         return tecDUPLICATE;
     }
@@ -1247,7 +1245,7 @@ XChainCreateBridge::doApply()
     STXChainBridge::ChainType const chainType =
         STXChainBridge::srcChain(account == bridgeSpec.lockingChainDoor());
 
-    Keylet const bridgeKeylet = keylet::bridge(bridgeSpec.door(chainType));
+    Keylet const bridgeKeylet = keylet::bridge(bridgeSpec, chainType);
     auto const sleBridge = std::make_shared<SLE>(bridgeKeylet);
 
     (*sleBridge)[sfAccount] = account;
@@ -1340,7 +1338,7 @@ BridgeModify::preclaim(PreclaimContext const& ctx)
     STXChainBridge::ChainType const chainType =
         STXChainBridge::srcChain(account == bridgeSpec.lockingChainDoor());
 
-    if (!ctx.view.read(keylet::bridge(bridgeSpec.door(chainType))))
+    if (!ctx.view.read(keylet::bridge(bridgeSpec, chainType)))
     {
         return tecNO_ENTRY;
     }
@@ -1366,7 +1364,7 @@ BridgeModify::doApply()
         STXChainBridge::srcChain(account == bridgeSpec.lockingChainDoor());
 
     auto const sleBridge =
-        ctx_.view().peek(keylet::bridge(bridgeSpec.door(chainType)));
+        ctx_.view().peek(keylet::bridge(bridgeSpec, chainType));
     if (!sleBridge)
         return tecINTERNAL;
 

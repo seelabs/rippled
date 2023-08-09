@@ -74,6 +74,7 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
             // request the bridge via RPC
             Json::Value jvParams;
             jvParams[jss::bridge_account] = mcDoor.human();
+            jvParams[jss::bridge] = jvb;
             Json::Value const jrr = mcEnv.rpc(
                 "json", "ledger_entry", to_string(jvParams))[jss::result];
 
@@ -114,7 +115,9 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
         {
             // swap door accounts and make sure we get an error value
             Json::Value jvParams;
-            jvParams[jss::bridge_account] = scDoor.human();
+            // Sidechain door account is "master", not scDoor
+            jvParams[jss::bridge_account] = Account::master.human();
+            jvParams[jss::bridge] = jvb;
             jvParams[jss::ledger_hash] = ledgerHash;
             Json::Value const jrr = mcEnv.rpc(
                 "json", "ledger_entry", to_string(jvParams))[jss::result];
@@ -132,6 +135,7 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
             // request the bridge via RPC
             Json::Value jvParams;
             jvParams[jss::bridge_account] = mcDoor.human();
+            jvParams[jss::bridge] = jvb;
             // std::cout << to_string(jvParams) << '\n';
             Json::Value const jrr = mcEnv.rpc(
                 "json", "ledger_entry", to_string(jvParams))[jss::result];

@@ -378,21 +378,61 @@ doLedgerEntry(RPC::JsonContext& context)
             }
         }
     }
-    else if (context.params.isMember(jss::bridge_account))
+    else if (context.params.isMember(jss::bridge))
     {
         expectedType = ltBRIDGE;
-        auto const& jsBridgeAccount = context.params[jss::bridge_account];
-        if (!jsBridgeAccount.isString())
+
+        // return the keylet for the specified bridge or nullopt if the request
+        // is malformed
+        auto const maybeKeylet = [&]() -> std::optional<Keylet> {
+            try
+            {
+                if (!context.params.isMember(jss::bridge_account))
+                    return std::nullopt;
+
+                auto const& jsBridgeAccount =
+                    context.params[jss::bridge_account];
+                if (!jsBridgeAccount.isString())
+                {
+                    return std::nullopt;
+                }
+                auto const account =
+                    parseBase58<AccountID>(jsBridgeAccount.asString());
+                if (!account || account->isZero())
+                {
+                    return std::nullopt;
+                }
+
+                // This may throw and is the reason for the `try` block. The try
+                // block has a larger scope so the `bridge` variable doesn't
+                // need to be an optional.
+                STXChainBridge const bridge(context.params[jss::bridge]);
+
+                std::optional<STXChainBridge::ChainType> chainType;
+                for (auto const ct :
+                     {STXChainBridge::ChainType::locking,
+                      STXChainBridge::ChainType::issuing})
+                {
+                    if (*account == bridge.door(ct))
+                    {
+                        chainType.emplace(ct);
+                        break;
+                    }
+                }
+                if (!chainType)
+                    return std::nullopt;
+
+                return keylet::bridge(bridge, *chainType);
+            }
+            catch (...)
+            {
+                return std::nullopt;
+            }
+        }();
+
+        if (maybeKeylet)
         {
-            uNodeIndex = beast::zero;
-            jvResult[jss::error] = "malformedRequest";
-        }
-        else if (auto const account =
-                     parseBase58<AccountID>(jsBridgeAccount.asString());
-                 account && account->isNonZero())
-        {
-            Keylet keylet = keylet::bridge(*account);
-            uNodeIndex = keylet.key;
+            uNodeIndex = maybeKeylet->key;
         }
         else
         {

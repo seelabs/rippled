@@ -156,7 +156,7 @@ struct SEnv
 
         auto tryGet =
             [&](STXChainBridge::ChainType ct) -> std::shared_ptr<SLE const> {
-            if (auto r = env_.le(keylet::bridge(b.door(ct))))
+            if (auto r = env_.le(keylet::bridge(b, ct)))
             {
                 if ((*r)[sfXChainBridge] == b)
                     return r;
@@ -599,17 +599,27 @@ struct XChain_test : public beast::unit_test::suite,
 
         // Test case 1 ~ 5, create bridges
         // Issuing doors use USDs issued by them in bridge spec.
-        // The two tesSUCCESS create_bridges both use BUSD at sidechain.
+        // Define the door's bridge asset collecion as the collection of all the
+        // issuing assets for which the door account is on the issuing chain and
+        // all the locking assets for which the door account is on the locking
+        // chain. (note: a door account can simultainious be on an issuing and
+        // locking chain). A new bridge is not a duplicate as long as the new
+        // bridge asset collection does not contain any dupicates.
         auto const goodBridge1 = bridge(A, GUSD, B, BUSD);
         auto const goodBridge2 = bridge(A, BUSD, C, CUSD);
-        env.tx(create_bridge(B, goodBridge1), ter(tesSUCCESS)).close();
+        env.tx(create_bridge(B, goodBridge1)).close();
+        // A bridge must be unique to the chain, even if it has different door
+        // accounts (otherwise a bridge spec isn't enough to look up a bridge)
         env.tx(create_bridge(A, bridge(A, GUSD, B, BUSD)), ter(tecDUPLICATE))
             .close();
-        env.tx(create_bridge(A, bridge(B, GUSD, A, AUSD)), ter(tecDUPLICATE))
-            .close();
-        env.tx(create_bridge(B, bridge(B, GUSD, C, CUSD)), ter(tecDUPLICATE))
+        env.tx(create_bridge(A, bridge(B, GUSD, A, AUSD))).close();
+        // Issuing asset is the same, this is a duplicate
+        env.tx(create_bridge(A, bridge(B, CUSD, A, AUSD)), ter(tecDUPLICATE))
             .close();
         env.tx(create_bridge(A, goodBridge2), ter(tesSUCCESS)).close();
+        // Locking asset is the same - this is a duplicate
+        env.tx(create_bridge(A, bridge(A, BUSD, B, BUSD)), ter(tecDUPLICATE))
+            .close();
 
         // Test case 6 and 7, commits
         env.tx(trust(C, BUSD(1000)))

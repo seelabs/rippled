@@ -272,7 +272,7 @@ Keylet
 amm(uint256 const& amm) noexcept;
 
 Keylet
-bridge(AccountID const& door);
+bridge(STXChainBridge const& bridge, STXChainBridge::ChainType chainType);
 
 Keylet
 xChainClaimID(STXChainBridge const& bridge, std::uint64_t seq);
