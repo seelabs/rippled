@@ -404,6 +404,7 @@ TxFormats::TxFormats()
             {sfXChainBridge, soeREQUIRED},
             {sfSignatureReward, soeREQUIRED},
             {sfMinAccountCreateAmount, soeOPTIONAL},
+            {sfTicketSequence, soeOPTIONAL},
         },
         commonFields);
 
@@ -413,6 +414,7 @@ TxFormats::TxFormats()
             {sfXChainBridge, soeREQUIRED},
             {sfSignatureReward, soeOPTIONAL},
             {sfMinAccountCreateAmount, soeOPTIONAL},
+            {sfTicketSequence, soeOPTIONAL},
         },
         commonFields);
 
@@ -422,6 +424,7 @@ TxFormats::TxFormats()
             {sfXChainBridge, soeREQUIRED},
             {sfSignatureReward, soeREQUIRED},
             {sfOtherChainSource, soeREQUIRED},
+            {sfTicketSequence, soeOPTIONAL},
         },
         commonFields);
 
@@ -432,6 +435,7 @@ TxFormats::TxFormats()
             {sfXChainClaimID, soeREQUIRED},
             {sfAmount, soeREQUIRED},
             {sfOtherChainDestination, soeOPTIONAL},
+            {sfTicketSequence, soeOPTIONAL},
         },
         commonFields);
 
@@ -443,6 +447,7 @@ TxFormats::TxFormats()
             {sfDestination, soeREQUIRED},
             {sfDestinationTag, soeOPTIONAL},
             {sfAmount, soeREQUIRED},
+            {sfTicketSequence, soeOPTIONAL},
         },
         commonFields);
 
@@ -461,6 +466,7 @@ TxFormats::TxFormats()
 
             {sfXChainClaimID, soeREQUIRED},
             {sfDestination, soeOPTIONAL},
+            {sfTicketSequence, soeOPTIONAL},
         },
         commonFields);
 
@@ -480,6 +486,7 @@ TxFormats::TxFormats()
             {sfXChainAccountCreateCount, soeREQUIRED},
             {sfDestination, soeREQUIRED},
             {sfSignatureReward, soeREQUIRED},
+            {sfTicketSequence, soeOPTIONAL},
         },
         commonFields);
 
@@ -490,6 +497,7 @@ TxFormats::TxFormats()
             {sfDestination, soeREQUIRED},
             {sfAmount, soeREQUIRED},
             {sfSignatureReward, soeREQUIRED},
+            {sfTicketSequence, soeOPTIONAL},
         },
         commonFields);
 }
