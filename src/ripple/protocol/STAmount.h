@@ -25,11 +25,11 @@
 #include <ripple/basics/LocalValue.h>
 #include <ripple/basics/Number.h>
 #include <ripple/basics/XRPAmount.h>
-#include <ripple/json/json_get_or_throw.h>
 #include <ripple/protocol/Issue.h>
 #include <ripple/protocol/SField.h>
 #include <ripple/protocol/STBase.h>
 #include <ripple/protocol/Serializer.h>
+#include <ripple/protocol/json_get_or_throw.h>
 
 namespace ripple {
 

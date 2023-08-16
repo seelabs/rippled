@@ -1,5 +1,5 @@
-#ifndef JSON_GET_OR_THROW_H_
-#define JSON_GET_OR_THROW_H_
+#ifndef PROTOCOL_GET_OR_THROW_H_
+#define PROTOCOL_GET_OR_THROW_H_
 
 #include <ripple/basics/Buffer.h>
 #include <ripple/basics/StringUtilities.h>
@@ -156,4 +156,4 @@ getOptional(Json::Value const& v, ripple::SField const& field)
 
 }  // namespace Json
 
-#endif  // JSON_GET_OR_THROW_H_
+#endif  // PROTOCOL_GET_OR_THROW_H_

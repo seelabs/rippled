@@ -215,7 +215,6 @@ install (
     src/ripple/json/Object.h
     src/ripple/json/Output.h
     src/ripple/json/Writer.h
-    src/ripple/json/json_get_or_throw.h
     src/ripple/json/json_forwards.h
     src/ripple/json/json_reader.h
     src/ripple/json/json_value.h
@@ -239,6 +238,7 @@ install (
     src/ripple/protocol/Indexes.h
     src/ripple/protocol/InnerObjectFormats.h
     src/ripple/protocol/Issue.h
+    src/ripple/protocol/json_get_or_throw.h
     src/ripple/protocol/KeyType.h
     src/ripple/protocol/Keylet.h
     src/ripple/protocol/KnownFormats.h

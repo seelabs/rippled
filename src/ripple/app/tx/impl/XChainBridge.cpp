@@ -100,6 +100,265 @@ namespace ripple {
    bridges and their transactions work.
 */
 
+namespace Attestations {
+
+// Check that the public key is allowed to sign for the given account. If the
+// account does not exist on the ledger, then the public key must be the master
+// key for the given account if it existed. Otherwise the key must be an enabled
+// master key or a regular key for the existing account.
+TER
+checkAttestationPublicKey(
+    ReadView const& view,
+    std::unordered_map<AccountID, std::uint32_t> const& signersList,
+    AccountID const& attestationSignerAccount,
+    PublicKey const& pk,
+    beast::Journal j)
+{
+    if (!signersList.contains(attestationSignerAccount))
+    {
+        return tecNO_PERMISSION;
+    }
+
+    AccountID const accountFromPK = calcAccountID(pk);
+
+    if (auto const sleAttestationSigningAccount =
+            view.read(keylet::account(attestationSignerAccount)))
+    {
+        if (accountFromPK == attestationSignerAccount)
+        {
+            // master key
+            if (sleAttestationSigningAccount->getFieldU32(sfFlags) &
+                lsfDisableMaster)
+            {
+                JLOG(j.trace()) << "Attempt to add an attestation with "
+                                   "disabled master key.";
+                return tecXCHAIN_BAD_PUBLIC_KEY_ACCOUNT_PAIR;
+            }
+        }
+        else
+        {
+            // regular key
+            if (std::optional<AccountID> regularKey =
+                    (*sleAttestationSigningAccount)[~sfRegularKey];
+                regularKey != accountFromPK)
+            {
+                if (!regularKey)
+                {
+                    JLOG(j.trace())
+                        << "Attempt to add an attestation with "
+                           "account present and non-present regular key.";
+                }
+                else
+                {
+                    JLOG(j.trace()) << "Attempt to add an attestation with "
+                                       "account present and mismatched "
+                                       "regular key/public key.";
+                }
+                return tecXCHAIN_BAD_PUBLIC_KEY_ACCOUNT_PAIR;
+            }
+        }
+    }
+    else
+    {
+        // account does not exist.
+        if (calcAccountID(pk) != attestationSignerAccount)
+        {
+            JLOG(j.trace())
+                << "Attempt to add an attestation with non-existant account "
+                   "and mismatched pk/account pair.";
+            return tecXCHAIN_BAD_PUBLIC_KEY_ACCOUNT_PAIR;
+        }
+    }
+
+    return tesSUCCESS;
+}
+
+// If there is a quorum of attestations for the given parameters, then
+// return the reward accounts, otherwise return TER for the error.
+// Also removes attestations that are no longer part of the signers list.
+//
+// Note: the dst parameter is what the attestations are attesting to, which
+// is not always used (it is used when automatically triggering a transfer
+// from an `addAttestation` transaction, it is not used in a `claim`
+// transaction). If the `checkDst` parameter is `check`, the attestations
+// must attest to this destination, if it is `ignore` then the `dst` of the
+// attestations are not checked (as for a `claim` transaction)
+
+enum class CheckDst { check, ignore };
+template <class TAttestation>
+Expected<std::vector<AccountID>, TER>
+claimHelper(
+    XChainAttestationsBase<TAttestation>& attestations,
+    ReadView const& view,
+    typename TAttestation::MatchFields const& toMatch,
+    CheckDst checkDst,
+    std::uint32_t quorum,
+    std::unordered_map<AccountID, std::uint32_t> const& signersList,
+    beast::Journal j)
+{
+    // Remove attestations that are not valid signers. They may be no longer
+    // part of the signers list, or their master key may have been disabled,
+    // or their regular key may have changed
+    attestations.erase_if([&](auto const& a) {
+        return Attestations::checkAttestationPublicKey(
+                   view, signersList, a.keyAccount, a.publicKey, j) !=
+            tesSUCCESS;
+    });
+
+    // Check if we have quorum for the amount specified on the new claimAtt
+    std::vector<AccountID> rewardAccounts;
+    rewardAccounts.reserve(attestations.size());
+    std::uint32_t weight = 0;
+    for (auto const& a : attestations)
+    {
+        auto const matchR = a.match(toMatch);
+        // The dest must match if claimHelper is being run as a result of an add
+        // attestation transaction. The dst does not need to match if the
+        // claimHelper is being run using an explicit claim transaction.
+        using enum AttestationMatch;
+        if (matchR == nonDstMismatch ||
+            (checkDst == CheckDst::check && matchR != match))
+            continue;
+        auto i = signersList.find(a.keyAccount);
+        if (i == signersList.end())
+        {
+            assert(0);  // should have already been checked
+            continue;
+        }
+        weight += i->second;
+        rewardAccounts.push_back(a.rewardAccount);
+    }
+
+    if (weight >= quorum)
+        return rewardAccounts;
+
+    return Unexpected(tecXCHAIN_CLAIM_NO_QUORUM);
+}
+
+/**
+ Handle a new attestation event.
+
+ Attempt to add the given attestation and reconcile with the current
+ signer's list. Attestations that are not part of the current signer's
+ list will be removed.
+
+ @param claimAtt New attestation to add. It will be added if it is not
+ already part of the collection, or attests to a larger value.
+
+ @param quorum Min weight required for a quorum
+
+ @param signersList Map from signer's account id (derived from public keys)
+ to the weight of that key.
+
+ @return optional reward accounts. If after handling the new attestation
+ there is a quorum for the amount specified on the new attestation, then
+ return the reward accounts for that amount, otherwise return a nullopt.
+ Note that if the signer's list changes and there have been `commit`
+ transactions of different amounts then there may be a different subset that
+ has reached quorum. However, to "trigger" that subset would require adding
+ (or re-adding) an attestation that supports that subset.
+
+ The reason for using a nullopt instead of an empty vector when a quorum is
+ not reached is to allow for an interface where a quorum is reached but no
+ rewards are distributed.
+
+ @note This function is not called `add` because it does more than just
+       add the new attestation (in fact, it may not add the attestation at
+       all). Instead, it handles the event of a new attestation.
+ */
+struct OnNewAttestationResult
+{
+    std::optional<std::vector<AccountID>> rewardAccounts;
+    // `changed` is true if the attestation collection changed in any way
+    // (added/removed/changed)
+    bool changed{false};
+};
+
+template <class TAttestation>
+[[nodiscard]] OnNewAttestationResult
+onNewAttestations(
+    XChainAttestationsBase<TAttestation>& attestations,
+    ReadView const& view,
+    typename TAttestation::TSignedAttestation const* attBegin,
+    typename TAttestation::TSignedAttestation const* attEnd,
+    std::uint32_t quorum,
+    std::unordered_map<AccountID, std::uint32_t> const& signersList,
+    beast::Journal j)
+{
+    bool changed = false;
+    for (auto att = attBegin; att != attEnd; ++att)
+    {
+        if (Attestations::checkAttestationPublicKey(
+                view,
+                signersList,
+                att->attestationSignerAccount,
+                att->publicKey,
+                j) != tesSUCCESS)
+        {
+            // The checkAttestationPublicKey is not strictly necessary here (it
+            // should be checked in a preclaim step), but it would be bad to let
+            // this slip through if that changes, and the check is relatively
+            // cheap, so we check again
+            continue;
+        }
+
+        auto const& claimSigningAccount = att->attestationSignerAccount;
+        if (auto i = std::find_if(
+                attestations.begin(),
+                attestations.end(),
+                [&](auto const& a) {
+                    return a.keyAccount == claimSigningAccount;
+                });
+            i != attestations.end())
+        {
+            // existing attestation
+            // replace old attestation with new attestation
+            *i = TAttestation{*att};
+            changed = true;
+        }
+        else
+        {
+            attestations.emplace_back(*att);
+            changed = true;
+        }
+    }
+
+    auto r = claimHelper(
+        attestations,
+        view,
+        typename TAttestation::MatchFields{*attBegin},
+        CheckDst::check,
+        quorum,
+        signersList,
+        j);
+
+    if (!r.has_value())
+        return {std::nullopt, changed};
+
+    return {std::move(r.value()), changed};
+};
+
+// Check if there is a quorurm of attestations for the given amount and
+// chain. If so return the reward accounts, if not return the tec code (most
+// likely tecXCHAIN_CLAIM_NO_QUORUM)
+Expected<std::vector<AccountID>, TER>
+onClaim(
+    XChainClaimAttestations& attestations,
+    ReadView const& view,
+    STAmount const& sendingAmount,
+    bool wasLockingChainSend,
+    std::uint32_t quorum,
+    std::unordered_map<AccountID, std::uint32_t> const& signersList,
+    beast::Journal j)
+{
+    XChainClaimAttestation::MatchFields toMatch{
+        sendingAmount, wasLockingChainSend, std::nullopt};
+    return claimHelper(
+        attestations, view, toMatch, CheckDst::ignore, quorum, signersList, j);
+}
+
+}  // namespace Attestations
+
 namespace {
 
 enum class CanCreateDstPolicy { no, yes };
@@ -605,7 +864,7 @@ applyClaimAttestations(
 
     struct ScopeResult
     {
-        XChainClaimAttestations::OnNewAttestationResult newAttResult;
+        Attestations::OnNewAttestationResult newAttResult;
         STAmount rewardAmount;
         AccountID cidOwner;
     };
@@ -656,8 +915,14 @@ applyClaimAttestations(
         XChainClaimAttestations curAtts{
             sleClaimID->getFieldArray(sfXChainClaimAttestations)};
 
-        auto const newAttResult = curAtts.onNewAttestations(
-            view, &atts[0], &atts[0] + atts.size(), quorum, signersList, j);
+        auto const newAttResult = onNewAttestations(
+            curAtts,
+            view,
+            &atts[0],
+            &atts[0] + atts.size(),
+            quorum,
+            signersList,
+            j);
 
         // update the claim id
         sleClaimID->setFieldArray(
@@ -767,7 +1032,7 @@ applyCreateAccountAttestations(
 
     struct ScopeResult
     {
-        XChainCreateAccountAttestations::OnNewAttestationResult newAttResult;
+        Attestations::OnNewAttestationResult newAttResult;
         bool createCID;
         XChainCreateAccountAttestations curAtts;
     };
@@ -820,8 +1085,14 @@ applyCreateAccountAttestations(
             return XChainCreateAccountAttestations{};
         }();
 
-        auto const newAttResult = curAtts.onNewAttestations(
-            view, &atts[0], &atts[0] + atts.size(), quorum, signersList, j);
+        auto const newAttResult = onNewAttestations(
+            curAtts,
+            view,
+            &atts[0],
+            &atts[0] + atts.size(),
+            quorum,
+            signersList,
+            j);
 
         if (!createCID)
         {
@@ -1558,7 +1829,8 @@ XChainClaim::doApply()
         XChainClaimAttestations curAtts{
             sleClaimID->getFieldArray(sfXChainClaimAttestations)};
 
-        auto const claimR = curAtts.onClaim(
+        auto const claimR = Attestations::onClaim(
+            curAtts,
             psb,
             sendingAmount,
             /*wasLockingChainSend*/ srcChain ==

@@ -21,10 +21,10 @@
 #define RIPPLE_PROTOCOL_PUBLICKEY_H_INCLUDED
 
 #include <ripple/basics/Slice.h>
-#include <ripple/json/json_get_or_throw.h>
 #include <ripple/protocol/KeyType.h>
 #include <ripple/protocol/STExchange.h>
 #include <ripple/protocol/UintTypes.h>
+#include <ripple/protocol/json_get_or_throw.h>
 #include <ripple/protocol/tokens.h>
 
 #include <algorithm>

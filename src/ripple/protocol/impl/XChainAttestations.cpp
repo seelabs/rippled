@@ -22,7 +22,6 @@
 #include <ripple/basics/Expected.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/StringUtilities.h>
-#include <ripple/json/json_get_or_throw.h>
 #include <ripple/protocol/AccountID.h>
 #include <ripple/protocol/Indexes.h>
 #include <ripple/protocol/PublicKey.h>
@@ -33,6 +32,7 @@
 #include <ripple/protocol/STObject.h>
 #include <ripple/protocol/Serializer.h>
 #include <ripple/protocol/XChainAttestations.h>
+#include <ripple/protocol/json_get_or_throw.h>
 #include <ripple/protocol/jss.h>
 
 #include <algorithm>
@@ -40,73 +40,6 @@
 
 namespace ripple {
 namespace Attestations {
-
-TER
-checkAttestationPublicKey(
-    ReadView const& view,
-    std::unordered_map<AccountID, std::uint32_t> const& signersList,
-    AccountID const& attestationSignerAccount,
-    PublicKey const& pk,
-    beast::Journal j)
-{
-    if (!signersList.contains(attestationSignerAccount))
-    {
-        return tecNO_PERMISSION;
-    }
-
-    AccountID const accountFromPK = calcAccountID(pk);
-
-    if (auto const sleAttestationSigningAccount =
-            view.read(keylet::account(attestationSignerAccount)))
-    {
-        if (accountFromPK == attestationSignerAccount)
-        {
-            // master key
-            if (sleAttestationSigningAccount->getFieldU32(sfFlags) &
-                lsfDisableMaster)
-            {
-                JLOG(j.trace()) << "Attempt to add an attestation with "
-                                   "disabled master key.";
-                return tecXCHAIN_BAD_PUBLIC_KEY_ACCOUNT_PAIR;
-            }
-        }
-        else
-        {
-            // regular key
-            if (std::optional<AccountID> regularKey =
-                    (*sleAttestationSigningAccount)[~sfRegularKey];
-                regularKey != accountFromPK)
-            {
-                if (!regularKey)
-                {
-                    JLOG(j.trace())
-                        << "Attempt to add an attestation with "
-                           "account present and non-present regular key.";
-                }
-                else
-                {
-                    JLOG(j.trace()) << "Attempt to add an attestation with "
-                                       "account present and mismatched "
-                                       "regular key/public key.";
-                }
-                return tecXCHAIN_BAD_PUBLIC_KEY_ACCOUNT_PAIR;
-            }
-        }
-    }
-    else
-    {
-        // account does not exist.
-        if (calcAccountID(pk) != attestationSignerAccount)
-        {
-            JLOG(j.trace())
-                << "Attempt to add an attestation with non-existant account "
-                   "and mismatched pk/account pair.";
-            return tecXCHAIN_BAD_PUBLIC_KEY_ACCOUNT_PAIR;
-        }
-    }
-
-    return tesSUCCESS;
-}
 
 AttestationBase::AttestationBase(
     AccountID attestationSignerAccount_,
@@ -759,6 +692,20 @@ XChainAttestationsBase<TAttestation>::end() const
 }
 
 template <class TAttestation>
+typename XChainAttestationsBase<TAttestation>::AttCollection::iterator
+XChainAttestationsBase<TAttestation>::begin()
+{
+    return attestations_.begin();
+}
+
+template <class TAttestation>
+typename XChainAttestationsBase<TAttestation>::AttCollection::iterator
+XChainAttestationsBase<TAttestation>::end()
+{
+    return attestations_.end();
+}
+
+template <class TAttestation>
 XChainAttestationsBase<TAttestation>::XChainAttestationsBase(
     Json::Value const& v)
 {
@@ -804,135 +751,6 @@ XChainAttestationsBase<TAttestation>::toSTArray() const
     for (auto const& e : attestations_)
         r.emplace_back(e.toSTObject());
     return r;
-}
-
-template <class TAttestation>
-typename XChainAttestationsBase<TAttestation>::OnNewAttestationResult
-XChainAttestationsBase<TAttestation>::onNewAttestations(
-    ReadView const& view,
-    typename TAttestation::TSignedAttestation const* attBegin,
-    typename TAttestation::TSignedAttestation const* attEnd,
-    std::uint32_t quorum,
-    std::unordered_map<AccountID, std::uint32_t> const& signersList,
-    beast::Journal j)
-{
-    bool changed = false;
-    for (auto att = attBegin; att != attEnd; ++att)
-    {
-        if (Attestations::checkAttestationPublicKey(
-                view,
-                signersList,
-                att->attestationSignerAccount,
-                att->publicKey,
-                j) != tesSUCCESS)
-        {
-            // The checkAttestationPublicKey is not strictly necessary here (it
-            // should be checked in a preclaim step), but it would be bad to let
-            // this slip through if that changes, and the check is relatively
-            // cheap, so we check again
-            continue;
-        }
-
-        auto const& claimSigningAccount = att->attestationSignerAccount;
-        if (auto i = std::find_if(
-                attestations_.begin(),
-                attestations_.end(),
-                [&](auto const& a) {
-                    return a.keyAccount == claimSigningAccount;
-                });
-            i != attestations_.end())
-        {
-            // existing attestation
-            // replace old attestation with new attestation
-            *i = TAttestation{*att};
-            changed = true;
-        }
-        else
-        {
-            attestations_.emplace_back(*att);
-            changed = true;
-        }
-    }
-
-    auto r = claimHelper(
-        view,
-        typename TAttestation::MatchFields{*attBegin},
-        CheckDst::check,
-        quorum,
-        signersList,
-        j);
-
-    if (!r.has_value())
-        return {std::nullopt, changed};
-
-    return {std::move(r.value()), changed};
-};
-
-template <class TAttestation>
-Expected<std::vector<AccountID>, TER>
-XChainAttestationsBase<TAttestation>::claimHelper(
-    ReadView const& view,
-    typename TAttestation::MatchFields const& toMatch,
-    CheckDst checkDst,
-    std::uint32_t quorum,
-    std::unordered_map<AccountID, std::uint32_t> const& signersList,
-    beast::Journal j)
-{
-    {
-        // Remove attestations that are not valid signers. They may be no longer
-        // part of the signers list, or their master key may have been disabled,
-        // or their regular key may have changed
-        auto i = std::remove_if(
-            attestations_.begin(), attestations_.end(), [&](auto const& a) {
-                return Attestations::checkAttestationPublicKey(
-                           view, signersList, a.keyAccount, a.publicKey, j) !=
-                    tesSUCCESS;
-            });
-        attestations_.erase(i, attestations_.end());
-    }
-
-    // Check if we have quorum for the amount specified on the new claimAtt
-    std::vector<AccountID> rewardAccounts;
-    rewardAccounts.reserve(attestations_.size());
-    std::uint32_t weight = 0;
-    for (auto const& a : attestations_)
-    {
-        auto const matchR = a.match(toMatch);
-        // The dest must match if claimHelper is being run as a result of an add
-        // attestation transaction. The dst does not need to match if the
-        // claimHelper is being run using an explicit claim transaction.
-        using enum AttestationMatch;
-        if (matchR == nonDstMismatch ||
-            (checkDst == CheckDst::check && matchR != match))
-            continue;
-        auto i = signersList.find(a.keyAccount);
-        if (i == signersList.end())
-        {
-            assert(0);  // should have already been checked
-            continue;
-        }
-        weight += i->second;
-        rewardAccounts.push_back(a.rewardAccount);
-    }
-
-    if (weight >= quorum)
-        return rewardAccounts;
-
-    return Unexpected(tecXCHAIN_CLAIM_NO_QUORUM);
-}
-
-Expected<std::vector<AccountID>, TER>
-XChainClaimAttestations::onClaim(
-    ReadView const& view,
-    STAmount const& sendingAmount,
-    bool wasLockingChainSend,
-    std::uint32_t quorum,
-    std::unordered_map<AccountID, std::uint32_t> const& signersList,
-    beast::Journal j)
-{
-    XChainClaimAttestation::MatchFields toMatch{
-        sendingAmount, wasLockingChainSend, std::nullopt};
-    return claimHelper(view, toMatch, CheckDst::ignore, quorum, signersList, j);
 }
 
 template class XChainAttestationsBase<XChainClaimAttestation>;

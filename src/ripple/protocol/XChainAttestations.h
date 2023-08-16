@@ -22,7 +22,6 @@
 
 #include <ripple/basics/Buffer.h>
 #include <ripple/basics/Expected.h>
-#include <ripple/ledger/ReadView.h>
 #include <ripple/protocol/AccountID.h>
 #include <ripple/protocol/Issue.h>
 #include <ripple/protocol/PublicKey.h>
@@ -43,18 +42,6 @@
 namespace ripple {
 
 namespace Attestations {
-
-// Check that the public key is allowed to sign for the given account. If the
-// account does not exist on the ledger, then the public key must be the master
-// key for the given account if it existed. Otherwise the key must be an enabled
-// master key or a regular key for the existing account.
-TER
-checkAttestationPublicKey(
-    ReadView const& view,
-    std::unordered_map<AccountID, std::uint32_t> const& signersList,
-    AccountID const& attestationSignerAccount,
-    PublicKey const& pk,
-    beast::Journal j);
 
 struct AttestationBase
 {
@@ -422,58 +409,21 @@ public:
     [[nodiscard]] STArray
     toSTArray() const;
 
-    /**
-     Handle a new attestation event.
-
-     Attempt to add the given attestation and reconcile with the current
-     signer's list. Attestations that are not part of the current signer's
-     list will be removed.
-
-     @param claimAtt New attestation to add. It will be added if it is not
-     already part of the collection, or attests to a larger value.
-
-     @param quorum Min weight required for a quorum
-
-     @param signersList Map from signer's account id (derived from public keys)
-     to the weight of that key.
-
-     @return optional reward accounts. If after handling the new attestation
-     there is a quorum for the amount specified on the new attestation, then
-     return the reward accounts for that amount, otherwise return a nullopt.
-     Note that if the signer's list changes and there have been `commit`
-     transactions of different amounts then there may be a different subset that
-     has reached quorum. However, to "trigger" that subset would require adding
-     (or re-adding) an attestation that supports that subset.
-
-     The reason for using a nullopt instead of an empty vector when a quorum is
-     not reached is to allow for an interface where a quorum is reached but no
-     rewards are distributed.
-
-     @note This function is not called `add` because it does more than just
-           add the new attestation (in fact, it may not add the attestation at
-           all). Instead, it handles the event of a new attestation.
-     */
-    struct OnNewAttestationResult
-    {
-        std::optional<std::vector<AccountID>> rewardAccounts;
-        // `changed` is true if the attestation collection changed in any way
-        // (added/removed/changed)
-        bool changed{false};
-    };
-    [[nodiscard]] OnNewAttestationResult
-    onNewAttestations(
-        ReadView const& view,
-        typename TAttestation::TSignedAttestation const* attBegin,
-        typename TAttestation::TSignedAttestation const* attEnd,
-        std::uint32_t quorum,
-        std::unordered_map<AccountID, std::uint32_t> const& signersList,
-        beast::Journal j);
-
     typename AttCollection::const_iterator
     begin() const;
 
     typename AttCollection::const_iterator
     end() const;
+
+    typename AttCollection::iterator
+    begin();
+
+    typename AttCollection::iterator
+    end();
+
+    template <class F>
+    std::size_t
+    erase_if(F&& f);
 
     std::size_t
     size() const;
@@ -484,32 +434,15 @@ public:
     AttCollection const&
     attestations() const;
 
+    template <class T>
+    void
+    emplace_back(T&& att);
+
     // verify that all the signatures attest to transaction data.
     [[nodiscard]] bool
     verify() const;
 
 protected:
-    // If there is a quorum of attestations for the given parameters, then
-    // return the reward accounts, otherwise return TER for the error.
-    // Also removes attestations that are no longer part of the signers list.
-    //
-    // Note: the dst parameter is what the attestations are attesting to, which
-    // is not always used (it is used when automatically triggering a transfer
-    // from an `addAttestation` transaction, it is not used in a `claim`
-    // transaction). If the `checkDst` parameter is `check`, the attestations
-    // must attest to this destination, if it is `ignore` then the `dst` of the
-    // attestations are not checked (as for a `claim` transaction)
-
-    enum class CheckDst { check, ignore };
-    Expected<std::vector<AccountID>, TER>
-    claimHelper(
-        ReadView const& view,
-        typename TAttestation::MatchFields const& toMatch,
-        CheckDst checkDst,
-        std::uint32_t quorum,
-        std::unordered_map<AccountID, std::uint32_t> const& signersList,
-        beast::Journal j);
-
     // Return the message that was expected to be signed by the attesters given
     // the data to be proved.
     [[nodiscard]] std::vector<std::uint8_t>
@@ -533,6 +466,22 @@ XChainAttestationsBase<TAttestation>::attestations() const
 };
 
 template <class TAttestation>
+template <class T>
+inline void
+XChainAttestationsBase<TAttestation>::emplace_back(T&& att)
+{
+    attestations_.emplace_back(std::forward<T>(att));
+};
+
+template <class TAttestation>
+template <class F>
+inline std::size_t
+XChainAttestationsBase<TAttestation>::erase_if(F&& f)
+{
+    return std::erase_if(attestations_, std::forward<F>(f));
+}
+
+template <class TAttestation>
 inline std::size_t
 XChainAttestationsBase<TAttestation>::size() const
 {
@@ -551,19 +500,6 @@ class XChainClaimAttestations final
 {
     using TBase = XChainAttestationsBase<XChainClaimAttestation>;
     using TBase::TBase;
-
-public:
-    // Check if there is a quorurm of attestations for the given amount and
-    // chain. If so return the reward accounts, if not return the tec code (most
-    // likely tecXCHAIN_CLAIM_NO_QUORUM)
-    Expected<std::vector<AccountID>, TER>
-    onClaim(
-        ReadView const& view,
-        STAmount const& sendingAmount,
-        bool wasLockingChainSend,
-        std::uint32_t quorum,
-        std::unordered_map<AccountID, std::uint32_t> const& signersList,
-        beast::Journal j);
 };
 
 class XChainCreateAccountAttestations final
