@@ -167,13 +167,13 @@ public:
             BEAST_EXPECT(a == ReleaseRefAction::destroy);
         }
 
-        std::vector<SharedIntrusive<TIBase>> strong;
+        std::vector<SharedIntrusive<TIBase, false>> strong;
         std::vector<WeakIntrusive<TIBase>> weak;
         {
             TIBase::ResetStatesGuard rsg{true};
 
             using enum TrackedState;
-            auto b = make_SharedIntrusive<TIBase>();
+            auto b = make_SharedIntrusive<TIBase, false>();
             auto id = b->id_;
             BEAST_EXPECT(TIBase::getState(id) == alive);
             BEAST_EXPECT(b->use_count() == 1);
@@ -188,7 +188,7 @@ public:
             strong.clear();
             BEAST_EXPECT(TIBase::getState(id) == deleted);
 
-            b = make_SharedIntrusive<TIBase>();
+            b = make_SharedIntrusive<TIBase, false>();
             id = b->id_;
             BEAST_EXPECT(TIBase::getState(id) == alive);
             BEAST_EXPECT(b->use_count() == 1);
@@ -214,7 +214,7 @@ public:
             TIBase::ResetStatesGuard rsg{true};
 
             using enum TrackedState;
-            auto b = make_SharedIntrusive<TIBase>();
+            auto b = make_SharedIntrusive<TIBase, false>();
             auto id = b->id_;
             BEAST_EXPECT(TIBase::getState(id) == alive);
             WeakIntrusive<TIBase> w{b};
@@ -239,7 +239,7 @@ public:
 
             using enum TrackedState;
             using swu = SharedWeakUnion<TIBase>;
-            swu b = make_SharedIntrusive<TIBase>();
+            swu b = make_SharedIntrusive<TIBase, false>();
             BEAST_EXPECT(b.isStrong() && b.use_count() == 1);
             auto id = b.get()->id_;
             BEAST_EXPECT(TIBase::getState(id) == alive);
@@ -284,7 +284,7 @@ public:
 
         TIBase::ResetStatesGuard rsg{true};
 
-        auto strong = make_SharedIntrusive<TIBase>();
+        auto strong = make_SharedIntrusive<TIBase, false>();
         WeakIntrusive<TIBase> weak{strong};
         bool destructorRan = false;
         bool partialDeleteRan = false;
@@ -352,7 +352,7 @@ public:
 
         TIBase::ResetStatesGuard rsg{true};
 
-        auto strong = make_SharedIntrusive<TIBase>();
+        auto strong = make_SharedIntrusive<TIBase, false>();
         WeakIntrusive<TIBase> weak{strong};
         bool destructorRan = false;
         bool partialDeleteRan = false;
@@ -427,10 +427,12 @@ public:
         };
         auto createVecOfPointers = [&](auto const& toClone,
                                        std::default_random_engine& eng)
-            -> std::vector<
-                std::variant<SharedIntrusive<TIBase>, WeakIntrusive<TIBase>>> {
-            std::vector<
-                std::variant<SharedIntrusive<TIBase>, WeakIntrusive<TIBase>>>
+            -> std::vector<std::variant<
+                SharedIntrusive<TIBase, false>,
+                WeakIntrusive<TIBase>>> {
+            std::vector<std::variant<
+                SharedIntrusive<TIBase, false>,
+                WeakIntrusive<TIBase>>>
                 result;
             std::uniform_int_distribution<> toCreateDist(4, 64);
             std::uniform_int_distribution<> isStrongDist(0, 1);
@@ -440,7 +442,7 @@ public:
             {
                 if (isStrongDist(eng))
                 {
-                    result.push_back(SharedIntrusive<TIBase>(toClone));
+                    result.push_back(SharedIntrusive<TIBase, false>(toClone));
                 }
                 else
                 {
@@ -451,7 +453,7 @@ public:
         };
         constexpr int loopIters = 2 * 1024;
         constexpr int numThreads = 16;
-        std::vector<SharedIntrusive<TIBase>> toClone;
+        std::vector<SharedIntrusive<TIBase, false>> toClone;
         std::barrier loopStartSyncPoint{numThreads};
         std::barrier postCreateToCloneSyncPoint{numThreads};
         std::barrier postCreateVecOfPointersSyncPoint{numThreads};
@@ -490,7 +492,7 @@ public:
 
                     toClone.clear();
                     toClone.resize(numThreads);
-                    auto strong = make_SharedIntrusive<TIBase>();
+                    auto strong = make_SharedIntrusive<TIBase, false>();
                     strong->tracingCallback_ = tracingCallback;
                     std::fill(toClone.begin(), toClone.end(), strong);
                     strong.reset();
@@ -574,13 +576,13 @@ public:
             auto numToCreate = toCreateDist(eng);
             result.reserve(numToCreate);
             for (int i = 0; i < numToCreate; ++i)
-                result.push_back(SharedIntrusive<TIBase>(toClone));
+                result.push_back(SharedIntrusive<TIBase, false>(toClone));
             return result;
         };
         constexpr int loopIters = 2 * 1024;
         constexpr int flipPointersLoopIters = 256;
         constexpr int numThreads = 16;
-        std::vector<SharedIntrusive<TIBase>> toClone;
+        std::vector<SharedIntrusive<TIBase, false>> toClone;
         std::barrier loopStartSyncPoint{numThreads};
         std::barrier postCreateToCloneSyncPoint{numThreads};
         std::barrier postCreateVecOfPointersSyncPoint{numThreads};
@@ -620,7 +622,7 @@ public:
 
                     toClone.clear();
                     toClone.resize(numThreads);
-                    auto strong = make_SharedIntrusive<TIBase>();
+                    auto strong = make_SharedIntrusive<TIBase, false>();
                     strong->tracingCallback_ = tracingCallback;
                     std::fill(toClone.begin(), toClone.end(), strong);
                     strong.reset();
@@ -670,6 +672,113 @@ public:
     }
 
     void
+    testMultithreadedLockingWeak()
+    {
+        testcase("Multithreaded Locking Weak");
+
+        // This test creates a single shared atomic pointer that multiple thread
+        // create weak pointers from. The threads then lock the weak pointers.
+        // Both threads clear all the pointers and check that the invariants
+        // hold.
+
+        using enum TrackedState;
+
+        TIBase::ResetStatesGuard rsg{true};
+
+        std::atomic<int> destructionState{0};
+        // returns destructorRan and partialDestructorRan (in that order)
+        auto getDestructorState = [&]() -> std::pair<bool, bool> {
+            int s = destructionState.load(std::memory_order_relaxed);
+            return {(s & 1) != 0, (s & 2) != 0};
+        };
+        auto setDestructorRan = [&]() -> void {
+            destructionState.fetch_or(1, std::memory_order_acq_rel);
+        };
+        auto setPartialDeleteRan = [&]() -> void {
+            destructionState.fetch_or(2, std::memory_order_acq_rel);
+        };
+        auto tracingCallback = [&](TrackedState cur,
+                                   std::optional<TrackedState> next) {
+            using enum TrackedState;
+            auto [destructorRan, partialDeleteRan] = getDestructorState();
+            if (next == partiallyDeleted)
+            {
+                BEAST_EXPECT(!partialDeleteRan && !destructorRan);
+                setPartialDeleteRan();
+            }
+            if (next == deleted)
+            {
+                BEAST_EXPECT(!destructorRan);
+                setDestructorRan();
+            }
+        };
+        constexpr int loopIters = 2 * 1024;
+        constexpr int lockWeakLoopIters = 256;
+        constexpr int numThreads = 16;
+        SharedIntrusive<TIBase, true> toLock;
+        std::barrier loopStartSyncPoint{numThreads};
+        std::barrier postCreateToLockSyncPoint{numThreads};
+        std::barrier postLockWeakLoopSyncPoint{numThreads};
+
+        // lockAndDestroy creates weak pointers from the strong pointer
+        // and runs a loop that locks the weak pointer. At the end of the loop
+        // all the pointers are destroyed all at once.
+        auto lockAndDestroy = [&](int threadId) {
+            for (int i = 0; i < loopIters; ++i)
+            {
+                // ------ Sync Point ------
+                loopStartSyncPoint.arrive_and_wait();
+
+                // only thread 0 should reset the state
+                std::optional<TIBase::ResetStatesGuard> rsg;
+                if (threadId == 0)
+                {
+                    // threadId 0 is the genesis thread. It creates the
+                    // strong point to be locked by the other threads. This
+                    // thread will also check that the destructor ran and
+                    // clear the temporary variables.
+                    rsg.emplace(false);
+                    auto [destructorRan, partialDeleteRan] =
+                        getDestructorState();
+                    BEAST_EXPECT(!i || destructorRan);
+                    destructionState.store(0, std::memory_order_release);
+
+                    toLock = make_SharedIntrusive<TIBase, true>();
+                    toLock->tracingCallback_ = tracingCallback;
+                }
+
+                // ------ Sync Point ------
+                postCreateToLockSyncPoint.arrive_and_wait();
+
+                // Multiple threads all create a weak pointer from the same
+                // strong pointer
+                WeakIntrusive weak{toLock};
+                for (int wi = 0; wi < lockWeakLoopIters; ++wi)
+                {
+                    BEAST_EXPECT(!weak.expired());
+                    auto strong = weak.lock();
+                    BEAST_EXPECT(strong);
+                }
+
+                // ------ Sync Point ------
+                postLockWeakLoopSyncPoint.arrive_and_wait();
+
+                // Multiple threads all reset the same strong pointer
+                toLock.reset();
+            }
+        };
+        std::vector<std::jthread> threads;
+        for (int i = 0; i < numThreads; ++i)
+        {
+            threads.emplace_back(lockAndDestroy, i);
+        }
+        for (int i = 0; i < numThreads; ++i)
+        {
+            threads[i].join();
+        }
+    }
+
+    void
     run() override
     {
         testBasics();
@@ -677,7 +786,7 @@ public:
         testDestructor();
         testMultithreadedClearMixedVariant();
         testMultithreadedClearMixedUnion();
-        // TODO: locking weak
+        testMultithreadedLockingWeak();
         // TODO: test converting union pointers
     }
 };  // namespace tests

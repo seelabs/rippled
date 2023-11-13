@@ -172,16 +172,18 @@ public:
     /** Get the number of elements in each array and a pointer to the start
         of each array.
     */
-    [[nodiscard]] std::
-        tuple<std::uint8_t, SHAMapHash*, intr_ptr::SharedPtr<SHAMapTreeNode>*>
-        getHashesAndChildren() const;
+    [[nodiscard]] std::tuple<
+        std::uint8_t,
+        SHAMapHash*,
+        intr_ptr::MaybeAtomicSharedPtr<SHAMapTreeNode>*>
+    getHashesAndChildren() const;
 
     /** Get the `hashes` array */
     [[nodiscard]] SHAMapHash*
     getHashes() const;
 
     /** Get the `children` array */
-    [[nodiscard]] intr_ptr::SharedPtr<SHAMapTreeNode>*
+    [[nodiscard]] intr_ptr::MaybeAtomicSharedPtr<SHAMapTreeNode>*
     getChildren() const;
 
     /** Call the `f` callback for all 16 (branchFactor) branches - even if

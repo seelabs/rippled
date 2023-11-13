@@ -50,15 +50,17 @@ public:
 private:
     /** Opaque type that contains the `hashes` array (array of type
        `SHAMapHash`) and the `children` array (array of type
-       `intr_ptr::SharedPtr<SHAMapInnerNode>`).
+       `intr_ptr::MaybeAtomicSharedPtr<SHAMapInnerNode>`).
      */
     TaggedPointer hashesAndChildren_;
 
     std::uint32_t fullBelowGen_ = 0;
     std::uint16_t isBranch_ = 0;
 
+#ifndef SWD_LOCKLESS_INNER_NODE
     /** A bitlock for the children of this node, with one bit per child */
     mutable std::atomic<std::uint16_t> lock_ = 0;
+#endif
 
     /** Convert arrays stored in `hashesAndChildren_` so they can store the
         requested number of children.
@@ -155,9 +157,9 @@ public:
     void
     setChild(int m, intr_ptr::SharedPtr<SHAMapTreeNode> child);
 
-    template <class T>
+    template <class T, bool Atomic>
     requires std::derived_from<T, SHAMapTreeNode> void
-    shareChild(int m, SharedIntrusive<T> const& child);
+    shareChild(int m, SharedIntrusive<T, Atomic> const& child);
 
     SHAMapTreeNode*
     getChildPointer(int branch);

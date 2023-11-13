@@ -28,9 +28,10 @@
 
 namespace ripple {
 
-template <SharedIntrusiveRefCounted T>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
 template <CAdoptTag TAdoptTag>
-SharedIntrusive<T>::SharedIntrusive(T* p, TAdoptTag) noexcept : ptr_{p}
+SharedIntrusive<T, MakeAtomic>::SharedIntrusive(T* p, TAdoptTag) noexcept
+    : ptr_{p}
 {
     if constexpr (std::is_same_v<
                       TAdoptTag,
@@ -41,8 +42,8 @@ SharedIntrusive<T>::SharedIntrusive(T* p, TAdoptTag) noexcept : ptr_{p}
     }
 }
 
-template <SharedIntrusiveRefCounted T>
-SharedIntrusive<T>::SharedIntrusive(SharedIntrusive const& rhs)
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+SharedIntrusive<T, MakeAtomic>::SharedIntrusive(SharedIntrusive const& rhs)
     : ptr_{[&] {
         auto p = rhs.unsafeGetRawPtr();
         if (p)
@@ -52,10 +53,11 @@ SharedIntrusive<T>::SharedIntrusive(SharedIntrusive const& rhs)
 {
 }
 
-template <SharedIntrusiveRefCounted T>
-template <class TT>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <class TT, bool IsAtomic>
 requires std::convertible_to<TT*, T*>
-SharedIntrusive<T>::SharedIntrusive(SharedIntrusive<TT> const& rhs)
+SharedIntrusive<T, MakeAtomic>::SharedIntrusive(
+    SharedIntrusive<TT, IsAtomic> const& rhs)
     : ptr_{[&] {
         auto p = rhs.unsafeGetRawPtr();
         if (p)
@@ -65,23 +67,24 @@ SharedIntrusive<T>::SharedIntrusive(SharedIntrusive<TT> const& rhs)
 {
 }
 
-template <SharedIntrusiveRefCounted T>
-SharedIntrusive<T>::SharedIntrusive(SharedIntrusive&& rhs)
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+SharedIntrusive<T, MakeAtomic>::SharedIntrusive(SharedIntrusive&& rhs)
     : ptr_{rhs.unsafeExchange(nullptr)}
 {
 }
 
-template <SharedIntrusiveRefCounted T>
-template <class TT>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <class TT, bool IsAtomic>
 requires std::convertible_to<TT*, T*>
-SharedIntrusive<T>::SharedIntrusive(SharedIntrusive<TT>&& rhs)
+SharedIntrusive<T, MakeAtomic>::SharedIntrusive(
+    SharedIntrusive<TT, IsAtomic>&& rhs)
     : ptr_{rhs.unsafeExchange(nullptr)}
 {
 }
 
-template <SharedIntrusiveRefCounted T>
-SharedIntrusive<T>&
-SharedIntrusive<T>::operator=(SharedIntrusive const& rhs)
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+SharedIntrusive<T, MakeAtomic>&
+SharedIntrusive<T, MakeAtomic>::operator=(SharedIntrusive const& rhs)
 {
     if (this == &rhs)
         return *this;
@@ -92,29 +95,51 @@ SharedIntrusive<T>::operator=(SharedIntrusive const& rhs)
     return *this;
 }
 
-template <SharedIntrusiveRefCounted T>
-template <class TT>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <
+    class TT,
+    bool IsAtomic,
+    CAtomicBehaviorTag TBypassAtomicBehaviorTagLHS,
+    CAtomicBehaviorTag TBypassAtomicBehaviorTagRHS>
 // clang-format off
 requires std::convertible_to<TT*, T*>
     // clang-format on
-    SharedIntrusive<T>&
-    SharedIntrusive<T>::operator=(SharedIntrusive<TT> const& rhs)
+    SharedIntrusive<T, MakeAtomic>&
+    SharedIntrusive<T, MakeAtomic>::assign(
+        SharedIntrusive<TT, IsAtomic> const& rhs,
+        TBypassAtomicBehaviorTagLHS lhsTag,
+        TBypassAtomicBehaviorTagRHS rhsTag)
 {
-    if constexpr (std::is_same_v<T, TT>)
+    if constexpr (std::is_same_v<T, TT> && IsAtomic == MakeAtomic)
     {
         if (this == &rhs)
             return *this;
     }
-    auto p = rhs.unsafeGetRawPtr();
+    auto p = rhs.unsafeGetRawPtr(rhsTag);
     if (p)
         p->addStrongRef();
-    unsafeReleaseAndStore(p);
+    unsafeReleaseAndStore(p, lhsTag);
     return *this;
 }
 
-template <SharedIntrusiveRefCounted T>
-SharedIntrusive<T>&
-SharedIntrusive<T>::operator=(SharedIntrusive&& rhs)
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <class TT, bool IsAtomic>
+// clang-format off
+requires std::convertible_to<TT*, T*>
+    // clang-format on
+    SharedIntrusive<T, MakeAtomic>&
+    SharedIntrusive<T, MakeAtomic>::operator=(
+        SharedIntrusive<TT, IsAtomic> const& rhs)
+{
+    return assign(
+        rhs,
+        SharedIntrusiveNormalAtomicOpsTag{},
+        SharedIntrusiveNormalAtomicOpsTag{});
+}
+
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+SharedIntrusive<T, MakeAtomic>&
+SharedIntrusive<T, MakeAtomic>::operator=(SharedIntrusive&& rhs)
 {
     if (this == &rhs)
         return *this;
@@ -123,28 +148,50 @@ SharedIntrusive<T>::operator=(SharedIntrusive&& rhs)
     return *this;
 }
 
-template <SharedIntrusiveRefCounted T>
-template <class TT>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <
+    class TT,
+    bool IsAtomic,
+    CAtomicBehaviorTag TBypassAtomicBehaviorTagLHS,
+    CAtomicBehaviorTag TBypassAtomicBehaviorTagRHS>
 // clang-format off
-requires std::convertible_to<TT*, T*>
+    requires std::convertible_to<TT*, T*>
     // clang-format on
-    SharedIntrusive<T>&
-    SharedIntrusive<T>::operator=(SharedIntrusive<TT>&& rhs)
+    SharedIntrusive<T, MakeAtomic>&
+    SharedIntrusive<T, MakeAtomic>::assign(
+        SharedIntrusive<TT, IsAtomic>&& rhs,
+        TBypassAtomicBehaviorTagLHS lhsTag,
+        TBypassAtomicBehaviorTagRHS rhsTag)
 {
-    if constexpr (std::is_same_v<T, TT>)
+    if constexpr (std::is_same_v<T, TT> && IsAtomic == MakeAtomic)
     {
         if (this == &rhs)
             return *this;
     }
 
-    unsafeReleaseAndStore(rhs.unsafeExchange(nullptr));
+    unsafeReleaseAndStore(rhs.unsafeExchange(nullptr, rhsTag), lhsTag);
     return *this;
 }
 
-template <SharedIntrusiveRefCounted T>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <class TT, bool IsAtomic>
+// clang-format off
+requires std::convertible_to<TT*, T*>
+    // clang-format on
+    SharedIntrusive<T, MakeAtomic>&
+    SharedIntrusive<T, MakeAtomic>::operator=(
+        SharedIntrusive<TT, IsAtomic>&& rhs)
+{
+    return assign(
+        std::move(rhs),
+        SharedIntrusiveNormalAtomicOpsTag{},
+        SharedIntrusiveNormalAtomicOpsTag{});
+}
+
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
 template <CAdoptTag TAdoptTag>
 void
-SharedIntrusive<T>::adopt(T* p)
+SharedIntrusive<T, MakeAtomic>::adopt(T* p)
 {
     if constexpr (std::is_same_v<
                       TAdoptTag,
@@ -156,17 +203,17 @@ SharedIntrusive<T>::adopt(T* p)
     unsafeReleaseAndStore(p);
 }
 
-template <SharedIntrusiveRefCounted T>
-SharedIntrusive<T>::~SharedIntrusive()
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+SharedIntrusive<T, MakeAtomic>::~SharedIntrusive()
 {
-    unsafeReleaseAndStore(nullptr);
+    unsafeReleaseAndStore(nullptr, SharedIntrusiveBypassAtomicOpsTag{});
 };
 
-template <SharedIntrusiveRefCounted T>
-template <SharedIntrusiveRefCounted TT>
-SharedIntrusive<T>::SharedIntrusive(
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <SharedIntrusiveRefCounted TT, bool IsAtomic>
+SharedIntrusive<T, MakeAtomic>::SharedIntrusive(
     StaticCastTagSharedIntrusive,
-    SharedIntrusive<TT> const& rhs)
+    SharedIntrusive<TT, IsAtomic> const& rhs)
     : ptr_{[&] {
         auto p = static_cast<T*>(rhs.unsafeGetRawPtr());
         if (p)
@@ -176,20 +223,20 @@ SharedIntrusive<T>::SharedIntrusive(
 {
 }
 
-template <SharedIntrusiveRefCounted T>
-template <SharedIntrusiveRefCounted TT>
-SharedIntrusive<T>::SharedIntrusive(
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <SharedIntrusiveRefCounted TT, bool IsAtomic>
+SharedIntrusive<T, MakeAtomic>::SharedIntrusive(
     StaticCastTagSharedIntrusive,
-    SharedIntrusive<TT>&& rhs)
+    SharedIntrusive<TT, IsAtomic>&& rhs)
     : ptr_{static_cast<T*>(rhs.unsafeExchange(nullptr))}
 {
 }
 
-template <SharedIntrusiveRefCounted T>
-template <SharedIntrusiveRefCounted TT>
-SharedIntrusive<T>::SharedIntrusive(
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <SharedIntrusiveRefCounted TT, bool IsAtomic>
+SharedIntrusive<T, MakeAtomic>::SharedIntrusive(
     DynamicCastTagSharedIntrusive,
-    SharedIntrusive<TT> const& rhs)
+    SharedIntrusive<TT, IsAtomic> const& rhs)
     : ptr_{[&] {
         auto p = dynamic_cast<T*>(rhs.unsafeGetRawPtr());
         if (p)
@@ -199,11 +246,11 @@ SharedIntrusive<T>::SharedIntrusive(
 {
 }
 
-template <SharedIntrusiveRefCounted T>
-template <SharedIntrusiveRefCounted TT>
-SharedIntrusive<T>::SharedIntrusive(
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <SharedIntrusiveRefCounted TT, bool IsAtomic>
+SharedIntrusive<T, MakeAtomic>::SharedIntrusive(
     DynamicCastTagSharedIntrusive,
-    SharedIntrusive<TT>&& rhs)
+    SharedIntrusive<TT, IsAtomic>&& rhs)
 {
     auto toSet = rhs.unsafeExchange(nullptr);
     if (toSet)
@@ -215,75 +262,113 @@ SharedIntrusive<T>::SharedIntrusive(
     }
 }
 
-template <SharedIntrusiveRefCounted T>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
 T&
-SharedIntrusive<T>::operator*() const noexcept
+SharedIntrusive<T, MakeAtomic>::operator*() const noexcept
 {
     return *unsafeGetRawPtr();
 }
 
-template <SharedIntrusiveRefCounted T>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
 T*
-SharedIntrusive<T>::operator->() const noexcept
+SharedIntrusive<T, MakeAtomic>::operator->() const noexcept
 {
     return unsafeGetRawPtr();
 }
 
-template <SharedIntrusiveRefCounted T>
-SharedIntrusive<T>::operator bool() const noexcept
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+SharedIntrusive<T, MakeAtomic>::operator bool() const noexcept
 {
     return bool(unsafeGetRawPtr());
 }
 
-template <SharedIntrusiveRefCounted T>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <CAtomicBehaviorTag TAtomicTag>
 void
-SharedIntrusive<T>::reset()
+SharedIntrusive<T, MakeAtomic>::reset(TAtomicTag tag)
 {
-    unsafeReleaseAndStore(nullptr);
+    unsafeReleaseAndStore(nullptr, tag);
 }
 
-template <SharedIntrusiveRefCounted T>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <CAtomicBehaviorTag TAtomicTag>
 T*
-SharedIntrusive<T>::get() const
+SharedIntrusive<T, MakeAtomic>::get(TAtomicTag tag) const
 {
-    return unsafeGetRawPtr();
+    return unsafeGetRawPtr(tag);
 }
 
-template <SharedIntrusiveRefCounted T>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
 std::size_t
-SharedIntrusive<T>::use_count() const
+SharedIntrusive<T, MakeAtomic>::use_count() const
 {
     if (auto p = unsafeGetRawPtr())
         return p->use_count();
     return 0;
 }
 
-template <SharedIntrusiveRefCounted T>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <CAtomicBehaviorTag TAtomicTag>
 T*
-SharedIntrusive<T>::unsafeGetRawPtr() const
+SharedIntrusive<T, MakeAtomic>::unsafeGetRawPtr(TAtomicTag tag) const
 {
-    return ptr_;
+    if constexpr (
+        MakeAtomic &&
+        !std::is_same_v<TAtomicTag, SharedIntrusiveBypassAtomicOpsTag>)
+    {
+        std::atomic_ref wrapped{ptr_};
+        return wrapped.load(std::memory_order_acquire);
+    }
+    else
+    {
+        return ptr_;
+    }
 }
 
-template <SharedIntrusiveRefCounted T>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <CAtomicBehaviorTag TAtomicTag>
 void
-SharedIntrusive<T>::unsafeSetRawPtr(T* p)
+SharedIntrusive<T, MakeAtomic>::unsafeSetRawPtr(T* p, TAtomicTag tag)
 {
-    ptr_ = p;
+    if constexpr (
+        MakeAtomic &&
+        !std::is_same_v<TAtomicTag, SharedIntrusiveBypassAtomicOpsTag>)
+    {
+        std::atomic_ref wrapped{ptr_};
+        wrapped.store(p, std::memory_order_release);
+    }
+    else
+    {
+        ptr_ = p;
+    }
 }
 
-template <SharedIntrusiveRefCounted T>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <CAtomicBehaviorTag TAtomicTag>
 T*
-SharedIntrusive<T>::unsafeExchange(T* p)
+SharedIntrusive<T, MakeAtomic>::unsafeExchange(T* p, TAtomicTag tag)
 {
-    return std::exchange(ptr_, p);
+    if constexpr (
+        MakeAtomic &&
+        !std::is_same_v<TAtomicTag, SharedIntrusiveBypassAtomicOpsTag>)
+    {
+        std::atomic_ref wrapped{ptr_};
+        return wrapped.exchange(p, std::memory_order_acq_rel);
+    }
+    else
+    {
+        return std::exchange(ptr_, p);
+    }
 }
 
-template <SharedIntrusiveRefCounted T>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
+template <CAtomicBehaviorTag TAtomicBehavior>
 void
-SharedIntrusive<T>::unsafeReleaseAndStore(T* next)
+SharedIntrusive<T, MakeAtomic>::unsafeReleaseAndStore(
+    T* next,
+    TAtomicBehavior tag)
 {
-    auto prev = unsafeExchange(next);
+    auto prev = unsafeExchange(next, tag);
     if (!prev)
         return;
 
@@ -320,20 +405,27 @@ WeakIntrusive<T>::WeakIntrusive(WeakIntrusive&& rhs) : ptr_{rhs.ptr_}
 }
 
 template <SharedIntrusiveRefCounted T>
-WeakIntrusive<T>::WeakIntrusive(SharedIntrusive<T> const& rhs)
+template <bool IsAtomic>
+WeakIntrusive<T>::WeakIntrusive(SharedIntrusive<T, IsAtomic> const& rhs)
     : ptr_{rhs.unsafeGetRawPtr()}
 {
     if (ptr_)
         ptr_->addWeakRef();
 }
 
+// Note: there is no move constructor from a strong intrusive ptr. Moving
+// would be move expensive than copying in this case (the strong ref would
+// need to be decremented)
+// template <bool IsAtomic>
+// WeakIntrusive(SharedIntrusive<T, IsAtomic> const&& rhs);
+
 template <SharedIntrusiveRefCounted T>
-template <class TT>
+template <class TT, bool IsAtomic>
 // clang-format off
 requires std::convertible_to<TT*, T*>
     // clang-format on
     WeakIntrusive<T>&
-    WeakIntrusive<T>::operator=(SharedIntrusive<TT> const& rhs)
+    WeakIntrusive<T>::operator=(SharedIntrusive<TT, IsAtomic> const& rhs)
 {
     unsafeReleaseNoStore();
     auto p = rhs.unsafeGetRawPtr();
@@ -359,12 +451,13 @@ WeakIntrusive<T>::~WeakIntrusive()
 }
 
 template <SharedIntrusiveRefCounted T>
-SharedIntrusive<T>
+SharedIntrusive<T, false>
 WeakIntrusive<T>::lock() const
 {
     if (ptr_ && ptr_->checkoutStrongRefFromWeak())
     {
-        return SharedIntrusive<T>{ptr_, SharedIntrusiveAdoptNoIncrementTag{}};
+        return SharedIntrusive<T, false>{
+            ptr_, SharedIntrusiveAdoptNoIncrementTag{}};
     }
     return {};
 }
@@ -429,9 +522,9 @@ SharedWeakUnion<T>::SharedWeakUnion(SharedWeakUnion const& rhs) : tp_{rhs.tp_}
 }
 
 template <SharedIntrusiveRefCounted T>
-template <class TT>
+template <class TT, bool IsAtomic>
 requires std::convertible_to<TT*, T*>
-SharedWeakUnion<T>::SharedWeakUnion(SharedIntrusive<TT> const& rhs)
+SharedWeakUnion<T>::SharedWeakUnion(SharedIntrusive<TT, IsAtomic> const& rhs)
 {
     auto p = rhs.unsafeGetRawPtr();
     if (p)
@@ -446,9 +539,9 @@ SharedWeakUnion<T>::SharedWeakUnion(SharedWeakUnion&& rhs) : tp_{rhs.tp_}
 }
 
 template <SharedIntrusiveRefCounted T>
-template <class TT>
+template <class TT, bool IsAtomic>
 requires std::convertible_to<TT*, T*>
-SharedWeakUnion<T>::SharedWeakUnion(SharedIntrusive<TT>&& rhs)
+SharedWeakUnion<T>::SharedWeakUnion(SharedIntrusive<TT, IsAtomic>&& rhs)
 {
     auto p = rhs.unsafeGetRawPtr();
     if (p)
@@ -485,12 +578,12 @@ SharedWeakUnion<T>::operator=(SharedWeakUnion const& rhs)
 }
 
 template <SharedIntrusiveRefCounted T>
-template <class TT>
+template <class TT, bool IsAtomic>
 // clang-format off
 requires std::convertible_to<TT*, T*>
     // clang-format on
     SharedWeakUnion<T>&
-    SharedWeakUnion<T>::operator=(SharedIntrusive<TT> const& rhs)
+    SharedWeakUnion<T>::operator=(SharedIntrusive<TT, IsAtomic> const& rhs)
 {
     unsafeReleaseNoStore();
     auto p = rhs.unsafeGetRawPtr();
@@ -501,12 +594,12 @@ requires std::convertible_to<TT*, T*>
 }
 
 template <SharedIntrusiveRefCounted T>
-template <class TT>
+template <class TT, bool IsAtomic>
 // clang-format off
 requires std::convertible_to<TT*, T*>
     // clang-format on
     SharedWeakUnion<T>&
-    SharedWeakUnion<T>::operator=(SharedIntrusive<TT>&& rhs)
+    SharedWeakUnion<T>::operator=(SharedIntrusive<TT, IsAtomic>&& rhs)
 {
     unsafeReleaseNoStore();
     unsafeSetRawPtr(rhs.unsafeGetRawPtr(), /*isStrong*/ true);
@@ -523,10 +616,10 @@ SharedWeakUnion<T>::~SharedWeakUnion()
 // Return a strong pointer if this is already a strong pointer (i.e. don't
 // lock the weak pointer. Use the `lock` method if that's what's needed)
 template <SharedIntrusiveRefCounted T>
-SharedIntrusive<T>
+SharedIntrusive<T, false>
 SharedWeakUnion<T>::getStrong() const
 {
-    SharedIntrusive<T> result;
+    SharedIntrusive<T, false> result;
     auto p = unsafeGetRawPtr();
     if (p && isStrong())
     {
@@ -574,10 +667,10 @@ SharedWeakUnion<T>::expired() const
 }
 
 template <SharedIntrusiveRefCounted T>
-SharedIntrusive<T>
+SharedIntrusive<T, false>
 SharedWeakUnion<T>::lock() const
 {
-    SharedIntrusive<T> result;
+    SharedIntrusive<T, false> result;
     auto p = unsafeGetRawPtr();
     if (!p)
         return result;

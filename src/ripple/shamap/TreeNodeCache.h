@@ -31,7 +31,7 @@ using TreeNodeCache = TaggedCache<
     SHAMapTreeNode,
     /*IsKeyCache*/ false,
     SharedWeakUnion<SHAMapTreeNode>,
-    SharedIntrusive<SHAMapTreeNode>>;
+    SharedIntrusive<SHAMapTreeNode, false>>;
 
 }  // namespace ripple
 

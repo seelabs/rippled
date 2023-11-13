@@ -24,11 +24,17 @@
 // The ref counts are kept on the tree pointers themselves
 // I.e. this is an intrusive pointer type.
 
+#include <atomic>
 #include <cassert>
 #include <concepts>
 #include <cstdint>
 #include <type_traits>
-#include <utility>
+
+// TODO: Remove me
+// This is a temporary directive to enable or disable lockless inner nodes. The
+// mutexes on the inner nodes can (likely) go away, but we need to audit the
+// code carefully before we enable that.
+#define SWD_LOCKLESS_INNER_NODE
 
 namespace ripple {
 
@@ -86,19 +92,39 @@ struct SharedIntrusiveAdoptNoIncrementTag
 {
 };
 
+/** Perform operations in a non-atomic way, even the pointer is designated as
+    an atomic pointer. This is useful for some optimization where an atomic
+    operation is not needed (especially in SHAMapInnerNode)
+ */
+struct SharedIntrusiveBypassAtomicOpsTag
+{
+};
+
+/** Perform operations without bypassing the atomic ops (useful for generic
+    functions).
+ */
+struct SharedIntrusiveNormalAtomicOpsTag
+{
+};
+
 //------------------------------------------------------------------------------
 //
-
 // clang-format off
 template <class T>
 concept CAdoptTag =
     std::is_same_v<T, SharedIntrusiveAdoptIncrementStrongTag> ||
     std::is_same_v<T, SharedIntrusiveAdoptNoIncrementTag>;
+
+template<class T>
+concept CAtomicBehaviorTag =
+    std::is_same_v<T, SharedIntrusiveBypassAtomicOpsTag> ||
+    std::is_same_v<T, SharedIntrusiveNormalAtomicOpsTag>;
 // clang-format on
 
 //------------------------------------------------------------------------------
 
-/** A shared intrusive pointer class that supports weak pointers.
+/** A shared intrusive pointer class that supports weak pointers and optional
+    atomic operations.
 
     This is meant to be used for SHAMapInnerNodes, but may be useful for other
     cases. Since the reference counts are stored on the pointee, the pointee is
@@ -112,7 +138,7 @@ concept CAdoptTag =
     typically allocate shared pointers with the `make_shared` function. When
     that is used, the memory is not reclaimed until the weak count reaches zero.
 */
-template <SharedIntrusiveRefCounted T>
+template <SharedIntrusiveRefCounted T, bool MakeAtomic>
 class SharedIntrusive
 {
 public:
@@ -121,39 +147,80 @@ public:
     template <CAdoptTag TAdoptTag>
     SharedIntrusive(T* p, TAdoptTag) noexcept;
 
+    // Note: Not thread safe. rhs must not change (even if it is atomic).
     SharedIntrusive(SharedIntrusive const& rhs);
 
-    template <class TT>
+    // Note: Not thread safe. rhs must not change (even if it is atomic).
+    template <class TT, bool IsAtomic>
     requires std::convertible_to<TT*, T*>
-    SharedIntrusive(SharedIntrusive<TT> const& rhs);
+    SharedIntrusive(SharedIntrusive<TT, IsAtomic> const& rhs);
 
     SharedIntrusive(SharedIntrusive&& rhs);
 
-    template <class TT>
+    template <class TT, bool IsAtomic>
     requires std::convertible_to<TT*, T*>
-    SharedIntrusive(SharedIntrusive<TT>&& rhs);
+    SharedIntrusive(SharedIntrusive<TT, IsAtomic>&& rhs);
 
-    // TODO: Can I remove this and just use the one below?
+    // Note: This is thread safe for this object, but rhs must not change during
+    // this function (even if it is an atomic).
     SharedIntrusive&
     operator=(SharedIntrusive const& rhs);
 
-    template <class TT>
+    // Note: This is thread safe for this object, but rhs must not change during
+    // this function (even if it is an atomic).
+    template <class TT, bool IsAtomic>
     // clang-format off
     requires std::convertible_to<TT*, T*>
         // clang-format on
-        SharedIntrusive&
-        operator=(SharedIntrusive<TT> const& rhs);
 
-    // TODO: Can I remove this and just use the one below?
+        SharedIntrusive&
+        operator=(SharedIntrusive<TT, IsAtomic> const& rhs);
+
     SharedIntrusive&
     operator=(SharedIntrusive&& rhs);
 
-    template <class TT>
+    template <class TT, bool IsAtomic>
     // clang-format off
     requires std::convertible_to<TT*, T*>
         // clang-format on
         SharedIntrusive&
-        operator=(SharedIntrusive<TT>&& rhs);
+        operator=(SharedIntrusive<TT, IsAtomic>&& rhs);
+
+    /** Assign to this object, optionally bypassing atomic operations
+        Note: This is thread safe for this object, but rhs must not change
+        during this function (even if it is an atomic).
+    */
+    template <
+        class TT,
+        bool IsAtomic,
+        CAtomicBehaviorTag TBypassAtomicBehaviorTagLHS,
+        CAtomicBehaviorTag TBypassAtomicBehaviorTagRHS>
+    // clang-format off
+    requires std::convertible_to<TT*, T*>
+        // clang-format on
+        SharedIntrusive&
+        assign(
+            SharedIntrusive<TT, IsAtomic> const& rhs,
+            TBypassAtomicBehaviorTagLHS,
+            TBypassAtomicBehaviorTagRHS);
+
+    /** Assign to this object, optionally bypassing atomic operations
+        Note: This is thread safe for this object, but rhs must not change
+        during this function (even if it is an atomic).
+    */
+    template <
+        class TT,
+        bool IsAtomic,
+        CAtomicBehaviorTag TBypassAtomicBehaviorTagLHS,
+        CAtomicBehaviorTag TBypassAtomicBehaviorTagRHS>
+    // clang-format off
+    requires std::convertible_to<TT*, T*>
+        // clang-format on
+        SharedIntrusive&
+        assign(
+            SharedIntrusive<TT, IsAtomic>&& rhs,
+            TBypassAtomicBehaviorTagLHS,
+            TBypassAtomicBehaviorTagRHS);
 
     /** Adopt the raw pointer. The strong reference may or may not be
         incremented, depending on the TAdoptTag
@@ -166,35 +233,47 @@ public:
 
     /** Create a new SharedIntrusive by statically casting the pointer
         controlled by the rhs param.
+
+        Note: Not thread safe. rhs must not change (even if it is atomic).
     */
-    template <SharedIntrusiveRefCounted TT>
+    template <SharedIntrusiveRefCounted TT, bool IsAtomic>
     SharedIntrusive(
         StaticCastTagSharedIntrusive,
-        SharedIntrusive<TT> const& rhs);
+        SharedIntrusive<TT, IsAtomic> const& rhs);
 
     /** Create a new SharedIntrusive by statically casting the pointer
        controlled by the rhs param.
     */
-    template <SharedIntrusiveRefCounted TT>
-    SharedIntrusive(StaticCastTagSharedIntrusive, SharedIntrusive<TT>&& rhs);
+    template <SharedIntrusiveRefCounted TT, bool IsAtomic>
+    SharedIntrusive(
+        StaticCastTagSharedIntrusive,
+        SharedIntrusive<TT, IsAtomic>&& rhs);
 
     /** Create a new SharedIntrusive by dynamically casting the pointer
        controlled by the rhs param.
+
+        Note: Not thread safe. rhs must not change (even if it is atomic).
     */
-    template <SharedIntrusiveRefCounted TT>
+    template <SharedIntrusiveRefCounted TT, bool IsAtomic>
     SharedIntrusive(
         DynamicCastTagSharedIntrusive,
-        SharedIntrusive<TT> const& rhs);
+        SharedIntrusive<TT, IsAtomic> const& rhs);
 
     /** Create a new SharedIntrusive by dynamically casting the pointer
        controlled by the rhs param.
-    */
-    template <SharedIntrusiveRefCounted TT>
-    SharedIntrusive(DynamicCastTagSharedIntrusive, SharedIntrusive<TT>&& rhs);
 
+       Note: Not thread safe. rhs must not change (even if it is atomic).
+    */
+    template <SharedIntrusiveRefCounted TT, bool IsAtomic>
+    SharedIntrusive(
+        DynamicCastTagSharedIntrusive,
+        SharedIntrusive<TT, IsAtomic>&& rhs);
+
+    // Note: Not thread safe. T must not be destroyed.
     T&
     operator*() const noexcept;
 
+    // Note: Not thread safe. T must not be destroyed.
     T*
     operator->() const noexcept;
 
@@ -203,48 +282,66 @@ public:
     /** Set the pointer to null, decrement the strong count, and run the
         appropriate release action.
       */
+    template <CAtomicBehaviorTag TAtomicTag = SharedIntrusiveNormalAtomicOpsTag>
     void
-    reset();
+    reset(TAtomicTag tag = {});
 
-    /** Get the raw pointer */
+    /** Get the raw pointer
+        Note: Not thread safe. T must not be destroyed.
+    */
+    template <CAtomicBehaviorTag TAtomicTag = SharedIntrusiveNormalAtomicOpsTag>
     T*
-    get() const;
+    get(TAtomicTag tag = {}) const;
 
     /** Return the strong count */
     std::size_t
     use_count() const;
 
-    template <SharedIntrusiveRefCounted TT, class... Args>
-    friend SharedIntrusive<TT>
+    template <SharedIntrusiveRefCounted TT, bool IsAtomic, class... Args>
+    friend SharedIntrusive<TT, IsAtomic>
     make_SharedIntrusive(Args&&... args);
 
-    /** Return the raw pointer held by this object. */
+    /** Return the raw pointer held by this object.
+        Note: Not thread safe. T must not be destroyed.
+     */
+    template <CAtomicBehaviorTag TAtomicTag = SharedIntrusiveNormalAtomicOpsTag>
     T*
-    unsafeGetRawPtr() const;
+    unsafeGetRawPtr(TAtomicTag tag = {}) const;
 
     /** Exchange the current raw pointer held by this object with the given
         pointer. Decrement the strong count of the raw pointer previously held
         by this object and run the appropriate release action.
      */
+    template <
+        CAtomicBehaviorTag TAtomicBehavior = SharedIntrusiveNormalAtomicOpsTag>
     void
-    unsafeReleaseAndStore(T* next);
+    unsafeReleaseAndStore(T* next, TAtomicBehavior tag = {});
 
     /** Set the raw pointer directly. This is wrapped in a function so the class
-        can support both atomic and non-atomic pointers in a future patch.
+        can support both atomic and non-atomic pointers.
      */
+    template <CAtomicBehaviorTag TAtomicTag = SharedIntrusiveNormalAtomicOpsTag>
     void
-    unsafeSetRawPtr(T* p);
+    unsafeSetRawPtr(T* p, TAtomicTag tag = {});
 
     /** Exchange the raw pointer directly.
         This sets the raw pointer to the given value and returns the previous
         value. This is wrapped in a function so the class can support both
-        atomic and non-atomic pointers in a future patch.
+        atomic and non-atomic pointers.
      */
+    template <CAtomicBehaviorTag TAtomicTag = SharedIntrusiveNormalAtomicOpsTag>
     T*
-    unsafeExchange(T* p);
+    unsafeExchange(T* p, TAtomicTag tag = {});
 
 private:
-    /** pointer to the type with an intrusive count */
+    /** pointer to the type with an intrusive count
+
+        ptr_ will be wrapped in an atomic_ref when the `MakeAtomic` parameter is
+        true. The class does not use a construct like:
+        using PointerType = std::conditional_t<MakeAtomic, std::atomic<T*>, T*>;
+        because it is useful to provide non-atomic operations in some special
+        circumstances for performance reasons (this is used in SHAMapInnerNode)
+      */
     T* ptr_{nullptr};
 };
 
@@ -266,16 +363,18 @@ public:
 
     WeakIntrusive(WeakIntrusive&& rhs);
 
-    WeakIntrusive(SharedIntrusive<T> const& rhs);
+    template <bool IsAtomic>
+    WeakIntrusive(SharedIntrusive<T, IsAtomic> const& rhs);
 
     // There is no move constructor from a strong intrusive ptr because
     // moving would be move expensive than copying in this case (the strong
     // ref would need to be decremented)
-    WeakIntrusive(SharedIntrusive<T> const&& rhs) = delete;
+    template <bool IsAtomic>
+    WeakIntrusive(SharedIntrusive<T, IsAtomic> const&& rhs) = delete;
 
-    template <class TT>
+    template <class TT, bool IsAtomic>
     requires std::convertible_to<TT*, T*> WeakIntrusive&
-    operator=(SharedIntrusive<TT> const& rhs);
+    operator=(SharedIntrusive<TT, IsAtomic> const& rhs);
 
     /** Adopt the raw pointer and increment the weak count. */
     void
@@ -287,7 +386,7 @@ public:
        only return a seated pointer if the strong count on the raw pointer
        is non-zero before locking.
      */
-    SharedIntrusive<T>
+    SharedIntrusive<T, false>
     lock() const;
 
     /** Return true if the strong count is zero. */
@@ -316,14 +415,14 @@ private:
 //------------------------------------------------------------------------------
 
 /** A combination of a strong and a weak intrusive pointer stored in the
-    space of a single pointer.
+   space of a single pointer.
 
     This class is similar to a `std::variant<SharedIntrusive,WeakIntrusive>`
     with some optimizations. In particular, it uses a low-order bit to
-    determine if the raw pointer represents a strong pointer or a weak
-    pointer. It can also be quickly switched between its strong pointer and
-    weak pointer representations. This class is useful for storing intrusive
-    pointers in tagged caches.
+   determine if the raw pointer represents a strong pointer or a weak
+   pointer. It can also be quickly switched between its strong pointer and
+   weak pointer representations. This class is useful for storing intrusive
+   pointers in tagged caches.
   */
 
 // TODO Better name for this
@@ -339,26 +438,26 @@ public:
 
     SharedWeakUnion(SharedWeakUnion const& rhs);
 
-    template <class TT>
+    template <class TT, bool IsAtomic>
     requires std::convertible_to<TT*, T*>
-    SharedWeakUnion(SharedIntrusive<TT> const& rhs);
+    SharedWeakUnion(SharedIntrusive<TT, IsAtomic> const& rhs);
 
     SharedWeakUnion(SharedWeakUnion&& rhs);
 
-    template <class TT>
+    template <class TT, bool IsAtomic>
     requires std::convertible_to<TT*, T*>
-    SharedWeakUnion(SharedIntrusive<TT>&& rhs);
+    SharedWeakUnion(SharedIntrusive<TT, IsAtomic>&& rhs);
 
     SharedWeakUnion&
     operator=(SharedWeakUnion const& rhs);
 
-    template <class TT>
+    template <class TT, bool IsAtomic>
     requires std::convertible_to<TT*, T*> SharedWeakUnion&
-    operator=(SharedIntrusive<TT> const& rhs);
+    operator=(SharedIntrusive<TT, IsAtomic> const& rhs);
 
-    template <class TT>
+    template <class TT, bool IsAtomic>
     requires std::convertible_to<TT*, T*> SharedWeakUnion&
-    operator=(SharedIntrusive<TT>&& rhs);
+    operator=(SharedIntrusive<TT, IsAtomic>&& rhs);
 
     ~SharedWeakUnion();
 
@@ -366,7 +465,7 @@ public:
        don't lock the weak pointer. Use the `lock` method if that's what's
        needed)
      */
-    SharedIntrusive<T>
+    SharedIntrusive<T, false>
     getStrong() const;
 
     /** Return true if this is a strong pointer and the strong pointer is
@@ -399,7 +498,7 @@ public:
     /** If this is a strong pointer, return the strong pointer. Otherwise
         attempt to lock the weak pointer.
      */
-    SharedIntrusive<T>
+    SharedIntrusive<T, false>
     lock() const;
 
     /** Return true is this represents a strong pointer. */
@@ -459,42 +558,62 @@ private:
 
 //------------------------------------------------------------------------------
 
-/** Create a shared intrusive pointer.
+/** Create a (non-atomic) shared intrusive pointer.
 
     Note: unlike std::shared_ptr, where there is an advantage of allocating
-    the pointer and control block together, there is no benefit for intrusive
+   the pointer and control block together, there is no benefit for intrusive
     pointers.
 */
-template <SharedIntrusiveRefCounted TT, class... Args>
-SharedIntrusive<TT>
+template <SharedIntrusiveRefCounted TT, bool IsAtomic, class... Args>
+SharedIntrusive<TT, IsAtomic>
 make_SharedIntrusive(Args&&... args)
 {
     auto p = new TT(std::forward<Args>(args)...);
 
     static_assert(
-        noexcept(SharedIntrusive<TT>(
+        noexcept(SharedIntrusive<TT, IsAtomic>(
             std::declval<TT*>(),
             std::declval<SharedIntrusiveAdoptNoIncrementTag>())),
         "SharedIntrusive constructor should not throw or this can leak "
         "memory");
 
-    return SharedIntrusive<TT>(p, SharedIntrusiveAdoptNoIncrementTag{});
+    return SharedIntrusive<TT, IsAtomic>(
+        p, SharedIntrusiveAdoptNoIncrementTag{});
 }
 
 //------------------------------------------------------------------------------
 
 namespace intr_ptr {
+#ifdef SWD_LOCKLESS_INNER_NODE
 template <SharedIntrusiveRefCounted T>
-using SharedPtr = SharedIntrusive<T>;
+using MaybeAtomicSharedPtr = SharedIntrusive<T, /*atomic*/ true>;
+#else
+template <SharedIntrusiveRefCounted T>
+using MaybeAtomicSharedPtr = SharedIntrusive<T, /*atomic*/ false>;
+#endif
+
+template <SharedIntrusiveRefCounted T>
+using SharedPtr = SharedIntrusive<T, /*atomic*/ false>;
 
 template <class T>
 using WeakPtr = WeakIntrusive<T>;
 
 template <class T, class... A>
+MaybeAtomicSharedPtr<T>
+make_maybe_atomic_shared(A&&... args)
+{
+#ifdef SWD_LOCKLESS_INNER_NODE
+    return make_SharedIntrusive<T, true>(std::forward<A>(args)...);
+#else
+    return make_SharedIntrusive<T, false>(std::forward<A>(args)...);
+#endif
+}
+
+template <class T, class... A>
 SharedPtr<T>
 make_shared(A&&... args)
 {
-    return make_SharedIntrusive<T>(std::forward<A>(args)...);
+    return make_SharedIntrusive<T, false>(std::forward<A>(args)...);
 }
 
 // TODO: Think about const

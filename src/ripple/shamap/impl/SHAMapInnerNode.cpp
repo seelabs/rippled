@@ -19,11 +19,13 @@
 
 #include <ripple/shamap/SHAMapInnerNode.h>
 
-#include <ripple/basics/IntrusivePointer.ipp>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/Slice.h>
 #include <ripple/basics/contract.h>
+#ifndef SWD_LOCKLESS_INNER_NODE
 #include <ripple/basics/spinlock.h>
+#endif
+#include <ripple/basics/IntrusivePointer.ipp>
 #include <ripple/beast/core/LexicalCast.h>
 #include <ripple/protocol/HashPrefix.h>
 #include <ripple/protocol/digest.h>
@@ -35,6 +37,22 @@
 #include <utility>
 
 namespace ripple {
+
+#ifdef SWD_LOCKLESS_INNER_NODE
+#define LOCK_CHILDREN
+#else
+#define LOCK_CHILDREN   \
+    spinlock sl(lock_); \
+    std::lock_guard lock(sl)
+#endif
+
+#ifdef SWD_LOCKLESS_INNER_NODE
+#define LOCK_CHILD(idx)
+#else
+#define LOCK_CHILD(idx)             \
+    packed_spinlock sl(lock_, idx); \
+    std::lock_guard lock(sl)
+#endif
 
 SHAMapInnerNode::SHAMapInnerNode(
     std::uint32_t cowid,
@@ -48,12 +66,13 @@ SHAMapInnerNode::~SHAMapInnerNode() = default;
 void
 SHAMapInnerNode::partialDestructor()
 {
-    intr_ptr::SharedPtr<SHAMapTreeNode>* children;
+    intr_ptr::MaybeAtomicSharedPtr<SHAMapTreeNode>* children;
     // structured bindings can't be captured in c++ 17; use tie instead
     std::tie(std::ignore, std::ignore, children) =
         hashesAndChildren_.getHashesAndChildren();
-    iterNonEmptyChildIndexes(
-        [&](auto branchNum, auto indexNum) { children[indexNum].reset(); });
+    iterNonEmptyChildIndexes([&](auto branchNum, auto indexNum) {
+        children[indexNum].reset(SharedIntrusiveBypassAtomicOpsTag{});
+    });
 }
 
 template <class F>
@@ -93,7 +112,7 @@ SHAMapInnerNode::clone(std::uint32_t cowid) const
     p->isBranch_ = isBranch_;
     p->fullBelowGen_ = fullBelowGen_;
     SHAMapHash *cloneHashes, *thisHashes;
-    intr_ptr::SharedPtr<SHAMapTreeNode>*cloneChildren, *thisChildren;
+    intr_ptr::MaybeAtomicSharedPtr<SHAMapTreeNode>*cloneChildren, *thisChildren;
     // structured bindings can't be captured in c++ 17; use tie instead
     std::tie(std::ignore, cloneHashes, cloneChildren) =
         p->hashesAndChildren_.getHashesAndChildren();
@@ -113,8 +132,7 @@ SHAMapInnerNode::clone(std::uint32_t cowid) const
             cloneHashes[branchNum] = thisHashes[indexNum];
         });
     }
-    spinlock sl(lock_);
-    std::lock_guard lock(sl);
+    LOCK_CHILDREN;
     if (thisIsSparse)
     {
         int cloneChildIndex = 0;
@@ -221,12 +239,13 @@ void
 SHAMapInnerNode::updateHashDeep()
 {
     SHAMapHash* hashes;
-    intr_ptr::SharedPtr<SHAMapTreeNode>* children;
+    intr_ptr::MaybeAtomicSharedPtr<SHAMapTreeNode>* children;
     // structured bindings can't be captured in c++ 17; use tie instead
     std::tie(std::ignore, hashes, children) =
         hashesAndChildren_.getHashesAndChildren();
     iterNonEmptyChildIndexes([&](auto branchNum, auto indexNum) {
-        if (auto p = children[indexNum].get())
+        if (auto p =
+                children[indexNum].get(SharedIntrusiveBypassAtomicOpsTag{}))
             hashes[indexNum] = p->getHash();
     });
     updateHash();
@@ -308,7 +327,11 @@ SHAMapInnerNode::setChild(int m, intr_ptr::SharedPtr<SHAMapTreeNode> child)
         auto const childIndex = *getChildIndex(m);
         auto [_, hashes, children] = hashesAndChildren_.getHashesAndChildren();
         hashes[childIndex].zero();
-        children[childIndex] = std::move(child);
+        children[childIndex].assign(
+            std::move(child),
+            SharedIntrusiveBypassAtomicOpsTag{},
+            // TODO: It's possible this atomic op could be bypassed.
+            SharedIntrusiveNormalAtomicOpsTag{});
     }
 
     hash_.zero();
@@ -317,9 +340,9 @@ SHAMapInnerNode::setChild(int m, intr_ptr::SharedPtr<SHAMapTreeNode> child)
 }
 
 // finished modifying, now make shareable
-template <class T>
+template <class T, bool Atomic>
 requires std::derived_from<T, SHAMapTreeNode> void
-SHAMapInnerNode::shareChild(int m, SharedIntrusive<T> const& child)
+SHAMapInnerNode::shareChild(int m, SharedIntrusive<T, Atomic> const& child)
 {
     assert((m >= 0) && (m < branchFactor));
     assert(cowid_ != 0);
@@ -327,7 +350,11 @@ SHAMapInnerNode::shareChild(int m, SharedIntrusive<T> const& child)
     assert(child.get() != this);
 
     assert(!isEmptyBranch(m));
-    hashesAndChildren_.getChildren()[*getChildIndex(m)] = child;
+    hashesAndChildren_.getChildren()[*getChildIndex(m)].assign(
+        child,
+        SharedIntrusiveBypassAtomicOpsTag{},
+        // TODO: It's possible this atomic op could be bypassed.
+        SharedIntrusiveNormalAtomicOpsTag{});
 }
 
 SHAMapTreeNode*
@@ -337,8 +364,7 @@ SHAMapInnerNode::getChildPointer(int branch)
     assert(!isEmptyBranch(branch));
 
     auto const index = *getChildIndex(branch);
-    packed_spinlock sl(lock_, index);
-    std::lock_guard lock(sl);
+    LOCK_CHILD(index);
     return hashesAndChildren_.getChildren()[index].get();
 }
 
@@ -350,8 +376,7 @@ SHAMapInnerNode::getChild(int branch)
 
     auto const index = *getChildIndex(branch);
 
-    spinlock sl(lock_);
-    std::lock_guard lock(sl);
+    LOCK_CHILDREN;
     return hashesAndChildren_.getChildren()[index];
 }
 
@@ -377,8 +402,7 @@ SHAMapInnerNode::canonicalizeChild(
     auto [_, hashes, children] = hashesAndChildren_.getHashesAndChildren();
     assert(node->getHash() == hashes[childIndex]);
 
-    packed_spinlock sl(lock_, childIndex);
-    std::lock_guard lock(sl);
+    LOCK_CHILD(childIndex);
 
     if (children[childIndex])
     {
@@ -406,7 +430,7 @@ SHAMapInnerNode::invariants(bool is_root) const
         for (int i = 0; i < branchCount; ++i)
         {
             assert(hashes[i].isNonZero());
-            if (auto p = children[i].get())
+            if (auto p = children[i].get(SharedIntrusiveBypassAtomicOpsTag{}))
                 p->invariants();
             ++count;
         }
@@ -418,7 +442,8 @@ SHAMapInnerNode::invariants(bool is_root) const
             if (hashes[i].isNonZero())
             {
                 assert((isBranch_ & (1 << i)) != 0);
-                if (auto p = children[i].get())
+                if (auto p =
+                        children[i].get(SharedIntrusiveBypassAtomicOpsTag{}))
                     p->invariants();
                 ++count;
             }
@@ -438,13 +463,13 @@ SHAMapInnerNode::invariants(bool is_root) const
 }
 
 template void
-ripple::SHAMapInnerNode::shareChild<ripple::SHAMapTreeNode>(
+ripple::SHAMapInnerNode::shareChild<ripple::SHAMapTreeNode, false>(
     int,
-    ripple::SharedIntrusive<ripple::SHAMapTreeNode> const&);
+    ripple::SharedIntrusive<ripple::SHAMapTreeNode, false> const&);
 
 template void
-ripple::SHAMapInnerNode::shareChild<ripple::SHAMapInnerNode>(
+ripple::SHAMapInnerNode::shareChild<ripple::SHAMapInnerNode, false>(
     int,
-    ripple::SharedIntrusive<ripple::SHAMapInnerNode> const&);
+    ripple::SharedIntrusive<ripple::SHAMapInnerNode, false> const&);
 
 }  // namespace ripple
