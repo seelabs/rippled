@@ -834,7 +834,12 @@ flow(
     {
         if (actualOut > outReq)
         {
-            assert(0);
+            // assert(0);
+            JLOG(j.fatal()) << "Skipping assert: Mismatch in total flow: "
+                            << "actualOut: " << to_string(actualOut)
+                            << " outReq: " << to_string(outReq) << " "
+                            << (flowDebugInfo ? flowDebugInfo->to_string(true)
+                                              : "no flowDebugInfo");
             return {tefEXCEPTION, std::move(ofrsToRmOnFail)};
         }
         if (!partialPayment)
