@@ -491,9 +491,6 @@ public:
               config_->reporting() ? std::make_unique<ReportingETL>(*this)
                                    : nullptr)
     {
-        JLOG(m_journal.fatal()) << "xyzzy app:\n"
-                                << boost::stacktrace::stacktrace();
-
         initAccountIdCache(config_->getValueFor(SizedItem::accountIdCacheSize));
 
         add(m_resourceManager.get());

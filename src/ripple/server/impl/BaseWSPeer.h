@@ -67,19 +67,35 @@ private:
         control_callback_;
 
     std::atomic<int> closeCounter{0};
-    boost::stacktrace::stacktrace closeTrace;
+    struct StackInfo
+    {
+        int type;
+        bool doClose;
+        std::size_t queueSize;
+        boost::stacktrace::stacktrace stack;
+
+        void
+        LogMe(beast::Journal j) const
+        {
+            JLOG(j.fatal()) << "type: " << type << "doClose: " << doClose
+                            << "queueSize: " << queueSize << "stack:\n"
+                            << stack;
+        }
+    };
+
+    std::vector<StackInfo> closeTraces;
     void
     checkAsyncClose()
     {
         if (closeCounter.fetch_add(1, std::memory_order_relaxed))
         {
-            JLOG(this->j_.fatal()) << "xyzzy cur:\n" << closeTrace;
-            JLOG(this->j_.fatal()) << "xyzzy pre:\n"
-                                   << boost::stacktrace::stacktrace();
-        }
-        else
-        {
-            closeTrace = boost::stacktrace::stacktrace();
+            int index = 0;
+            for (auto const& t : closeTraces)
+            {
+                JLOG(this->j_.fatal()) << "xyzzy: " << index;
+                t.LogMe(this->j_);
+                ++index;
+            }
         }
     }
 
@@ -273,12 +289,18 @@ BaseWSPeer<Handler, Impl>::close(
     boost::beast::websocket::close_reason const& reason)
 {
     if (!strand_.running_in_this_thread())
+    {
+        closeTraces.push_back(
+            {0, do_close_, wq_.size(), boost::stacktrace::stacktrace()});
         return post(strand_, [self = impl().shared_from_this(), reason] {
             self->close(reason);
         });
+    }
     do_close_ = true;
     if (wq_.empty())
     {
+        closeTraces.push_back(
+            {1, do_close_, wq_.size(), boost::stacktrace::stacktrace()});
         checkAsyncClose();
         impl().ws_.async_close(
             reason,
@@ -370,6 +392,8 @@ BaseWSPeer<Handler, Impl>::on_write_fin(error_code const& ec)
     wq_.pop_front();
     if (do_close_)
     {
+        closeTraces.push_back(
+            {2, do_close_, wq_.size(), boost::stacktrace::stacktrace()});
         checkAsyncClose();
         impl().ws_.async_close(
             cr_,
