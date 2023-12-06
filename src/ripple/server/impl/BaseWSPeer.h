@@ -26,9 +26,12 @@
 #include <ripple/protocol/BuildInfo.h>
 #include <ripple/server/impl/BasePeer.h>
 #include <ripple/server/impl/LowestLayer.h>
+
 #include <boost/beast/core/multi_buffer.hpp>
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/websocket.hpp>
+#include <boost/stacktrace.hpp>
+
 #include <cassert>
 #include <functional>
 
@@ -62,6 +65,23 @@ private:
     std::function<
         void(boost::beast::websocket::frame_type, boost::beast::string_view)>
         control_callback_;
+
+    std::atomic<int> closeCounter{0};
+    boost::stacktrace::stacktrace closeTrace;
+    void
+    checkAsyncClose()
+    {
+        if (closeCounter.fetch_add(1, std::memory_order_relaxed))
+        {
+            JLOG(this->j_.fatal()) << "xyzzy cur:\n" << closeTrace;
+            JLOG(this->j_.fatal()) << "xyzzy pre:\n"
+                                   << boost::stacktrace::stacktrace();
+        }
+        else
+        {
+            closeTrace = boost::stacktrace::stacktrace();
+        }
+    }
 
 public:
     template <class Body, class Headers>
@@ -259,6 +279,7 @@ BaseWSPeer<Handler, Impl>::close(
     do_close_ = true;
     if (wq_.empty())
     {
+        checkAsyncClose();
         impl().ws_.async_close(
             reason,
             bind_executor(
@@ -348,6 +369,8 @@ BaseWSPeer<Handler, Impl>::on_write_fin(error_code const& ec)
         return fail(ec, "write_fin");
     wq_.pop_front();
     if (do_close_)
+    {
+        checkAsyncClose();
         impl().ws_.async_close(
             cr_,
             bind_executor(
@@ -356,6 +379,7 @@ BaseWSPeer<Handler, Impl>::on_write_fin(error_code const& ec)
                     &BaseWSPeer::on_close,
                     impl().shared_from_this(),
                     std::placeholders::_1)));
+    }
     else if (!wq_.empty())
         on_write({});
 }
