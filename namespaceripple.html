@@ -413,6 +413,9 @@ Classes</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classripple_1_1csprng__engine.html">csprng_engine</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">A cryptographically secure random number engine.  <a href="classripple_1_1csprng__engine.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classripple_1_1CurrentTransactionRulesGuard.html">CurrentTransactionRulesGuard</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">RAII class to set and restore the current transaction rules.  <a href="classripple_1_1CurrentTransactionRulesGuard.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structripple_1_1DatabaseBody.html">DatabaseBody</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classripple_1_1DatabaseCon.html">DatabaseCon</a></td></tr>
@@ -4167,6 +4170,10 @@ requires requires { <a class="el" href="namespaceripple.html#afa35799caaa5a9f071
 <tr class="separator:a67869382f83fd55cf3096d2591a57b07"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a88ddae278aa600b476661629e3b930e8"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceripple.html#a88ddae278aa600b476661629e3b930e8">isRpcError</a> (<a class="el" href="classJson_1_1Value.html">Json::Value</a> jvResult)</td></tr>
 <tr class="separator:a88ddae278aa600b476661629e3b930e8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac46ee7ce49b6deed89f70a94924c416f"><td class="memItemLeft" align="right" valign="top"><a class="elRef" href="http://en.cppreference.com/w/cpp/utility/optional.html">std::optional</a>&lt; <a class="el" href="classripple_1_1Rules.html">Rules</a> &gt; const &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceripple.html#ac46ee7ce49b6deed89f70a94924c416f">getCurrentTransactionRules</a> ()</td></tr>
+<tr class="separator:ac46ee7ce49b6deed89f70a94924c416f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a322bb4a8b24b1d39b21187492409cefb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceripple.html#a322bb4a8b24b1d39b21187492409cefb">setCurrentTransactionRules</a> (<a class="elRef" href="http://en.cppreference.com/w/cpp/utility/optional.html">std::optional</a>&lt; <a class="el" href="classripple_1_1Rules.html">Rules</a> &gt; r)</td></tr>
+<tr class="separator:a322bb4a8b24b1d39b21187492409cefb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a00e18a10d625a1dd7c5fff26960a6d16"><td class="memTemplParams" colspan="2">template&lt;class  = void&gt; </td></tr>
 <tr class="memitem:a00e18a10d625a1dd7c5fff26960a6d16"><td class="memTemplItemLeft" align="right" valign="top">secp256k1_context const *&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="namespaceripple.html#a00e18a10d625a1dd7c5fff26960a6d16">secp256k1Context</a> ()</td></tr>
 <tr class="separator:a00e18a10d625a1dd7c5fff26960a6d16"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -34131,6 +34138,45 @@ template&lt;<a class="el" href="classripple_1_1STAmount.html">STAmount</a>( *Mul
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="RPCErr_8cpp_source.html#l00038">38</a> of file <a class="el" href="RPCErr_8cpp_source.html">RPCErr.cpp</a>.</p>
+
+</div>
+</div>
+<a id="ac46ee7ce49b6deed89f70a94924c416f" name="ac46ee7ce49b6deed89f70a94924c416f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac46ee7ce49b6deed89f70a94924c416f">&#9670;&#160;</a></span>getCurrentTransactionRules()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="elRef" href="http://en.cppreference.com/w/cpp/utility/optional.html">std::optional</a>&lt; <a class="el" href="classripple_1_1Rules.html">Rules</a> &gt; const  &amp; ripple::getCurrentTransactionRules </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="Rules_8cpp_source.html#l00039">39</a> of file <a class="el" href="Rules_8cpp_source.html">Rules.cpp</a>.</p>
+
+</div>
+</div>
+<a id="a322bb4a8b24b1d39b21187492409cefb" name="a322bb4a8b24b1d39b21187492409cefb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a322bb4a8b24b1d39b21187492409cefb">&#9670;&#160;</a></span>setCurrentTransactionRules()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void ripple::setCurrentTransactionRules </td>
+          <td>(</td>
+          <td class="paramtype"><a class="elRef" href="http://en.cppreference.com/w/cpp/utility/optional.html">std::optional</a>&lt; <a class="el" href="classripple_1_1Rules.html">Rules</a> &gt;&#160;</td>
+          <td class="paramname"><em>r</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="Rules_8cpp_source.html#l00045">45</a> of file <a class="el" href="Rules_8cpp_source.html">Rules.cpp</a>.</p>
 
 </div>
 </div>
